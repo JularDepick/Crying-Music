@@ -1,6 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
-#include <QDebug>
+
+using namespace std;
 
 int main(int argc, char *argv[])
 {
@@ -17,8 +18,8 @@ int main(int argc, char *argv[])
         &app,
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
-    /* 加载QML文件 */
+    /* 加载根QML文件 */
     engine.load(QUrl("qrc:/Main.qml"));
-
+    /* 进入应用消息循环 */
     return QGuiApplication::exec();
 }

@@ -15,13 +15,14 @@ set(CMAKE_AUTORCC ON)
 find_package(Qt6 REQUIRED COMPONENTS Quick Multimedia)
 
 # 业务逻辑源文件
-file(GLOB_RECURSE CORE_SOURCES "core/*.cpp" "core/*.h")
+file(GLOB_RECURSE COMPONENTS_SOURCES "components/*.cpp" "components/*.h" "components.hpp")
 
 set(PROJECT_SOURCES
     main.cpp
     defines.hpp
     resource.rc
-    ${CORE_SOURCES}
+    resource.qrc
+    ${COMPONENTS_SOURCES}
 )
 
 # 可执行目标
@@ -30,10 +31,16 @@ qt_add_executable(appCryingMusic
     ${PROJECT_SOURCES}
 )
 
-# 将 Main.qml 直接嵌入资源
+# 扫描根目录下的直接.qml文件（相对路径）
+file(GLOB QML_ROOT CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*.qml")
+# 扫描qml/目录及其子目录下的所有.qml文件（相对路径）
+file(GLOB_RECURSE QML_SUBDIR CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml")
+# 统一列表
+set(ALL_QML_FILES ${QML_ROOT} ${QML_SUBDIR})
+# 将QML文件嵌入资源
 qt_add_resources(appCryingMusic "qml_resources"
     PREFIX "/"
-    FILES Main.qml
+    FILES ${ALL_QML_FILES}
 )
 
 # 预编译头
