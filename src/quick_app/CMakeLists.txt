@@ -12,10 +12,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Quick Multimedia Qml)
 
 # 业务逻辑源文件
-file(GLOB_RECURSE COMPONENTS_SOURCES "components/*.cpp" "components/*.h" "components.hpp")
+file(GLOB_RECURSE COMPONENTS_SOURCES CONFIGURE_DEPENDS "components/*.hpp")
 
 set(PROJECT_SOURCES
     main.cpp
@@ -36,13 +36,16 @@ file(GLOB QML_ROOT CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${C
 file(GLOB_RECURSE QML_SUBDIR CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml")
 set(ALL_QML_FILES ${QML_ROOT} ${QML_SUBDIR})
 # 标记 Define.qml 为单例
-set_source_files_properties(Define.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
-# 创建 QML 模块
+set_source_files_properties(qml/Define.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+# 创建 QML 模块;RESOURCE_PREFIX "/" 与 NO_RESOURCE_TARGET_PATH 使 QML 文件
+# 按源码相对路径嵌入,如 qrc:/Main.qml、qrc:/qml/Define.qml,与 main.cpp 入口一致
 qt_add_qml_module(appCryingMusic
     URI CryingMusic
     VERSION 1.0
+    RESOURCE_PREFIX /
+    NO_RESOURCE_TARGET_PATH
     QML_FILES ${ALL_QML_FILES}
-    # SOURCES components/*.cpp components/*.h
+    # SOURCES components/*.hpp
 )
 
 # 预编译头
@@ -56,7 +59,6 @@ endif()
 # 链接库
 target_link_libraries(appCryingMusic
     PRIVATE Qt6::Quick Qt6::Multimedia Qt6::Qml
-    PRIVATE appCryingMusic_qmlmodule
 )
 
 # 静态链接 MinGW 运行时
@@ -87,7 +89,7 @@ if(WIN32)
         add_custom_command(TARGET appCryingMusic POST_BUILD
             COMMAND ${WINDEPLOYQT_EXECUTABLE}
                 --no-system-d3d-compiler
-                --qmldir ${CMAKE_SOURCE_DIR}
+                --qmldir ${CMAKE_CURRENT_SOURCE_DIR}
                 $<TARGET_FILE:appCryingMusic>
             COMMENT "复制 Qt6 依赖 DLL..."
         )

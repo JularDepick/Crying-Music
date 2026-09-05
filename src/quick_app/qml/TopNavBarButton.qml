@@ -3,8 +3,8 @@ import QtQuick.Controls
 import "./"
 
 Button {
-    width: define.btnSize;
-    height: define.btnSize;
+    width: Define.btnSize;
+    height: Define.btnSize;
     anchors.verticalCenter: parent.verticalCenter;
     display: Button.IconOnly;
     padding: 0;
@@ -18,9 +18,9 @@ Button {
     background: Item {}
     icon.color: {
         if(hovered) {
-            return define.btnHoverColor;
+            return Define.btnHoverColor;
         } else {
-            return define.btnIconColor;
+            return Define.btnIconColor;
         }
     }
     transform: Translate {
