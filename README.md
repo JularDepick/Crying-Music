@@ -11,6 +11,8 @@
 
 </div>
 
+一个参考了主流音乐播放器的实现。
+
 # 架构和技术
 
 ## Quick App
@@ -28,8 +30,7 @@ Crying-Music/
 ├── README.md               # 项目说明文档
 ├── README_en-US.md         # 英文说明文档
 ├── LICENSE                 # 许可证
-├── COPYRIGHT               # 版权信息
-└── 学习大纲.md              # 学习大纲
+└── COPYRIGHT               # 版权信息
 ```
 
 # 源码目录索引

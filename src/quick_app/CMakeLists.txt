@@ -31,16 +31,18 @@ qt_add_executable(appCryingMusic
     ${PROJECT_SOURCES}
 )
 
-# 扫描根目录下的直接.qml文件（相对路径）
+# 收集 QML 文件
 file(GLOB QML_ROOT CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*.qml")
-# 扫描qml/目录及其子目录下的所有.qml文件（相对路径）
 file(GLOB_RECURSE QML_SUBDIR CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml")
-# 统一列表
 set(ALL_QML_FILES ${QML_ROOT} ${QML_SUBDIR})
-# 将QML文件嵌入资源
-qt_add_resources(appCryingMusic "qml_resources"
-    PREFIX "/"
-    FILES ${ALL_QML_FILES}
+# 标记 Define.qml 为单例
+set_source_files_properties(Define.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+# 创建 QML 模块
+qt_add_qml_module(appCryingMusic
+    URI CryingMusic
+    VERSION 1.0
+    QML_FILES ${ALL_QML_FILES}
+    # SOURCES components/*.cpp components/*.h
 )
 
 # 预编译头
@@ -53,7 +55,8 @@ endif()
 
 # 链接库
 target_link_libraries(appCryingMusic
-    PRIVATE Qt6::Quick Qt6::Multimedia
+    PRIVATE Qt6::Quick Qt6::Multimedia Qt6::Qml
+    PRIVATE appCryingMusic_qmlmodule
 )
 
 # 静态链接 MinGW 运行时

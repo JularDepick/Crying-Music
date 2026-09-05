@@ -1,5 +1,14 @@
 <RCC>
     <qresource prefix="/">
         <file>favicon.jpg</file>
+        <file>assets/iconfont/topnavbar/flowized.svg</file>
+        <file>assets/iconfont/topnavbar/minimized.svg</file>
+        <file>assets/iconfont/topnavbar/maximized.svg</file>
+        <file>assets/iconfont/topnavbar/normalized.svg</file>
+        <file>assets/iconfont/topnavbar/closewin.svg</file>
+        <file>assets/iconfont/topnavbar/backward.svg</file>
+        <file>assets/iconfont/topnavbar/forward.svg</file>
+        <file>assets/iconfont/topnavbar/refresh.svg</file>
+        <file>assets/iconfont/topnavbar/search.svg</file>
     </qresource>
 </RCC>

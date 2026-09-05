@@ -7,23 +7,21 @@ import "qml/"
 
 ApplicationWindow {
     id: window;
-    width: 1000;
-    height: 620;
-    minimumWidth: 1000;
-    minimumHeight: 620;
+    width: 1050;
+    height: 690;
+    minimumWidth: 1050;
+    minimumHeight: 690;
     color: "transparent";
     visible: true;
-    title: qsTr(define.initTitle);
+    title: qsTr(Define.initTitle);
     flags: Qt.Window | Qt.FramelessWindowHint;
-    Define {id:define;}
-    Assist {id:assit;}
 
     /* 系统托盘 */
     SystemTrayIcon {
         id: stIcon;
         visible: true;
         icon.source: "qrc:/favicon.jpg";
-        tooltip: "";
+        tooltip: "泣水音乐";
         menu: Menu {
             id: stMenu;
             MenuItem {
@@ -54,39 +52,39 @@ ApplicationWindow {
     /* 窗口边框拖拽 */
     MouseArea {
         anchors {left:parent.left; right:parent.right; top: parent.top;}
-        height: define.edgeMouseAreaD;
+        height: Define.edgeMouseAreaD;
         cursorShape: Qt.SizeVerCursor;
         onPressed: window.startSystemResize(Qt.TopEdge);
     }
     MouseArea {
         anchors {left:parent.left; right:parent.right; bottom:parent.bottom;}
-        height: define.edgeMouseAreaD;
+        height: Define.edgeMouseAreaD;
         cursorShape: Qt.SizeVerCursor;
         onPressed: window.startSystemResize(Qt.BottomEdge);
     }
     MouseArea {
         anchors {left:parent.left; top:parent.top; bottom:parent.bottom;}
-        width: define.edgeMouseAreaD;
+        width: Define.edgeMouseAreaD;
         cursorShape: Qt.SizeHorCursor;
         onPressed: window.startSystemResize(Qt.LeftEdge);
     }
     MouseArea {
         anchors {right:parent.right; top:parent.top; bottom:parent.bottom;}
-        width: define.edgeMouseAreaD;
+        width: Define.edgeMouseAreaD;
         cursorShape: Qt.SizeHorCursor;
         onPressed: window.startSystemResize(Qt.RightEdge);
     }
     MouseArea {
         anchors {left:parent.left; top:parent.top;}
-        width: define.cornerMouseAreaD;
-        height: define.cornerMouseAreaD;
+        width: Define.cornerMouseAreaD;
+        height: Define.cornerMouseAreaD;
         cursorShape: Qt.SizeFDiagCursor;
         onPressed: window.startSystemResize(Qt.LeftEdge | Qt.TopEdge);
     }
     MouseArea {
         anchors {right:parent.right; top:parent.top;}
-        width: define.cornerMouseAreaD;
-        height: define.cornerMouseAreaD;
+        width: Define.cornerMouseAreaD;
+        height: Define.cornerMouseAreaD;
         cursorShape: Qt.SizeBDiagCursor;
         onPressed: window.startSystemResize(Qt.RightEdge | Qt.TopEdge);
     }
@@ -99,8 +97,8 @@ ApplicationWindow {
     }
     MouseArea {
         anchors {right:parent.right; bottom:parent.bottom;}
-        width: define.cornerMouseAreaD;
-        height: define.cornerMouseAreaD;
+        width: Define.cornerMouseAreaD;
+        height: Define.cornerMouseAreaD;
         cursorShape: Qt.SizeFDiagCursor;
         onPressed: window.startSystemResize(Qt.RightEdge | Qt.BottomEdge);
     }
@@ -109,20 +107,22 @@ ApplicationWindow {
     Rectangle {
         id: canvas;
         anchors.fill: parent;
-        topLeftRadius: define.windowRaduis;
-        topRightRadius: define.windowRaduis;
-        bottomLeftRadius: define.windowRaduis;
-        bottomRightRadius: define.windowRaduis;
-        color: define.canvasColor;
+        topLeftRadius: Define.windowRaduis;
+        topRightRadius: Define.windowRaduis;
+        bottomLeftRadius: Define.windowRaduis;
+        bottomRightRadius: Define.windowRaduis;
+        border.width: 0.5;
+        border.color: "#aaaaaa";
+        color: Define.canvasColor;
         /* 拖动窗口 */
         MouseArea {
             anchors.fill: parent;
-            anchors.margins: define.edgeMouseAreaD;
+            anchors.margins: Define.edgeMouseAreaD;
             acceptedButtons: Qt.LeftButton;
             onPressed: (mouse)=> {
                 var mx=mouse.x;
                 var my=mouse.y;
-                var d=define.windowPadding-define.edgeMouseAreaD;
+                var d=Define.windowPadding-Define.edgeMouseAreaD;
                 if(mx<d || my<d || mx>(leftSidebar.width+mainArea.width+d) || my>(leftSidebar.height+d)) {
                     window.startSystemMove();
                 }
@@ -131,17 +131,18 @@ ApplicationWindow {
         Rectangle {
             id: leftSidebar;
             anchors {left:parent.left; top:parent.top; bottom:parent.bottom;}
-            anchors.leftMargin: define.windowPadding;
-            anchors.topMargin: define.windowPadding;
-            anchors.bottomMargin: define.windowPadding;
-            topLeftRadius: define.mainAreaRaduis;
-            topRightRadius: define.mainAreaRaduis;
-            bottomLeftRadius: define.mainAreaRaduis;
-            bottomRightRadius: define.mainAreaRaduis;
-            width: 200;
-            property int bigWidth: 200;
+            anchors.leftMargin: Define.windowPadding;
+            anchors.topMargin: Define.windowPadding;
+            anchors.bottomMargin: Define.windowPadding;
+            topLeftRadius: Define.mainAreaRaduis;
+            topRightRadius: Define.mainAreaRaduis;
+            bottomLeftRadius: Define.mainAreaRaduis;
+            bottomRightRadius: Define.mainAreaRaduis;
+            clip: true;
+            width: 220;
+            property int bigWidth: 220;
             property int smallWidth: 75;
-            color: define.leftSidebarColor;
+            color: Define.leftSidebarColor;
             /* 左侧栏的右边框拖拽 */
             MouseArea {
                 anchors {right:parent.right; top:parent.top; bottom:parent.bottom;}
@@ -158,40 +159,150 @@ ApplicationWindow {
                 onReleased: {
                     if(dragEndX<dragStartX) {
                         parent.width=parent.smallWidth;
+                        Define.leftSidebarSpreaded=false;
                     } else if(dragEndX>dragStartX) {
                         parent.width=parent.bigWidth;
+                        Define.leftSidebarSpreaded=ture;
                     }
                 }
+            }
+            Rectangle {
+                id: leftSidebarHeader;
+                anchors {left:parent.left; right:parent.right; top:parent.top;}
+                height: 65;
+                topLeftRadius: Define.mainAreaRaduis;
+                topRightRadius: Define.mainAreaRaduis;
+                bottomLeftRadius: Define.mainAreaRaduis;
+                bottomRightRadius: Define.mainAreaRaduis;
+                color: Define.leftSidebarHeaderColor;
             }
         }
         Rectangle {
             id: topNavBar;
             anchors {left:leftSidebar.right;right:parent.right; top:parent.top;}
-            anchors.topMargin: define.windowPadding;
-            anchors.rightMargin: define.windowPadding;
-            height: 30;
-            topLeftRadius: define.mainAreaRaduis;
-            topRightRadius: define.mainAreaRaduis;
-            bottomLeftRadius: define.mainAreaRaduis;
-            bottomRightRadius: define.mainAreaRaduis;
-            color: define.topNavBarColor;
+            anchors.topMargin: Define.windowPadding;
+            anchors.rightMargin: Define.windowPadding;
+            height: 65;
+            topLeftRadius: Define.mainAreaRaduis;
+            topRightRadius: Define.mainAreaRaduis;
+            bottomLeftRadius: Define.mainAreaRaduis;
+            bottomRightRadius: Define.mainAreaRaduis;
+            color: Define.topNavBarColor;
             /* 拖动窗口 */
             MouseArea {
                 anchors.fill: parent;
                 acceptedButtons: Qt.LeftButton;
-                onPressed: window.startSystemMove();
+                property bool isDragging: false;
+                onPressed: {
+                    isDragging=false;
+                }
+                onPositionChanged: {
+                    if (pressed && (!isDragging)) {
+                        isDragging=true;
+                        window.startSystemMove();
+                    }
+                }
+                onDoubleClicked: {
+                    if (!isDragging) {
+                        if (window.visibility !== Window.Maximized) {
+                            window.showMaximized();
+                        } else {
+                            window.visibility = Window.Windowed;
+                        }
+                    }
+                }
+            }
+            Row {
+                id: hisButtons;
+                anchors {top:parent.top; left:parent.left;}
+                height: 40;
+                spacing: 20;
+                TopNavBarButton {
+                    id: backwardBtn;
+                    icon.source: "qrc:/assets/iconfont/topnavbar/backward.svg";
+                    onClicked: {
+                    }
+                }
+                TopNavBarButton {
+                    id: forwardBtn;
+                    icon.source: "qrc:/assets/iconfont/topnavbar/forward.svg";
+                    onClicked: {
+                    }
+                }
+                TopNavBarButton {
+                    id: refreshBtn;
+                    icon.source: "qrc:/assets/iconfont/topnavbar/refresh.svg";
+                    onClicked: {
+                    }
+                }
+            }
+            Row {
+                id: searchArea;
+                anchors {top:parent.top; left:hisButtons.right;}
+                height: 40;
+                spacing: 20;
+                TextField {
+                    id: searchInput;
+                    width: 250;
+                    background: Rectangle {color: "#d5d5d5"}
+                    anchors.verticalCenter: parent.verticalCenter;
+                    placeholderText: "搜索音乐";
+                }
+                TopNavBarButton {
+                    id: searchBtn;
+                    icon.source: "qrc:/assets/iconfont/topnavbar/search.svg";
+                    onClicked: {
+                    }
+                }
+            }
+            Row {
+                id: sysButtons;
+                anchors {top:parent.top; right:parent.right;}
+                height: 40;
+                spacing: 20;
+                TopNavBarButton {
+                    id: flowWindowBtn;
+                    icon.source: "qrc:/assets/iconfont/topnavbar/flowized.svg";
+                    onClicked: {
+                        /* build flow window */
+                        window.hide();
+                    }
+                }
+                TopNavBarButton {
+                    id: minWindowBtn;
+                    icon.source: "qrc:/assets/iconfont/topnavbar/minimized.svg";
+                    onClicked: window.showMinimized();
+                }
+                TopNavBarButton {
+                    id: maxWindowBtn;
+                    icon.source: "qrc:/assets/iconfont/topnavbar/maximized.svg";
+                    onClicked: {
+                        if (window.visibility !== Window.Maximized) {
+                            maxWindowBtn.icon.source="qrc:/assets/iconfont/topnavbar/normalized.svg";
+                            window.showMaximized();
+                        } else {
+                            maxWindowBtn.icon.source="qrc:/assets/iconfont/topnavbar/maximized.svg";
+                            window.showNormal();
+                        }
+                    }
+                }
+                TopNavBarButton {
+                    id: closeWindowBtn;
+                    icon.source: "qrc:/assets/iconfont/topnavbar/closewin.svg";
+                    onClicked: window.hide();
+                }
             }
         }
         Rectangle {
             id: mainArea;
             anchors {left:leftSidebar.right;right:parent.right; top:topNavBar.bottom; bottom:parent.bottom;}
-            anchors.rightMargin: define.windowPadding;
-            anchors.bottomMargin: define.windowPadding;
-            topLeftRadius: define.mainAreaRaduis;
-            topRightRadius: define.mainAreaRaduis;
-            bottomLeftRadius: define.mainAreaRaduis;
-            bottomRightRadius: define.mainAreaRaduis;
-            color: define.mainAreaColor;
+            anchors.rightMargin: Define.windowPadding;
+            anchors.bottomMargin: Define.windowPadding;
+            topLeftRadius: Define.mainAreaRaduis;
+            topRightRadius: Define.mainAreaRaduis;
+            bottomLeftRadius: Define.mainAreaRaduis;
+            bottomRightRadius: Define.mainAreaRaduis;
+            color: Define.mainAreaColor;
         }
     }
 }
