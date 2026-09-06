@@ -215,7 +215,8 @@ ApplicationWindow {
             Row {
                 id: hisButtons;
                 anchors {top:parent.top; left:parent.left;}
-                height: 40;
+                leftPadding: 30;
+                height: 50;
                 spacing: 20;
                 TopNavBarButton {
                     id: backwardBtn;
@@ -239,18 +240,34 @@ ApplicationWindow {
             Row {
                 id: searchArea;
                 anchors {top:parent.top; left:hisButtons.right;}
-                height: 40;
-                spacing: 20;
+                leftPadding: 30;
+                height: 50;
                 TextField {
                     id: searchInput;
-                    width: 250;
-                    background: Rectangle {color: "#d5d5d5"}
+                    width: 200;
+                    background: Rectangle {
+                        color: "#d5d5d5";
+                        height:30;
+                        topLeftRadius: 8;
+                        bottomLeftRadius: 8;
+                        anchors.verticalCenter: parent.verticalCenter;
+                    }
                     anchors.verticalCenter: parent.verticalCenter;
+
                     placeholderText: "搜索音乐";
                 }
                 TopNavBarButton {
                     id: searchBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/search.svg";
+                    background: Rectangle {
+                        color: "#d5d5d5";
+                        height: 30;
+                        width: 25;
+                        topRightRadius: 8;
+                        bottomRightRadius: 8;
+                        anchors.verticalCenter: parent.verticalCenter;
+                    }
+                    anchors.verticalCenter: parent.verticalCenter;
                     onClicked: {
                     }
                 }
@@ -258,7 +275,8 @@ ApplicationWindow {
             Row {
                 id: sysButtons;
                 anchors {top:parent.top; right:parent.right;}
-                height: 40;
+                rightPadding: 20;
+                height: 50;
                 spacing: 20;
                 TopNavBarButton {
                     id: flowWindowBtn;
@@ -295,9 +313,21 @@ ApplicationWindow {
         }
         Rectangle {
             id: mainArea;
-            anchors {left:leftSidebar.right;right:parent.right; top:topNavBar.bottom; bottom:parent.bottom;}
+            anchors {left:leftSidebar.right; right:parent.right; top:topNavBar.bottom; bottom:playerBar.top;}
             anchors.rightMargin: Define.windowPadding;
             anchors.bottomMargin: Define.windowPadding;
+            topLeftRadius: Define.mainAreaRaduis;
+            topRightRadius: Define.mainAreaRaduis;
+            bottomLeftRadius: Define.mainAreaRaduis;
+            bottomRightRadius: Define.mainAreaRaduis;
+            color: Define.mainAreaColor;
+        }
+        Rectangle {
+            id: playerBar;
+            anchors {left:leftSidebar.right; right:parent.right; bottom:parent.bottom;}
+            anchors.rightMargin: Define.windowPadding;
+            anchors.bottomMargin: Define.windowPadding;
+            height: 60;
             topLeftRadius: Define.mainAreaRaduis;
             topRightRadius: Define.mainAreaRaduis;
             bottomLeftRadius: Define.mainAreaRaduis;
