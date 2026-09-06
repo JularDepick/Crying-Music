@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file>favicon.jpg</file>
+
         <file>assets/iconfont/topnavbar/flowized.svg</file>
         <file>assets/iconfont/topnavbar/minimized.svg</file>
         <file>assets/iconfont/topnavbar/maximized.svg</file>
@@ -10,5 +11,15 @@
         <file>assets/iconfont/topnavbar/forward.svg</file>
         <file>assets/iconfont/topnavbar/refresh.svg</file>
         <file>assets/iconfont/topnavbar/search.svg</file>
+
+        <file>assets/iconfont/playerbar/pause.svg</file>
+        <file>assets/iconfont/playerbar/play.svg</file>
+        <file>assets/iconfont/playerbar/lastone.svg</file>
+        <file>assets/iconfont/playerbar/nextone.svg</file>
+        <file>assets/iconfont/playerbar/randomsort.svg</file>
+        <file>assets/iconfont/playerbar/listsort.svg</file>
+        <file>assets/iconfont/playerbar/cycleone.svg</file>
+        <file>assets/iconfont/playerbar/cyclelist.svg</file>
+        <file>assets/iconfont/playerbar/playerlist.svg</file>
     </qresource>
 </RCC>
