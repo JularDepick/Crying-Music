@@ -20,6 +20,8 @@
         <file>assets/iconfont/playerbar/listsort.svg</file>
         <file>assets/iconfont/playerbar/cycleone.svg</file>
         <file>assets/iconfont/playerbar/cyclelist.svg</file>
+        <file>assets/iconfont/playerbar/sound.svg</file>
+        <file>assets/iconfont/playerbar/soundless.svg</file>
         <file>assets/iconfont/playerbar/playerlist.svg</file>
     </qresource>
 </RCC>

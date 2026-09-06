@@ -217,7 +217,7 @@ ApplicationWindow {
                 anchors {top:parent.top; left:parent.left;}
                 leftPadding: 30;
                 height: 50;
-                spacing: 20;
+                spacing: Define.btnSpacing;
                 TopNavBarButton {
                     id: backwardBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/backward.svg";
@@ -277,7 +277,7 @@ ApplicationWindow {
                 anchors {top:parent.top; right:parent.right;}
                 rightPadding: 20;
                 height: 50;
-                spacing: 20;
+                spacing: Define.btnSpacing;
                 TopNavBarButton {
                     id: flowWindowBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/flowized.svg";
@@ -333,6 +333,132 @@ ApplicationWindow {
             bottomLeftRadius: Define.mainAreaRaduis;
             bottomRightRadius: Define.mainAreaRaduis;
             color: Define.mainAreaColor;
+            Row {
+                id: controlRows;
+                anchors {top:parent.top; bottom:parent.bottom}
+                anchors.horizontalCenter: parent.horizontalCenter;
+                Row {
+                    id: controlRowA;
+                    anchors {top:parent.top;}
+                    anchors.horizontalCenter: parent.horizontalCenter;
+                    topPadding: 20;
+                    spacing: Define.btnSpacing;
+                    PlayerBarButton {
+                        id: playerSort;
+                        icon.source: "qrc:/assets/iconfont/playerbar/listsort.svg";
+                        onClicked: {
+                        }
+                    }
+                    PlayerBarButton {
+                        id: lastOne;
+                        icon.source: "qrc:/assets/iconfont/playerbar/lastone.svg";
+                        onClicked: {
+                        }
+                    }
+                    PlayerBarButton {
+                        id: play_pause;
+                        icon.source: svgBase+"play.svg";
+                        hoverEnabled: false;
+                        property string svgBase: "qrc:/assets/iconfont/playerbar/";
+                        property bool playing: false;
+                        onClicked: {
+                            if(playing) {
+                                icon.source=svgBase+"play.svg";
+                                playing=false;
+                            } else {
+                                icon.source=svgBase+"pause.svg";
+                                playing=true;
+                            }
+                            console.log("click play_pause, playing=",playing);
+                        }
+                    }
+                    PlayerBarButton {
+                        id: nextOne;
+                        icon.source: "qrc:/assets/iconfont/playerbar/nextone.svg";
+                        onClicked: {
+                        }
+                    }
+                    PlayerBarButton {
+                        id: soundCtrl;
+                        icon.source: "qrc:/assets/iconfont/playerbar/sound.svg";
+                        onClicked: {
+                        }
+                    }
+                }
+                Row {
+                    id: controlRowB;
+                    anchors {bottom:parent.bottom;}
+                    anchors.horizontalCenter: parent.horizontalCenter;
+                    spacing: Define.btnSpacing;
+                    Text {
+                        id: nowStamp;
+                        text: controlRowB.int2mmss(stampSlider.value);
+                    }
+                    Slider {
+                        id: stampSlider;
+                        width: 200;
+                        from: 0;
+                        to: maxStamp;
+                        value: 0;
+                        property int maxStamp: 100;
+                        background: Rectangle {
+                            x: stampSlider.leftPadding;
+                            y: stampSlider.topPadding+(stampSlider.availableHeight-height)/2;
+                            width: stampSlider.availableWidth;
+                            height: 4;
+                            radius: 2;
+                            color: "red";
+                            Rectangle {
+                                width: stampSlider.visualPosition*parent.width;
+                                height: parent.height;
+                                radius: parent.radius;
+                                color: "blue";
+                            }
+                        }
+                        handle: Rectangle {
+                               x: stampSlider.leftPadding+stampSlider.visualPosition*(stampSlider.availableWidth-width);
+                               y: stampSlider.topPadding+(stampSlider.availableHeight-height)/2;
+                               width: 12;
+                               height: 12;
+                               radius: 6;
+                               color: "yellow";
+                               border.color: "pink";
+                               border.width: 1;
+                        }
+                        onPressedChanged: {
+                            if(!pressed) {
+                                ;
+                            }
+                        }
+                    }
+                    Text {
+                        id: endStamp;
+                        text: controlRowB.int2mmss(stampSlider.maxStamp);
+                    }
+                    function int2mmss(num) {
+                        num=Math.floor(num);
+                        if(num<=0) {
+                            return "00:00";
+                        }
+                        var ss=num%60;
+                        var mm=Math.floor(num/60);
+                        if(mm>=60) {
+                            console.error("出现错误: 音频长度达到一小时上限!");
+                            return "00:00";
+                        }
+                        var res="";
+                        if(mm<10) {
+                            res+="0";
+                        }
+                        res+=String(mm)+":";
+                        if(ss<10) {
+                            res+="0";
+                        }
+                        res+=String(ss);
+                        return res;
+                    }
+                }
+            }
         }
     }
 }

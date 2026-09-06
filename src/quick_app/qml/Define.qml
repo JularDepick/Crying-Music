@@ -16,6 +16,7 @@ Item {
     property color topNavBarColor: "#f6f6f6";
     property bool leftSidebarSpreaded: true;
     property int btnSize: 20;
+    property int btnSpacing: 20;
     property color btnIconColor: "#434343";
     property color btnHoverColor: "#00eea8";
 }
