@@ -207,7 +207,7 @@ ApplicationWindow {
                         if (window.visibility !== Window.Maximized) {
                             window.showMaximized();
                         } else {
-                            window.visibility = Window.Windowed;
+                            window.visibility=Window.Windowed;
                         }
                     }
                 }
@@ -327,7 +327,7 @@ ApplicationWindow {
             anchors {left:leftSidebar.right; right:parent.right; bottom:parent.bottom;}
             anchors.rightMargin: Define.windowPadding;
             anchors.bottomMargin: Define.windowPadding;
-            height: 60;
+            height: 80;
             topLeftRadius: Define.mainAreaRaduis;
             topRightRadius: Define.mainAreaRaduis;
             bottomLeftRadius: Define.mainAreaRaduis;
@@ -340,8 +340,9 @@ ApplicationWindow {
                 Row {
                     id: controlRowA;
                     anchors {top:parent.top;}
+                    anchors.topMargin: 20;
                     anchors.horizontalCenter: parent.horizontalCenter;
-                    topPadding: 20;
+                    height: 30;
                     spacing: Define.btnSpacing;
                     PlayerBarButton {
                         id: playerSort;
@@ -381,49 +382,114 @@ ApplicationWindow {
                     PlayerBarButton {
                         id: soundCtrl;
                         icon.source: "qrc:/assets/iconfont/playerbar/sound.svg";
+                        property int volume: 100;
+                        property bool sliderVisible: false;
                         onClicked: {
+                            sliderVisible=!sliderVisible;
+                        }
+                        Rectangle {
+                            id: soundSliderArea;
+                            visible: soundCtrl.sliderVisible;
+                            width: 40;
+                            height: 150;
+                            anchors.centerIn: parent;
+                            anchors.verticalCenterOffset: -(parent.height/2+height/2);
+                            color: Define.mainAreaColor;
+                            radius: 4;
+                            border.color: Define.hoverDarkColor;
+                            border.width: 1;
+                            Slider {
+                                id: soundSlider;
+                                orientation: Qt.Vertical;
+                                anchors.centerIn: parent;
+                                width: 30;
+                                height: parent.height-20;
+                                from: 0;
+                                to: 100;
+                                stepSize: 1;
+                                value: soundCtrl.volume;
+                                onValueChanged: {
+                                    soundCtrl.volume=value;
+                                    console.log("音量:", value);
+                                }
+                                background: Rectangle {
+                                    x: soundSlider.leftPadding+(soundSlider.availableWidth-width)/2;
+                                    y: soundSlider.topPadding;
+                                    width: 4;
+                                    height: soundSlider.availableHeight;
+                                    radius: 2;
+                                    color: Define.hoverDarkColor;
+                                    Rectangle {
+                                        width: parent.width;
+                                        height: (soundSlider.value/soundSlider.to)*parent.height;
+                                        y: parent.height-height;
+                                        radius: parent.radius;
+                                        color: Define.btnIconColor;
+                                    }
+                                }
+                                handle: Rectangle {
+                                    x: soundSlider.leftPadding+(soundSlider.availableWidth-width)/2;
+                                    y: soundSlider.topPadding+(1-soundSlider.value/soundSlider.to)*soundSlider.availableHeight-height/2;
+                                    width: 14;
+                                    height: 14;
+                                    radius: 7;
+                                    color: Define.btnIconColor;
+                                    border.color: "white";
+                                    border.width: 1;
+                                }
+                            }
                         }
                     }
                 }
                 Row {
                     id: controlRowB;
-                    anchors {bottom:parent.bottom;}
+                    anchors {top:controlRowA.bottom; bottom:parent.bottom}
+                    anchors.bottomMargin: 10;
                     anchors.horizontalCenter: parent.horizontalCenter;
-                    spacing: Define.btnSpacing;
+                    height: 20;
+                    spacing: 10;
                     Text {
                         id: nowStamp;
                         text: controlRowB.int2mmss(stampSlider.value);
+                        anchors.verticalCenter: parent.verticalCenter;
                     }
                     Slider {
                         id: stampSlider;
                         width: 200;
                         from: 0;
                         to: maxStamp;
+                        stepSize: 1;
                         value: 0;
                         property int maxStamp: 100;
+                        anchors.verticalCenter: parent.verticalCenter;
                         background: Rectangle {
                             x: stampSlider.leftPadding;
                             y: stampSlider.topPadding+(stampSlider.availableHeight-height)/2;
                             width: stampSlider.availableWidth;
                             height: 4;
                             radius: 2;
-                            color: "red";
+                            color: Define.hoverDarkColor;
+                            border.color: Define.hoverDarkColor;
+                            border.width: 0.5;
                             Rectangle {
                                 width: stampSlider.visualPosition*parent.width;
                                 height: parent.height;
                                 radius: parent.radius;
-                                color: "blue";
+                                color: Define.btnIconColor;
+                                border.color: Define.btnIconColor;
+                                border.width: 0.5;
                             }
                         }
                         handle: Rectangle {
-                               x: stampSlider.leftPadding+stampSlider.visualPosition*(stampSlider.availableWidth-width);
+                               x: stampSlider.leftPadding+stampSlider.visualPosition*stampSlider.availableWidth-width/2;
                                y: stampSlider.topPadding+(stampSlider.availableHeight-height)/2;
                                width: 12;
                                height: 12;
                                radius: 6;
-                               color: "yellow";
-                               border.color: "pink";
+                               color: Define.btnIconColor;
+                               border.color: "white";
                                border.width: 1;
+                               visible: parent.hovered || parent.pressed;
                         }
                         onPressedChanged: {
                             if(!pressed) {
@@ -434,6 +500,7 @@ ApplicationWindow {
                     Text {
                         id: endStamp;
                         text: controlRowB.int2mmss(stampSlider.maxStamp);
+                        anchors.verticalCenter: parent.verticalCenter;
                     }
                     function int2mmss(num) {
                         num=Math.floor(num);

@@ -19,4 +19,5 @@ Item {
     property int btnSpacing: 20;
     property color btnIconColor: "#434343";
     property color btnHoverColor: "#00eea8";
+    property color hoverDarkColor: "#bcbcbc";
 }
