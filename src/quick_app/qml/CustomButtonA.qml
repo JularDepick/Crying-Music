@@ -24,7 +24,7 @@ Button {
         }
     }
     transform: Translate {
-            x: (parent.pressed ? 2:0);
-            y: (parent.pressed ? 2:0);
+        x: (parent.pressed ? 20:0);
+        y: (parent.pressed ? 20:0);
     }
 }

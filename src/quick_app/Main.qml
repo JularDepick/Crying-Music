@@ -398,44 +398,13 @@ ApplicationWindow {
                             radius: 4;
                             border.color: Define.hoverDarkColor;
                             border.width: 1;
-                            Slider {
+                            PlayerBarSliderB {
                                 id: soundSlider;
-                                orientation: Qt.Vertical;
                                 anchors.centerIn: parent;
-                                width: 30;
-                                height: parent.height-20;
-                                from: 0;
-                                to: 100;
-                                stepSize: 1;
                                 value: soundCtrl.volume;
                                 onValueChanged: {
                                     soundCtrl.volume=value;
                                     console.log("音量:", value);
-                                }
-                                background: Rectangle {
-                                    x: soundSlider.leftPadding+(soundSlider.availableWidth-width)/2;
-                                    y: soundSlider.topPadding;
-                                    width: 4;
-                                    height: soundSlider.availableHeight;
-                                    radius: 2;
-                                    color: Define.hoverDarkColor;
-                                    Rectangle {
-                                        width: parent.width;
-                                        height: (soundSlider.value/soundSlider.to)*parent.height;
-                                        y: parent.height-height;
-                                        radius: parent.radius;
-                                        color: Define.btnIconColor;
-                                    }
-                                }
-                                handle: Rectangle {
-                                    x: soundSlider.leftPadding+(soundSlider.availableWidth-width)/2;
-                                    y: soundSlider.topPadding+(1-soundSlider.value/soundSlider.to)*soundSlider.availableHeight-height/2;
-                                    width: 14;
-                                    height: 14;
-                                    radius: 7;
-                                    color: Define.btnIconColor;
-                                    border.color: "white";
-                                    border.width: 1;
                                 }
                             }
                         }
@@ -453,44 +422,9 @@ ApplicationWindow {
                         text: controlRowB.int2mmss(stampSlider.value);
                         anchors.verticalCenter: parent.verticalCenter;
                     }
-                    Slider {
+                    PlayerBarSliderA {
                         id: stampSlider;
-                        width: 200;
-                        from: 0;
-                        to: maxStamp;
-                        stepSize: 1;
-                        value: 0;
-                        property int maxStamp: 100;
                         anchors.verticalCenter: parent.verticalCenter;
-                        background: Rectangle {
-                            x: stampSlider.leftPadding;
-                            y: stampSlider.topPadding+(stampSlider.availableHeight-height)/2;
-                            width: stampSlider.availableWidth;
-                            height: 4;
-                            radius: 2;
-                            color: Define.hoverDarkColor;
-                            border.color: Define.hoverDarkColor;
-                            border.width: 0.5;
-                            Rectangle {
-                                width: stampSlider.visualPosition*parent.width;
-                                height: parent.height;
-                                radius: parent.radius;
-                                color: Define.btnIconColor;
-                                border.color: Define.btnIconColor;
-                                border.width: 0.5;
-                            }
-                        }
-                        handle: Rectangle {
-                               x: stampSlider.leftPadding+stampSlider.visualPosition*stampSlider.availableWidth-width/2;
-                               y: stampSlider.topPadding+(stampSlider.availableHeight-height)/2;
-                               width: 12;
-                               height: 12;
-                               radius: 6;
-                               color: Define.btnIconColor;
-                               border.color: "white";
-                               border.width: 1;
-                               visible: parent.hovered || parent.pressed;
-                        }
                         onPressedChanged: {
                             if(!pressed) {
                                 ;
