@@ -5,7 +5,6 @@ import "./"
 Button {
     width: Define.btnSize;
     height: Define.btnSize;
-    anchors.verticalCenter: parent.verticalCenter;
     display: Button.IconOnly;
     padding: 0;
     topPadding: 0;

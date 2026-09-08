@@ -1,2 +1,5 @@
 import "./"
-CustomButtonA {}
+
+CustomButtonA {
+    anchors.verticalCenter: parent.verticalCenter;
+}

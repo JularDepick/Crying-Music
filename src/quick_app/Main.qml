@@ -212,11 +212,14 @@ ApplicationWindow {
                     }
                 }
             }
+            property int rowsTopMargin: 10;
+            property int rowsHeight: 30;
             Row {
                 id: hisButtons;
                 anchors {top:parent.top; left:parent.left;}
+                anchors.topMargin: parent.rowsTopMargin;
                 leftPadding: 30;
-                height: 50;
+                height: parent.rowsHeight;
                 spacing: Define.btnSpacing;
                 TopNavBarButton {
                     id: backwardBtn;
@@ -239,35 +242,35 @@ ApplicationWindow {
             }
             Row {
                 id: searchArea;
-                anchors {top:parent.top; left:hisButtons.right;}
+                anchors {top: parent.top; left:hisButtons.right;}
+                anchors.topMargin: parent.rowsTopMargin;
+                anchors.verticalCenter: parent.verticalCenter;
                 leftPadding: 30;
-                height: 50;
+                height: parent.rowsHeight;
                 TextField {
                     id: searchInput;
                     width: 200;
+                    height: 30;
                     background: Rectangle {
                         color: "#d5d5d5";
-                        height:30;
                         topLeftRadius: 8;
                         bottomLeftRadius: 8;
-                        anchors.verticalCenter: parent.verticalCenter;
+                        anchors.fill: parent;
                     }
-                    anchors.verticalCenter: parent.verticalCenter;
-
                     placeholderText: "搜索音乐";
                 }
                 TopNavBarButton {
                     id: searchBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/search.svg";
+                    anchors.verticalCenter: searchInput.verticalCenter;
                     background: Rectangle {
                         color: "#d5d5d5";
-                        height: 30;
                         width: 25;
+                        height: 30;
                         topRightRadius: 8;
                         bottomRightRadius: 8;
                         anchors.verticalCenter: parent.verticalCenter;
                     }
-                    anchors.verticalCenter: parent.verticalCenter;
                     onClicked: {
                     }
                 }
@@ -275,8 +278,9 @@ ApplicationWindow {
             Row {
                 id: sysButtons;
                 anchors {top:parent.top; right:parent.right;}
+                anchors.topMargin: parent.rowsTopMargin;
                 rightPadding: 20;
-                height: 50;
+                height: parent.rowsHeight;
                 spacing: Define.btnSpacing;
                 TopNavBarButton {
                     id: flowWindowBtn;
@@ -389,22 +393,46 @@ ApplicationWindow {
                         }
                         Rectangle {
                             id: soundSliderArea;
-                            visible: soundCtrl.sliderVisible;
-                            width: 40;
-                            height: 150;
                             anchors.centerIn: parent;
-                            anchors.verticalCenterOffset: -(parent.height/2+height/2);
+                            anchors.verticalCenterOffset: -(parent.height/2+height/2+10);
+                            visible: soundCtrl.sliderVisible;
+                            width: 36;
+                            height: 160;
                             color: Define.mainAreaColor;
-                            radius: 4;
-                            border.color: Define.hoverDarkColor;
+                            radius: 8;
+                            border.color: Define.subGrey;
                             border.width: 1;
-                            PlayerBarSliderB {
-                                id: soundSlider;
-                                anchors.centerIn: parent;
-                                value: soundCtrl.volume;
-                                onValueChanged: {
-                                    soundCtrl.volume=value;
-                                    console.log("音量:", value);
+                            Column {
+                                anchors.fill: parent;
+                                anchors.topMargin: 8;
+                                spacing: 5;
+                                PlayerBarSliderB {
+                                    id: soundSlider;
+                                    anchors.horizontalCenter: parent.horizontalCenter;
+                                    height: 120;
+                                    value: soundCtrl.volume;
+                                    onValueChanged: {
+                                        soundCtrl.volume=value;
+                                        console.log("音量:", value);
+                                    }
+                                }
+                                PlayerBarButton {
+                                    id: muteBtn;
+                                    anchors.horizontalCenter: parent.horizontalCenter;
+                                    icon.source: "qrc:/assets/iconfont/playerbar/sound.svg";
+                                    property bool muted: false;
+                                    onClicked: {
+                                        if(muted) {
+                                            icon.source="qrc:/assets/iconfont/playerbar/sound.svg";
+                                            soundCtrl.icon.source="qrc:/assets/iconfont/playerbar/sound.svg";
+                                            soundCtrl.volume=100;
+                                        } else {
+                                            icon.source="qrc:/assets/iconfont/playerbar/soundless.svg";
+                                            soundCtrl.icon.source="qrc:/assets/iconfont/playerbar/soundless.svg";
+                                            soundCtrl.volume=0;
+                                        }
+                                        muted=!muted;
+                                    }
                                 }
                             }
                         }
@@ -419,7 +447,7 @@ ApplicationWindow {
                     spacing: 10;
                     Text {
                         id: nowStamp;
-                        text: controlRowB.int2mmss(stampSlider.value);
+                        text: Assist.int2mmss(stampSlider.value);
                         anchors.verticalCenter: parent.verticalCenter;
                     }
                     PlayerBarSliderA {
@@ -427,36 +455,14 @@ ApplicationWindow {
                         anchors.verticalCenter: parent.verticalCenter;
                         onPressedChanged: {
                             if(!pressed) {
-                                ;
+                                console.log("音频进度：",value);
                             }
                         }
                     }
                     Text {
                         id: endStamp;
-                        text: controlRowB.int2mmss(stampSlider.maxStamp);
+                        text: Assist.int2mmss(stampSlider.maxStamp);
                         anchors.verticalCenter: parent.verticalCenter;
-                    }
-                    function int2mmss(num) {
-                        num=Math.floor(num);
-                        if(num<=0) {
-                            return "00:00";
-                        }
-                        var ss=num%60;
-                        var mm=Math.floor(num/60);
-                        if(mm>=60) {
-                            console.error("出现错误: 音频长度达到一小时上限!");
-                            return "00:00";
-                        }
-                        var res="";
-                        if(mm<10) {
-                            res+="0";
-                        }
-                        res+=String(mm)+":";
-                        if(ss<10) {
-                            res+="0";
-                        }
-                        res+=String(ss);
-                        return res;
                     }
                 }
             }
