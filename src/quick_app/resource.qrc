@@ -22,6 +22,8 @@
         <file>assets/iconfont/playerbar/cyclelist.svg</file>
         <file>assets/iconfont/playerbar/sound.svg</file>
         <file>assets/iconfont/playerbar/soundless.svg</file>
+        <file>assets/iconfont/playerbar/sound.sub.svg</file>
+        <file>assets/iconfont/playerbar/soundless.sub.svg</file>
         <file>assets/iconfont/playerbar/playerlist.svg</file>
     </qresource>
 </RCC>

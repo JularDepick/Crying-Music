@@ -394,7 +394,7 @@ ApplicationWindow {
                         Rectangle {
                             id: soundSliderArea;
                             anchors.centerIn: parent;
-                            anchors.verticalCenterOffset: -(parent.height/2+height/2+10);
+                            anchors.verticalCenterOffset: -(parent.height/2+height/2+5);
                             visible: soundCtrl.sliderVisible;
                             width: 36;
                             height: 160;
@@ -419,15 +419,15 @@ ApplicationWindow {
                                 PlayerBarButton {
                                     id: muteBtn;
                                     anchors.horizontalCenter: parent.horizontalCenter;
-                                    icon.source: "qrc:/assets/iconfont/playerbar/sound.svg";
+                                    icon.source: "qrc:/assets/iconfont/playerbar/sound.sub.svg";
                                     property bool muted: false;
                                     onClicked: {
                                         if(muted) {
-                                            icon.source="qrc:/assets/iconfont/playerbar/sound.svg";
+                                            icon.source="qrc:/assets/iconfont/playerbar/sound.sub.svg";
                                             soundCtrl.icon.source="qrc:/assets/iconfont/playerbar/sound.svg";
                                             soundCtrl.volume=100;
                                         } else {
-                                            icon.source="qrc:/assets/iconfont/playerbar/soundless.svg";
+                                            icon.source="qrc:/assets/iconfont/playerbar/soundless.sub.svg";
                                             soundCtrl.icon.source="qrc:/assets/iconfont/playerbar/soundless.svg";
                                             soundCtrl.volume=0;
                                         }
