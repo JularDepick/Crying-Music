@@ -11,7 +11,7 @@ ApplicationWindow {
     height: 690;
     minimumWidth: 1050;
     minimumHeight: 690;
-    color: "transparent";
+    color: Define.nocolor;
     visible: true;
     title: qsTr(Define.initTitle);
     flags: Qt.Window | Qt.FramelessWindowHint;
@@ -116,6 +116,7 @@ ApplicationWindow {
         color: Define.canvasColor;
         /* 拖动窗口 */
         MouseArea {
+            id: canvasDrag;
             anchors.fill: parent;
             anchors.margins: Define.edgeMouseAreaD;
             acceptedButtons: Qt.LeftButton;
@@ -341,6 +342,44 @@ ApplicationWindow {
             bottomRightRadius: Define.mainAreaRaduis;
             color: Define.mainAreaColor;
             Row {
+                id: functionRows;
+                anchors {left:parent.left; top:parent.top; bottom:parent.bottom}
+                Rectangle {
+                    id: lyricsOpener;
+                    anchors {left:parent.left; top:parent.top; bottom:parent.bottom}
+                    anchors.margins: 12.5;
+                    width: height;
+                    radius: 5;
+                    Image {
+                        id: lyricsOpenerImage;
+                        anchors.fill: parent;
+                        source: "qrc:/favicon.jpg";
+                    }
+                    Button {
+                        id: lyricsOpenerBtn;
+                        anchors.fill: parent;
+                        icon.source: (hovered? "qrc:/assets/iconfont/playerbar/lyricsopen.svg":"");
+                        icon.color: Define.mainAreaColor;
+                        icon.width: parent.width-5;
+                        icon.height: parent.width-5;
+                        onClicked: {
+                            canvas.visibleChildren(false);
+                            lyricsSubTab.visible=true;
+                            console.log("clicked lyricsOpenerBtn");
+                        }
+                        background: Rectangle {
+                            color: (parent.hovered? Qt.rgba(0,0,0,0.4):Define.nocolor)  ;
+                            border.color: Define.subGrey;
+                            border.width: 1;
+                            radius: parent.parent.radius;
+                        }
+                    }
+                }
+                Row {
+                    id: functionSubRows;
+                }
+            }
+            Row {
                 id: controlRows;
                 anchors {top:parent.top; bottom:parent.bottom}
                 anchors.horizontalCenter: parent.horizontalCenter;
@@ -532,5 +571,16 @@ ApplicationWindow {
                 }
             }
         }
+        function visibleChildren(v) {
+            leftSidebar.visible=v;
+            topNavBar.visible=v;
+            mainArea.visible=v;
+            playerBar.visible=v;
+        }
+    }
+    LyricsSubTab {
+        id: lyricsSubTab;
+        anchors.fill: canvas;
+        visible: false;
     }
 }

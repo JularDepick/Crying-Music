@@ -7,15 +7,13 @@ import shutil
 import sys
 from pathlib import Path
 
-# ============================================================
-# 配置区域
-# ============================================================
+# ==== 配置区域 ====
 
 # 源路径：Release 构建输出目录（包含主 exe）
-SOURCE_DIR = Path(r"C:\Users\liwenfang\GitHub\JularDepick\Crying-Music\src\quick_app\build\Desktop_Qt_6_11_1_MinGW_64_bit_Release")
+SOURCE_DIR = Path("../build/Desktop_Qt_6_11_1_MinGW_64_bit_Release")
 
 # 目标路径：纯净 Release 的输出位置
-DEST_DIR = Path(r"C:\Users\liwenfang\GitHub\JularDepick\Crying-Music\src\quick_app\release")
+DEST_DIR = Path("../release/Crying-Music")
 
 # 主可执行文件名
 MAIN_EXE = "appCryingMusic.exe"
@@ -74,9 +72,7 @@ COPY_TARGETS: list[str] = [
 ]
 
 
-# ============================================================
-# 逻辑
-# ============================================================
+# ==== 逻辑 ====
 
 def copy_entry(src: Path, dst: Path, name: str) -> int:
     """复制单个文件或目录树，返回复制的文件数量。"""
