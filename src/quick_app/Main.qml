@@ -142,6 +142,7 @@ ApplicationWindow {
             width: 220;
             property int bigWidth: 220;
             property int smallWidth: 75;
+            property bool spreaded: true;
             color: Define.leftSidebarColor;
             /* 左侧栏的右边框拖拽 */
             MouseArea {
@@ -157,12 +158,14 @@ ApplicationWindow {
                     dragEndX=mouse.x;
                 }
                 onReleased: {
-                    if(dragEndX<dragStartX) {
+                    if(dragEndX<dragStartX && parent.spreaded) {
                         parent.width=parent.smallWidth;
-                        Define.leftSidebarSpreaded=false;
-                    } else if(dragEndX>dragStartX) {
+                        parent.spreaded=false;
+                        stampSlider.width*=1.5;
+                    } else if(dragEndX>dragStartX && !parent.spreaded) {
                         parent.width=parent.bigWidth;
-                        Define.leftSidebarSpreaded=ture;
+                        parent.spreaded=true;
+                        stampSlider.width/=1.5;
                     }
                 }
             }
@@ -351,7 +354,70 @@ ApplicationWindow {
                     PlayerBarButton {
                         id: playerSort;
                         icon.source: "qrc:/assets/iconfont/playerbar/listsort.svg";
+                        property int sortID: 0;
+                        /* 0 randomsort
+                           1 listsort
+                           2 cycleone
+                           3 cyclelist
+                        */
+                        property bool subTabVisible: false;
                         onClicked: {
+                            subTabVisible=!subTabVisible;
+                        }
+                        Rectangle {
+                            id: sortSubTab;
+                            anchors.centerIn: parent;
+                            anchors.verticalCenterOffset: -(parent.height/2+height/2+10);
+                            width: 90;
+                            height: (4*(30+2)+4);
+                            visible: parent.subTabVisible;
+                            color: Define.mainAreaColor;
+                            radius: 8;
+                            border.color: Define.subGrey;
+                            border.width: 1;
+                            Column {
+                                anchors {left:parent.left; right:parent.right;}
+                                anchors.verticalCenter: parent.verticalCenter;
+                                topPadding: 2;
+                                Repeater {
+                                    model: ListModel {
+                                        ListElement {name:"随机播放"; svgname:"randomsort"; num:0;}
+                                        ListElement {name:"顺序播放"; svgname:"listsort"; num:1;}
+                                        ListElement {name:"单曲循环"; svgname:"cycleone"; num:2;}
+                                        ListElement {name:"列表循环"; svgname:"cyclelist"; num:3;}
+                                    }
+                                    delegate: Button {
+                                        anchors.horizontalCenter: parent.horizontalCenter;
+                                        width: sortSubTab.width-8;
+                                        height: 30;
+                                        onClicked: {
+                                            playerSort.subTabVisible=false;
+                                            playerSort.sortID=num;
+                                            playerSort.icon.source=`qrc:/assets/iconfont/playerbar/${svgname}.svg`;
+                                        }
+                                        background: Rectangle {
+                                            anchors.fill: parent;
+                                            color: (hovered? Define.canvasColor:Define.mainAreaColor);
+                                            radius: 4;
+                                            Row {
+                                                anchors.horizontalCenter: parent.horizontalCenter;
+                                                anchors.verticalCenter: parent.verticalCenter;
+                                                spacing: 4;
+                                                Image {
+                                                    anchors.verticalCenter: parent.verticalCenter;
+                                                    width: 20;
+                                                    height: 20;
+                                                    source: `qrc:/assets/iconfont/playerbar/${svgname}.svg`;
+                                                }
+                                                Text {
+                                                    anchors.verticalCenter: parent.verticalCenter;
+                                                    text: name;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     PlayerBarButton {
@@ -369,11 +435,10 @@ ApplicationWindow {
                         onClicked: {
                             if(playing) {
                                 icon.source=svgBase+"play.svg";
-                                playing=false;
                             } else {
                                 icon.source=svgBase+"pause.svg";
-                                playing=true;
                             }
+                            playing=!playing;
                             console.log("click play_pause, playing=",playing);
                         }
                     }
