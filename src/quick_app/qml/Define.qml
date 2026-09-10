@@ -9,6 +9,7 @@ Item {
     property int mainAreaRaduis: 7;
     property int edgeMouseAreaD: 5; /* 不要改变 */
     property int cornerMouseAreaD: 10; /* 不要改变 */
+    property color windowBorderColor: "#aaaaaa";
     property color nocolor: "transparent";
     property color canvasColor: "#f0f0f0";
     property color leftSidebarColor: "#f0f0f0";

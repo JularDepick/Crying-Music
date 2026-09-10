@@ -26,5 +26,17 @@
         <file>assets/iconfont/playerbar/sound.sub.svg</file>
         <file>assets/iconfont/playerbar/soundless.sub.svg</file>
         <file>assets/iconfont/playerbar/playerlist.svg</file>
+
+        <file>assets/iconfont/vip/vip1.svg</file>
+        <file>assets/iconfont/vip/vip2.svg</file>
+        <file>assets/iconfont/vip/vip3.svg</file>
+        <file>assets/iconfont/vip/vip4.svg</file>
+        <file>assets/iconfont/vip/vip5.svg</file>
+        <file>assets/iconfont/vip/vip6.svg</file>
+        <file>assets/iconfont/vip/vip7.svg</file>
+        <file>assets/iconfont/vip/vip8.svg</file>
+        <file>assets/iconfont/vip/vip9.svg</file>
+        <file>assets/iconfont/vip/vip10.svg</file>
+        <file>assets/iconfont/vip/viptip.svg</file>
     </qresource>
 </RCC>

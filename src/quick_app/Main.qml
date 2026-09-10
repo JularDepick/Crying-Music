@@ -112,7 +112,7 @@ ApplicationWindow {
         bottomLeftRadius: Define.windowRaduis;
         bottomRightRadius: Define.windowRaduis;
         border.width: 0.5;
-        border.color: "#aaaaaa";
+        border.color: Define.windowBorderColor;
         color: Define.canvasColor;
         /* 拖动窗口 */
         MouseArea {
@@ -346,7 +346,7 @@ ApplicationWindow {
                 anchors {left:parent.left; top:parent.top; bottom:parent.bottom}
                 Rectangle {
                     id: lyricsOpener;
-                    anchors {left:parent.left; top:parent.top; bottom:parent.bottom}
+                    anchors {top:parent.top; bottom:parent.bottom}
                     anchors.margins: 12.5;
                     width: height;
                     radius: 5;
@@ -363,7 +363,7 @@ ApplicationWindow {
                         icon.width: parent.width-5;
                         icon.height: parent.width-5;
                         onClicked: {
-                            canvas.visibleChildren(false);
+                            canvas.visible=false;
                             lyricsSubTab.visible=true;
                             console.log("clicked lyricsOpenerBtn");
                         }
@@ -377,6 +377,30 @@ ApplicationWindow {
                 }
                 Row {
                     id: functionSubRows;
+                    anchors {left:functionRows.right; top:parent.top; bottom:parent.bottom}
+                    Row {
+                        id: functionSubRowA;
+                        Text {
+                            id: plsyingTitle;
+                            text: `${song} - ${singer}`;
+                            property string song: "曲名";
+                            property string singer: "歌手";
+                        }
+                        Button {
+                            id: playingVIP;
+                            icon.source: "qrc:/assets/iconfont/vip/viptip.svg";
+                            background: {}
+                        }
+                    }
+                    Row {
+                        id: functionSubRowB;
+                        PlayerBarButton {
+                            id: likeSongBtn;
+                        }
+                        PlayerBarButton {
+                            id: moreFunBtn;
+                        }
+                    }
                 }
             }
             Row {
@@ -571,16 +595,10 @@ ApplicationWindow {
                 }
             }
         }
-        function visibleChildren(v) {
-            leftSidebar.visible=v;
-            topNavBar.visible=v;
-            mainArea.visible=v;
-            playerBar.visible=v;
-        }
     }
     LyricsSubTab {
         id: lyricsSubTab;
-        anchors.fill: canvas;
+        anchors.fill: parent;
         visible: false;
     }
 }
