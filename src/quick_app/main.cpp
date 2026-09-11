@@ -1,7 +1,12 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QUrl>
+#include <qqml.h>
 
-using namespace std;
+#include "./components/AppPathHelper.hpp"
+
+/* using namespace std; */
 
 int main(int argc, char *argv[])
 {
@@ -9,6 +14,9 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     /* 设置GUI应用版本号 */
     QGuiApplication::setApplicationVersion(VERSION);
+    /* 注册AppPathHelper实例 */
+    AppPathHelper _aph_;
+    qmlRegisterSingletonInstance("AppHelpers",1,0,"AppPathHelper",&_aph_);
     /* 创建QML引擎 */
     QQmlApplicationEngine engine;
     /* 当QML引擎创建失败时自动退出应用 */
@@ -19,7 +27,7 @@ int main(int argc, char *argv[])
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
     /* 加载根QML文件 */
-    engine.load(QUrl("qrc:/Main.qml"));
+    engine.load(QStringLiteral("qrc:/Main.qml"));
     /* 进入应用消息循环 */
     return QGuiApplication::exec();
 }

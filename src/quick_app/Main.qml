@@ -4,6 +4,8 @@ import QtQuick.Controls.Basic
 import QtMultimedia
 import Qt.labs.platform
 
+import AppHelpers 1.0
+
 import "qml/"
 
 ApplicationWindow {
@@ -339,6 +341,18 @@ ApplicationWindow {
             bottomLeftRadius: Define.mainAreaRaduis;
             bottomRightRadius: Define.mainAreaRaduis;
             color: Define.mainAreaColor;
+
+            MediaPlayer {
+                id: player;
+                audioOutput: AudioOutput {
+                    id: audioOutputer;
+                    volume: soundCtrl.volume/100;
+                }
+                source: AppPathHelper.getAbsolutePath("music/心做し_心理作用_双笙_陈元汐_.mp3");
+                onErrorOccurred: (error, errorString)=>{
+                    console.error("音频播放错误:",error,errorString);
+                }
+            }
             Row {
                 id: functionRows;
                 anchors {left:parent.left; top:parent.top; bottom:parent.bottom}
@@ -547,9 +561,14 @@ ApplicationWindow {
                         icon.source: svgBase+(playing? "pause.svg":"play.svg");
                         hoverEnabled: false;
                         property string svgBase: "qrc:/assets/iconfont/playerbar/";
-                        property bool playing: false;
+                        property bool playing: player.playing;
                         onClicked: {
-                            playing=!playing;
+                            if(playing) {
+                                player.pause();
+                            } else {
+                                player.play();
+                            }
+                            stampSlider.value=Math.floor(player.position/1000);
                             console.log("click play_pause, playing=",playing);
                         }
                         transEnalbed: false;
@@ -573,7 +592,7 @@ ApplicationWindow {
                     PlayerBarButton {
                         id: soundCtrl;
                         icon.source: (volume==0? "qrc:/assets/iconfont/playerbar/soundless.svg":"qrc:/assets/iconfont/playerbar/sound.svg");
-                        property int volume: 100;
+                        property int volume: soundSlider.value;
                         property bool sliderVisible: false;
                         onClicked: {
                             sliderVisible=!sliderVisible;
@@ -583,8 +602,8 @@ ApplicationWindow {
                             anchors.centerIn: parent;
                             anchors.verticalCenterOffset: -(parent.height/2+height/2+5);
                             visible: soundCtrl.sliderVisible;
-                            width: 36;
-                            height: 160;
+                            width: 40;
+                            height: 180;
                             color: Define.mainAreaColor;
                             radius: 8;
                             border.color: Define.subGrey;
@@ -592,11 +611,16 @@ ApplicationWindow {
                             Column {
                                 anchors.fill: parent;
                                 anchors.topMargin: 8;
-                                spacing: 5;
+                                spacing: 3;
+                                Text {
+                                    text: `${soundSlider.value}%`;
+                                    anchors.horizontalCenter: parent.horizontalCenter;
+                                }
                                 PlayerBarSliderB {
                                     id: soundSlider;
                                     anchors.horizontalCenter: parent.horizontalCenter;
                                     height: 120;
+                                    value: 100;
                                     onValueChanged: {
                                         soundCtrl.volume=value;
                                         console.log("音量: ",soundCtrl.volume);
@@ -628,15 +652,21 @@ ApplicationWindow {
                     spacing: 10;
                     Text {
                         id: nowStamp;
-                        text: Assist.int2mmss(stampSlider.value);
+                        text: Assist.int2mmss(stampSlider.showedValue);
                         anchors.verticalCenter: parent.verticalCenter;
                     }
                     PlayerBarSliderA {
                         id: stampSlider;
                         anchors.verticalCenter: parent.verticalCenter;
+                        maxStamp: Math.floor(player.duration/1000);
+                        property int showedValue: (pressed? value:Math.floor(player.position/1000));
                         onPressedChanged: {
                             if(!pressed) {
+                                player.position=value*1000;
                                 console.log("音频进度：",value);
+                                if(!player.playing) {
+                                    player.play();
+                                }
                             }
                         }
                     }
