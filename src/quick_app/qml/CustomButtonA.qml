@@ -15,15 +15,9 @@ Button {
     icon.width: width;
     icon.height: height;
     background: Item {}
-    icon.color: {
-        if(hovered) {
-            return Define.btnHoverColor;
-        } else {
-            return Define.btnIconColor;
-        }
-    }
+    icon.color: (hovered? Define.btnHoverColor:Define.btnIconColor);
     transform: Translate {
-        x: (parent.pressed ? 20:0);
-        y: (parent.pressed ? 20:0);
+        x: (pressed? 0.25:0);
+        y: (pressed? 0.25:0);
     }
 }

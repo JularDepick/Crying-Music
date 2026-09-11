@@ -355,7 +355,7 @@ ApplicationWindow {
                         anchors.fill: parent;
                         source: "qrc:/favicon.jpg";
                     }
-                    Button {
+                    CustomButtonA {
                         id: lyricsOpenerBtn;
                         anchors.fill: parent;
                         icon.source: (hovered? "qrc:/assets/iconfont/playerbar/lyricsopen.svg":"");
@@ -375,30 +375,82 @@ ApplicationWindow {
                         }
                     }
                 }
-                Row {
+                Column {
                     id: functionSubRows;
-                    anchors {left:functionRows.right; top:parent.top; bottom:parent.bottom}
+                    anchors {top:parent.top; bottom:parent.bottom}
+                    leftPadding: 12.5;
+                    topPadding: 15;
+                    spacing: 10;
                     Row {
                         id: functionSubRowA;
+                        spacing: 5;
                         Text {
                             id: plsyingTitle;
+                            anchors.verticalCenter: parent.verticalCenter;
                             text: `${song} - ${singer}`;
+                            font.pixelSize: 14;
                             property string song: "曲名";
                             property string singer: "歌手";
                         }
-                        Button {
+                        PlayerBarButton {
                             id: playingVIP;
+                            anchors.verticalCenter: parent.verticalCenter;
                             icon.source: "qrc:/assets/iconfont/vip/viptip.svg";
-                            background: {}
                         }
                     }
                     Row {
                         id: functionSubRowB;
+                        spacing: 10;
                         PlayerBarButton {
                             id: likeSongBtn;
+                            icon.source: (liked? "qrc:/assets/iconfont/function/liked.svg":"qrc:/assets/iconfont/function/like.svg");
+                            icon.color: (liked? (hovered? Define.btnHoverRed:Define.btnIconRed):(hovered? Define.btnIconRed:Define.btnIconColor));
+                            property bool liked: false;
+                            onClicked: {
+                                liked=!liked;
+                            }
                         }
                         PlayerBarButton {
                             id: moreFunBtn;
+                            icon.source: "qrc:/assets/iconfont/function/more.svg";
+                            property bool subTabVisible: false;
+                            onClicked: {
+                                subTabVisible=!subTabVisible;
+
+                            }
+                            Rectangle {
+                                id: moreFunSubTab;
+                                anchors.centerIn: parent;
+                                anchors.verticalCenterOffset: -(parent.height/2+height/2+10);
+                                width: 90;
+                                height: (150);
+                                visible: parent.subTabVisible;
+                                color: Define.mainAreaColor;
+                                radius: 8;
+                                border.color: Define.subGrey;
+                                border.width: 1;
+                                Column {
+                                    anchors {left:parent.left; right:parent.right;}
+                                    anchors.verticalCenter: parent.verticalCenter;
+                                    topPadding: 2;
+                                    Repeater {
+                                        model: ListModel {
+                                            ListElement {name:"Fun"; svgname:"function"; num:0;}
+                                        }
+                                        delegate: CustomButtonA {
+                                            anchors.horizontalCenter: parent.horizontalCenter;
+                                            width: sortSubTab.width-8;
+                                            height: 30;
+                                            onClicked: {
+                                            }
+                                            background: Rectangle {
+                                                anchors.fill: parent;
+                                                color: (hovered? Define.canvasColor:Define.mainAreaColor);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -440,7 +492,6 @@ ApplicationWindow {
                             border.width: 1;
                             Column {
                                 anchors {left:parent.left; right:parent.right;}
-                                anchors.verticalCenter: parent.verticalCenter;
                                 topPadding: 2;
                                 Repeater {
                                     model: ListModel {
