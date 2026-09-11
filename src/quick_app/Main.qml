@@ -213,7 +213,7 @@ ApplicationWindow {
                         if (window.visibility !== Window.Maximized) {
                             window.showMaximized();
                         } else {
-                            window.visibility=Window.Windowed;
+                            window.showNormal();
                         }
                     }
                 }
@@ -303,13 +303,11 @@ ApplicationWindow {
                 }
                 TopNavBarButton {
                     id: maxWindowBtn;
-                    icon.source: "qrc:/assets/iconfont/topnavbar/maximized.svg";
+                    icon.source: (window.visibility==Window.Maximized? "qrc:/assets/iconfont/topnavbar/normalized.svg":"qrc:/assets/iconfont/topnavbar/maximized.svg");
                     onClicked: {
                         if (window.visibility !== Window.Maximized) {
-                            maxWindowBtn.icon.source="qrc:/assets/iconfont/topnavbar/normalized.svg";
                             window.showMaximized();
                         } else {
-                            maxWindowBtn.icon.source="qrc:/assets/iconfont/topnavbar/maximized.svg";
                             window.showNormal();
                         }
                     }
@@ -546,16 +544,11 @@ ApplicationWindow {
                     }
                     PlayerBarButton {
                         id: play_pause;
-                        icon.source: svgBase+"play.svg";
+                        icon.source: svgBase+(playing? "pause.svg":"play.svg");
                         hoverEnabled: false;
                         property string svgBase: "qrc:/assets/iconfont/playerbar/";
                         property bool playing: false;
                         onClicked: {
-                            if(playing) {
-                                icon.source=svgBase+"play.svg";
-                            } else {
-                                icon.source=svgBase+"pause.svg";
-                            }
                             playing=!playing;
                             console.log("click play_pause, playing=",playing);
                         }
@@ -579,7 +572,7 @@ ApplicationWindow {
                     }
                     PlayerBarButton {
                         id: soundCtrl;
-                        icon.source: "qrc:/assets/iconfont/playerbar/sound.svg";
+                        icon.source: (volume==0? "qrc:/assets/iconfont/playerbar/soundless.svg":"qrc:/assets/iconfont/playerbar/sound.svg");
                         property int volume: 100;
                         property bool sliderVisible: false;
                         onClicked: {
@@ -604,28 +597,22 @@ ApplicationWindow {
                                     id: soundSlider;
                                     anchors.horizontalCenter: parent.horizontalCenter;
                                     height: 120;
-                                    value: soundCtrl.volume;
                                     onValueChanged: {
                                         soundCtrl.volume=value;
-                                        console.log("音量:", value);
+                                        console.log("音量: ",soundCtrl.volume);
                                     }
                                 }
                                 PlayerBarButton {
                                     id: muteBtn;
                                     anchors.horizontalCenter: parent.horizontalCenter;
-                                    icon.source: "qrc:/assets/iconfont/playerbar/sound.sub.svg";
-                                    property bool muted: false;
+                                    icon.source: (soundCtrl.volume==0? "qrc:/assets/iconfont/playerbar/soundless.sub.svg":"qrc:/assets/iconfont/playerbar/sound.sub.svg");
                                     onClicked: {
-                                        if(muted) {
-                                            icon.source="qrc:/assets/iconfont/playerbar/sound.sub.svg";
-                                            soundCtrl.icon.source="qrc:/assets/iconfont/playerbar/sound.svg";
-                                            soundCtrl.volume=100;
+                                        if(soundCtrl.volume==0) {
+                                            soundCtrl.volume=soundSlider.value;
                                         } else {
-                                            icon.source="qrc:/assets/iconfont/playerbar/soundless.sub.svg";
-                                            soundCtrl.icon.source="qrc:/assets/iconfont/playerbar/soundless.svg";
                                             soundCtrl.volume=0;
                                         }
-                                        muted=!muted;
+                                        console.log("音量: ",soundCtrl.volume);
                                     }
                                 }
                             }
