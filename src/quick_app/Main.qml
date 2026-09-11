@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
+import QtMultimedia
 import Qt.labs.platform
 
 import "qml/"
@@ -194,6 +195,7 @@ ApplicationWindow {
             color: Define.topNavBarColor;
             /* 拖动窗口 */
             MouseArea {
+                id: topNavBarDrag;
                 anchors.fill: parent;
                 acceptedButtons: Qt.LeftButton;
                 property bool isDragging: false;
@@ -287,7 +289,7 @@ ApplicationWindow {
                 height: parent.rowsHeight;
                 spacing: Define.btnSpacing;
                 TopNavBarButton {
-                    id: flowWindowBtn;
+                    id: flowCardWinBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/flowized.svg";
                     onClicked: {
                         /* build flow window */
@@ -324,8 +326,6 @@ ApplicationWindow {
             anchors {left:leftSidebar.right; right:parent.right; top:topNavBar.bottom; bottom:playerBar.top;}
             anchors.rightMargin: Define.windowPadding;
             anchors.bottomMargin: Define.windowPadding;
-            topLeftRadius: Define.mainAreaRaduis;
-            topRightRadius: Define.mainAreaRaduis;
             bottomLeftRadius: Define.mainAreaRaduis;
             bottomRightRadius: Define.mainAreaRaduis;
             color: Define.mainAreaColor;
@@ -344,6 +344,7 @@ ApplicationWindow {
             Row {
                 id: functionRows;
                 anchors {left:parent.left; top:parent.top; bottom:parent.bottom}
+                leftPadding: 12.5;
                 Rectangle {
                     id: lyricsOpener;
                     anchors {top:parent.top; bottom:parent.bottom}
@@ -396,6 +397,10 @@ ApplicationWindow {
                             id: playingVIP;
                             anchors.verticalCenter: parent.verticalCenter;
                             icon.source: "qrc:/assets/iconfont/vip/viptip.svg";
+                            icon.color: Define.btnHoverColor;
+                            transEnalbed: false;
+                            height: 20;
+                            width: 20;
                         }
                     }
                     Row {
@@ -416,7 +421,6 @@ ApplicationWindow {
                             property bool subTabVisible: false;
                             onClicked: {
                                 subTabVisible=!subTabVisible;
-
                             }
                             Rectangle {
                                 id: moreFunSubTab;
@@ -555,6 +559,17 @@ ApplicationWindow {
                             playing=!playing;
                             console.log("click play_pause, playing=",playing);
                         }
+                        transEnalbed: false;
+                        background: Rectangle {
+                            anchors.centerIn: parent;
+                            width: parent.width+20;
+                            height: parent.height+10;
+                            color: Define.btnHoverColor;
+                            topRightRadius: height/2;
+                            topLeftRadius: height/2;
+                            bottomRightRadius: height/2;
+                            bottomLeftRadius: height/2;
+                        }
                     }
                     PlayerBarButton {
                         id: nextOne;
@@ -645,6 +660,45 @@ ApplicationWindow {
                     }
                 }
             }
+            Row {
+                id: configRow;
+                anchors {right:parent.right;}
+                anchors.verticalCenter: parent.verticalCenter;
+                spacing: 12.5;
+                rightPadding: 25;
+                PlayerBarButton {
+                    id: lyricsCardBtn;
+                    icon.source: "qrc:/assets/iconfont/playerbar/lyricsflow.svg";
+                }
+                PlayerBarButton {
+                    id: playingListBtn;
+                    icon.source: "qrc:/assets/iconfont/playerbar/playerlist.svg";
+                    property bool showed: false;
+                    onClicked: {
+                        if(showed) {
+                            sysButtons.visible=true;
+                        } else {
+                            sysButtons.visible=false;
+                        }
+                        showed=!showed;
+                    }
+                }
+            }
+        }
+        Rectangle {
+            id: playingListArea;
+            anchors {top:canvas.top; bottom:mainArea.bottom; right: canvas.right;}
+            anchors.rightMargin: Define.windowPadding;
+            anchors.topMargin: Define.windowPadding;
+            topLeftRadius: Define.mainAreaRaduis;
+            topRightRadius: Define.mainAreaRaduis;
+            bottomLeftRadius: Define.mainAreaRaduis;
+            bottomRightRadius: Define.mainAreaRaduis;
+            color: Define.mainAreaColor;
+            width: 450;
+            border.color: Define.subGrey;
+            border.width: 1;
+            visible: playingListBtn.showed;
         }
     }
     LyricsSubTab {
