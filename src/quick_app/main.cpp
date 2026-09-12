@@ -5,6 +5,7 @@
 #include <qqml.h>
 
 #include "./components/AppPathHelper.hpp"
+#include "./components/AppFileHelper.hpp"
 
 /* using namespace std; */
 
@@ -14,9 +15,11 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     /* 设置GUI应用版本号 */
     QGuiApplication::setApplicationVersion(VERSION);
-    /* 注册AppPathHelper实例 */
+    /* 注册AppHelpers实例 */
     AppPathHelper _aph_;
+    AppFileHelper _afh_;
     qmlRegisterSingletonInstance("AppHelpers",1,0,"AppPathHelper",&_aph_);
+    qmlRegisterSingletonInstance("AppHelpers",1,0,"AppFileHelper",&_afh_);
     /* 创建QML引擎 */
     QQmlApplicationEngine engine;
     /* 当QML引擎创建失败时自动退出应用 */

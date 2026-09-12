@@ -341,17 +341,28 @@ ApplicationWindow {
             bottomLeftRadius: Define.mainAreaRaduis;
             bottomRightRadius: Define.mainAreaRaduis;
             color: Define.mainAreaColor;
-
             MediaPlayer {
                 id: player;
                 audioOutput: AudioOutput {
                     id: audioOutputer;
                     volume: soundCtrl.volume/100;
                 }
-                source: AppPathHelper.getAbsolutePath("music/心做し_心理作用_双笙_陈元汐_.mp3");
+                source: AppPathHelper.getAbsolutePath("");
                 onErrorOccurred: (error, errorString)=>{
                     console.error("音频播放错误:",error,errorString);
                 }
+                onMediaStatusChanged: {
+                    if(mediaStatus===MediaPlayer.EndOfMedia) {
+                        console.log("播放结束: ",source);
+                    }
+                }
+                property var id2obj: new Map();
+                property var songobjs: [];
+                property int playingWhich: 0;
+                property var sortlist: [];
+                /*{
+                    {"songname":"心做し心理作用","singer":"双笙、陈元汐","path":"music/心做し_心理作用_双笙_陈元汐_.mp3","pathtype":"rel"}
+                };*/
             }
             Row {
                 id: functionRows;
@@ -722,5 +733,8 @@ ApplicationWindow {
         id: lyricsSubTab;
         anchors.fill: parent;
         visible: false;
+    }
+    Component.onCompleted: {
+        console.log("UI加载成功,开始读取程序储存");
     }
 }
