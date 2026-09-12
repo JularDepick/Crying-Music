@@ -24,4 +24,6 @@ Item {
     property color btnHoverRed: "#e44545";
     property color hoverDarkColor: "#bcbcbc";
     property color subGrey: "#e0e0e0";
+    property color vipRed: "#fe3610";
+    property color vipGold: "#ffc400";
 }

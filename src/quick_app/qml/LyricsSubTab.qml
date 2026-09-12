@@ -11,4 +11,7 @@ Rectangle {
     border.width: 0.5;
     border.color: Define.windowBorderColor;
     color: Define.canvasColor;
+    MouseArea {
+        anchors.fill: parent;
+    }
 }

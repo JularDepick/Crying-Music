@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Effects
 import QtQuick.Controls.Basic
 import QtMultimedia
 import Qt.labs.platform
@@ -182,6 +183,61 @@ ApplicationWindow {
                 bottomLeftRadius: Define.mainAreaRaduis;
                 bottomRightRadius: Define.mainAreaRaduis;
                 color: Define.leftSidebarHeaderColor;
+                Row {
+                    anchors.fill: parent;
+                    spacing: 10;
+                    Button {
+                        anchors {top:parent.top; bottom:parent.bottom;}
+                        anchors.margins: 8;
+                        width: height;
+                        background: Image {
+                            anchors.fill: parent;
+                            id: userAvatar;
+                            source: "qrc:/favicon.jpg";
+                            fillMode: Image.PreserveAspectCrop;
+                            layer.enabled: true;
+                            layer.effect: MultiEffect {
+                                maskEnabled: true;
+                                maskSource: userAvatarMasker;
+                            }
+                            Item {
+                                id: userAvatarMasker;
+                                anchors.fill: parent;
+                                visible: false;
+                                layer.enabled: true;
+                                Rectangle {
+                                    anchors.fill: parent;
+                                    radius: height/2;
+                                    border.color: Define.subGrey;
+                                    border.width: 0.5;
+                                }
+                            }
+                        }
+                    }
+                    Column {
+                        anchors {top:parent.top; bottom:parent.bottom;}
+                        topPadding: 15;
+                        spacing: 5;
+                        Row {
+                            spacing: 4;
+                            Text {
+                                id: userName;
+                                text: "用户名";
+                            }
+                            Text {
+                                id: userLevel;
+                                text: "Lv.100";
+                            }
+                        }
+                        Row {
+                            CustomButtonA {
+                                id: userVIP;
+                                icon.source: "qrc:/assets/iconfont/vip/vip10.svg";
+                                icon.color: Define.vipRed;
+                            }
+                        }
+                    }
+                }
             }
         }
         Rectangle {
@@ -271,6 +327,7 @@ ApplicationWindow {
                     id: searchBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/search.svg";
                     anchors.verticalCenter: searchInput.verticalCenter;
+                    transEnalbed: false;
                     background: Rectangle {
                         color: "#d5d5d5";
                         width: 25;
@@ -387,7 +444,6 @@ ApplicationWindow {
                         icon.width: parent.width-5;
                         icon.height: parent.width-5;
                         onClicked: {
-                            canvas.visible=false;
                             lyricsSubTab.visible=true;
                             console.log("clicked lyricsOpenerBtn");
                         }
@@ -703,11 +759,6 @@ ApplicationWindow {
                     icon.source: "qrc:/assets/iconfont/playerbar/playerlist.svg";
                     property bool showed: false;
                     onClicked: {
-                        if(showed) {
-                            sysButtons.visible=true;
-                        } else {
-                            sysButtons.visible=false;
-                        }
                         showed=!showed;
                     }
                 }
@@ -727,6 +778,9 @@ ApplicationWindow {
             border.color: Define.subGrey;
             border.width: 1;
             visible: playingListBtn.showed;
+            MouseArea {
+                anchors.fill: parent;
+            }
         }
     }
     LyricsSubTab {
