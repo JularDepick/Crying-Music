@@ -218,6 +218,7 @@ ApplicationWindow {
                         anchors {top:parent.top; bottom:parent.bottom;}
                         topPadding: 15;
                         spacing: 5;
+                        visible: leftSidebar.spreaded;
                         Row {
                             spacing: 4;
                             Text {
@@ -237,6 +238,12 @@ ApplicationWindow {
                             }
                         }
                     }
+                }
+            }
+            Column {
+                id: leftSidebarBody;
+                anchors {top:leftSidebarHeader.top; bottom:parent.bottom; left:parent.left; right:parent.right;}
+                LeftSiderbarButton {
                 }
             }
         }

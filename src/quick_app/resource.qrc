@@ -4,7 +4,23 @@
 
         <file>assets/iconfont/function/like.svg</file>
         <file>assets/iconfont/function/liked.svg</file>
+        <file>assets/iconfont/function/download.svg</file>
+        <file>assets/iconfont/function/addnew.svg</file>
+        <file>assets/iconfont/function/addinto.svg</file>
         <file>assets/iconfont/function/more.svg</file>
+
+        <file>assets/iconfont/leftsidebar/home.svg</file>
+        <file>assets/iconfont/leftsidebar/home_ed.svg</file>
+        <file>assets/iconfont/leftsidebar/likedlist.svg</file>
+        <file>assets/iconfont/leftsidebar/likedlist_ed.svg</file>
+        <file>assets/iconfont/leftsidebar/recentlist.svg</file>
+        <file>assets/iconfont/leftsidebar/recentlist_ed.svg</file>
+        <file>assets/iconfont/leftsidebar/locallist.svg</file>
+        <file>assets/iconfont/leftsidebar/locallist_ed.svg</file>
+        <file>assets/iconfont/leftsidebar/spread.svg</file>
+        <file>assets/iconfont/leftsidebar/spreaded.svg</file>
+        <file>assets/iconfont/leftsidebar/settings.svg</file>
+        <file>assets/iconfont/leftsidebar/theme.svg</file>
 
         <file>assets/iconfont/topnavbar/flowized.svg</file>
         <file>assets/iconfont/topnavbar/minimized.svg</file>
