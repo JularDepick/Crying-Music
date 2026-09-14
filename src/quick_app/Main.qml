@@ -240,10 +240,37 @@ ApplicationWindow {
                     }
                 }
             }
-            Column {
+            Rectangle {
                 id: leftSidebarBody;
-                anchors {top:leftSidebarHeader.top; bottom:parent.bottom; left:parent.left; right:parent.right;}
-                LeftSiderbarButton {
+                anchors {top:leftSidebarHeader.bottom; bottom:leftSidebarFoot.top; left:parent.left; right:parent.right;}
+                Column {
+                    anchors.fill: parent;
+                    spacing: 10;
+                    Repeater {
+                        model: ListModel {
+                            ListElement {svgname:"likelist"; title:"喜欢"}
+                            ListElement {svgname:"recentlist"; title:"最近播放"}
+                            ListElement {svgname:"locallist"; title:"本地"}
+                        }
+                        delegate: Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter;
+                            LeftSidebarButton {
+                            }
+                        }
+                    }
+                }
+            }
+            Rectangle {
+                id: leftSidebarFoot;
+                anchors {bottom:parent.bottom; left:parent.left; right:parent.right;}
+                height: 40;
+                color: "red";
+                Row {
+                    anchors.fill: parent;
+                    spacing: 10;
+                    CustomButtonA {
+                        icon.source: "qrc:/assets/iconfont/leftsidebar/spreaded.svg";
+                    }
                 }
             }
         }

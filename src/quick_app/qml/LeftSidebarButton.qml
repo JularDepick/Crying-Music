@@ -1,2 +1,6 @@
 import "./"
-CustomButtonA {}
+
+CustomButtonA {
+    anchors.horizontalCenter: parent.horizontalCenter;
+    transEnalbed: false;
+}
