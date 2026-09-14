@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QUrl>
 #include <QFile>
+#include <QDir>
+#include <QStringList>
 #include <QStringConverter>
 #include <qdebug.h>
 
@@ -48,6 +50,24 @@ public:
         }
         QByteArray data=encoder(content);
         return fout.write(data)!=-1;
+    }
+    /* 列出: 入参为绝对路径(不含 file://), 返回直接子文件名称列表 (Qt 的 json 数组) */
+    Q_INVOKABLE QStringList listFiles(const QString &path) const {
+        QDir dir(path);
+        if (!dir.exists()) {
+            qWarning()<<"AppFileHelper listFiles failed: "<<path<<" not exists";
+            return {};
+        }
+        return dir.entryList(QDir::Files, QDir::Name);
+    }
+    /* 列出: 入参为绝对路径(不含 file://), 返回直接子文件夹名称列表 (Qt 的 json 数组) */
+    Q_INVOKABLE QStringList listDirs(const QString &path) const {
+        QDir dir(path);
+        if (!dir.exists()) {
+            qWarning()<<"AppFileHelper listDirs failed: "<<path<<" not exists";
+            return {};
+        }
+        return dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     }
 };
 
