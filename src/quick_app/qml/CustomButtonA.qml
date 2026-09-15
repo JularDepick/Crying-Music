@@ -15,7 +15,8 @@ Button {
     icon.width: width;
     icon.height: height;
     background: Item {}
-    icon.color: (hovered? Define.btnHoverColor:Define.btnIconColor);
+    property bool hoverColor: true;
+    icon.color: (hovered&&hoverColor? Define.btnHoverColor:Define.btnIconColor);
     property bool transEnalbed: true;
     transform: Translate {
         x: ((pressed&&transEnalbed)? 0.25:0);

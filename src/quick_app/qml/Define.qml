@@ -22,7 +22,7 @@ Item {
     property color btnHoverColor: "#00eea8";
     property color btnIconRed: "#f45555";
     property color btnHoverRed: "#e44545";
-    property color hoverDarkColor: "#bcbcbc";
+    property color hoverDarkColor: "#e8e8e8";
     property color subGrey: "#e0e0e0";
     property color vipRed: "#fe3610";
     property color vipGold: "#ffc400";

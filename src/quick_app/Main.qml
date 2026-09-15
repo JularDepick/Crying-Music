@@ -243,18 +243,41 @@ ApplicationWindow {
             Rectangle {
                 id: leftSidebarBody;
                 anchors {top:leftSidebarHeader.bottom; bottom:leftSidebarFoot.top; left:parent.left; right:parent.right;}
+                color: Define.canvasColor;
                 Column {
                     anchors.fill: parent;
-                    spacing: 10;
+                    anchors.topMargin: 10;
+                    anchors.rightMargin: Define.windowPadding;
+                    spacing: 1;
                     Repeater {
                         model: ListModel {
-                            ListElement {svgname:"likelist"; title:"喜欢"}
+                            ListElement {svgname:"likedlist"; title:"喜欢"}
                             ListElement {svgname:"recentlist"; title:"最近播放"}
                             ListElement {svgname:"locallist"; title:"本地"}
                         }
-                        delegate: Rectangle {
-                            anchors.horizontalCenter: parent.horizontalCenter;
-                            LeftSidebarButton {
+                        delegate: Button {
+                            anchors {left:parent.left; right:parent.right;}
+                            height: 50;
+                            background: Rectangle {
+                                anchors.fill: parent;
+                                color: (hovered? Define.hoverDarkColor:Define.canvasColor);
+                                radius: 10;
+                                Row {
+                                    anchors.verticalCenter: parent.verticalCenter;
+                                    leftPadding: Define.windowRaduis*2;
+                                    spacing: 8;
+                                    Image {
+                                        anchors.verticalCenter: parent.verticalCenter;
+                                        width: 25;
+                                        height: 25;
+                                        source: `qrc:/assets/iconfont/leftsidebar/${svgname}.svg`;
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter;
+                                        text: title;
+                                        font.pixelSize: 14;
+                                    }
+                                }
                             }
                         }
                     }
@@ -628,7 +651,7 @@ ApplicationWindow {
                                         }
                                         background: Rectangle {
                                             anchors.fill: parent;
-                                            color: (hovered? Define.canvasColor:Define.mainAreaColor);
+                                            color: (hovered? Define.hoverDarkColor:Define.mainAreaColor);
                                             radius: 4;
                                             Row {
                                                 anchors.horizontalCenter: parent.horizontalCenter;
