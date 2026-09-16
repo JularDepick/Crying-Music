@@ -149,6 +149,17 @@ ApplicationWindow {
             property int smallWidth: 75;
             property bool spreaded: true;
             color: Define.leftSidebarColor;
+            function spread(b=true) {
+                if(b===true && !spreaded) {
+                    leftSidebar.spreaded=false;
+                    leftSidebar.width=leftSidebar.bigWidth;
+                    leftSidebar.spreaded=true;
+                } else if(b===false && spreaded) {
+                    leftSidebar.spreaded=false;
+                    leftSidebar.width=leftSidebar.smallWidth;
+                    leftSidebar.spreaded=false;
+                }
+            }
             /* 左侧栏的右边框拖拽 */
             MouseArea {
                 anchors {right:parent.right; top:parent.top; bottom:parent.bottom;}
@@ -164,13 +175,9 @@ ApplicationWindow {
                 }
                 onReleased: {
                     if(dragEndX<dragStartX && parent.spreaded) {
-                        parent.width=parent.smallWidth;
-                        parent.spreaded=false;
-                        stampSlider.width*=1.5;
+                        parent.spread(false);
                     } else if(dragEndX>dragStartX && !parent.spreaded) {
-                        parent.width=parent.bigWidth;
-                        parent.spreaded=true;
-                        stampSlider.width/=1.5;
+                        parent.spread(true);
                     }
                 }
             }
@@ -287,14 +294,29 @@ ApplicationWindow {
             }
             Rectangle {
                 id: leftSidebarFoot;
-                anchors {bottom:parent.bottom; left:parent.left; right:parent.right;}
-                height: 40;
-                color: "red";
+                anchors {bottom:parent.bottom; left:parent.left;}
+                anchors.bottomMargin: Define.windowPadding;
+                width: (parent.width-Define.windowPadding);
+                height: 25;
+                color: Define.canvasColor;
                 Row {
-                    anchors.fill: parent;
-                    spacing: 10;
+                    anchors.verticalCenter: parent.verticalCenter;
+                    anchors.leftMargin: Define.windowPadding;
+                    x: (leftSidebar.spreaded? (Define.windowPadding*2):(parent.width-width)/2);
+                    spacing: 20;
                     CustomButtonA {
-                        icon.source: "qrc:/assets/iconfont/leftsidebar/spreaded.svg";
+                        icon.source: `qrc:/assets/iconfont/leftsidebar/spread${leftSidebar.spreaded? "ed":""}.svg`;
+                        onClicked: {
+                            leftSidebar.spread(!leftSidebar.spreaded);
+                        }
+                    }
+                    CustomButtonA {
+                        icon.source: "qrc:/assets/iconfont/leftsidebar/settings.svg";
+                        visible: leftSidebar.spreaded;
+                    }
+                    CustomButtonA {
+                        icon.source: "qrc:/assets/iconfont/leftsidebar/theme.svg";
+                        visible: leftSidebar.spreaded;
                     }
                 }
             }
@@ -607,7 +629,7 @@ ApplicationWindow {
                     anchors.topMargin: 20;
                     anchors.horizontalCenter: parent.horizontalCenter;
                     height: 30;
-                    spacing: Define.btnSpacing;
+                    spacing: ((leftSidebar.spreaded? 1.5:2)*Define.btnSpacing);
                     PlayerBarButton {
                         id: playerSort;
                         icon.source: "qrc:/assets/iconfont/playerbar/listsort.svg";
@@ -783,6 +805,7 @@ ApplicationWindow {
                     }
                     PlayerBarSliderA {
                         id: stampSlider;
+                        width: playerBar.width*0.3;
                         anchors.verticalCenter: parent.verticalCenter;
                         maxStamp: Math.floor(player.duration/1000);
                         property int showedValue: (pressed? value:Math.floor(player.position/1000));
