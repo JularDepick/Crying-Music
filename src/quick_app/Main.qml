@@ -16,7 +16,7 @@ ApplicationWindow {
     minimumWidth: 1050;
     minimumHeight: 690;
     color: Define.nocolor;
-    visible: true;
+    visible: false;
     title: qsTr(Define.initTitle);
     flags: Qt.Window | Qt.FramelessWindowHint;
 
@@ -191,11 +191,13 @@ ApplicationWindow {
                 bottomRightRadius: Define.mainAreaRaduis;
                 color: Define.leftSidebarHeaderColor;
                 Row {
-                    anchors.fill: parent;
+                    anchors {top:parent.top; bottom:parent.bottom;}
+                    x: (leftSidebar.spreaded? Define.windowPadding*2:(leftSidebarHeader.width-width)/2);
                     spacing: 10;
                     Button {
                         anchors {top:parent.top; bottom:parent.bottom;}
-                        anchors.margins: 8;
+                        anchors.topMargin: 8;
+                        anchors.bottomMargin: 8;
                         width: height;
                         background: Image {
                             anchors.fill: parent;
@@ -251,6 +253,11 @@ ApplicationWindow {
                 id: leftSidebarBody;
                 anchors {top:leftSidebarHeader.bottom; bottom:leftSidebarFoot.top; left:parent.left; right:parent.right;}
                 color: Define.canvasColor;
+                property var svg2obj: ({
+                    "likedlist": mainArea_LikedPage,
+                    "recentlist": mainArea_RecentPage,
+                    "locallist": mainArea_LocalPage
+                });
                 Column {
                     anchors.fill: parent;
                     anchors.topMargin: 10;
@@ -266,19 +273,22 @@ ApplicationWindow {
                             height: 50;
                             x: (leftSidebar.spreaded? Define.windowRaduis:(parent.width-width)/2);
                             width: (leftSidebar.spreaded? (parent.width-Define.windowRaduis*2):height);
+                            property var obj2: leftSidebarBody.svg2obj[svgname];
                             background: Rectangle {
                                 anchors.fill: parent;
-                                color: (hovered? Define.hoverDarkColor:Define.canvasColor);
+                                color: (obj3.visible? (Define.choseDarkColor):(hovered? Define.hoverDarkColor:Define.canvasColor));
                                 radius: 10;
+                                property var obj3: parent.obj2;
                                 Row {
                                     anchors.verticalCenter: parent.verticalCenter;
                                     x: (leftSidebar.spreaded? Define.windowRaduis*2:(parent.width-width)/2);
                                     spacing: 8;
+                                    property var obj4: parent.obj3;
                                     Image {
                                         anchors.verticalCenter: parent.verticalCenter;
                                         width: 25;
                                         height: 25;
-                                        source: `qrc:/assets/iconfont/leftsidebar/${svgname}.svg`;
+                                        source: `qrc:/assets/iconfont/leftsidebar/${svgname}`+(parent.obj4.visible? "_ed":"")+".svg";
                                     }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter;
@@ -287,6 +297,9 @@ ApplicationWindow {
                                         visible: leftSidebar.spreaded;
                                     }
                                 }
+                            }
+                            onClicked: {
+                                mainArea.jump2(obj2);
                             }
                         }
                     }
@@ -369,19 +382,26 @@ ApplicationWindow {
                 TopNavBarButton {
                     id: backwardBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/backward.svg";
+                    icon.color: (mainArea.uhis.length<=0? Define.forbdDarkColor:(hovered&&hoverColor? Define.btnHoverColor:Define.btnIconColor));
+                    transEnalbed: mainArea.uhis.length>0;
                     onClicked: {
+                        mainArea.undo();
                     }
                 }
                 TopNavBarButton {
                     id: forwardBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/forward.svg";
+                    icon.color: (mainArea.rhis.length<=0? Define.forbdDarkColor:(hovered&&hoverColor? Define.btnHoverColor:Define.btnIconColor));
+                    transEnalbed: mainArea.rhis.length>0;
                     onClicked: {
+                        mainArea.redo();
                     }
                 }
                 TopNavBarButton {
                     id: refreshBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/refresh.svg";
                     onClicked: {
+                        mainArea.refresh();
                     }
                 }
             }
@@ -416,8 +436,6 @@ ApplicationWindow {
                         topRightRadius: 8;
                         bottomRightRadius: 8;
                         anchors.verticalCenter: parent.verticalCenter;
-                    }
-                    onClicked: {
                     }
                 }
             }
@@ -467,6 +485,75 @@ ApplicationWindow {
             bottomLeftRadius: Define.mainAreaRaduis;
             bottomRightRadius: Define.mainAreaRaduis;
             color: Define.mainAreaColor;
+            property var uhis: [];
+            property var rhis: [];
+            property var curr: mainArea_HomePage;
+            function _show(which) {
+                if(curr===which) {
+                    return;
+                }
+                curr.visible=false;
+                curr=which;
+                curr.visible=true;
+            }
+            function undo() {
+                if(uhis.length<=0) {
+                    return;
+                }
+                var utop=uhis[uhis.length-1];
+                var uarr=uhis.slice();
+                uarr.pop();
+                uhis=uarr;
+                var rarr=rhis.slice();
+                rarr.push(curr);
+                rhis=rarr;
+                _show(utop);
+            }
+            function redo() {
+                if(rhis.length<=0) {
+                    return;
+                }
+                var rtop=rhis[rhis.length-1];
+                var rarr=rhis.slice();
+                rarr.pop();
+                rhis=rarr;
+                var uarr=uhis.slice();
+                uarr.push(curr);
+                uhis=uarr;
+                _show(rtop);
+            }
+            function jump2(which) {
+                if(curr===which) {
+                    return;
+                }
+                var uarr=uhis.slice();
+                uarr.push(curr);
+                uhis=uarr;
+                rhis=[];
+                _show(which);
+            }
+            function refresh() {
+                if(curr!==undefined && curr.refresh) {
+                    curr.refresh();
+                }
+            }
+            MainAreaHomePage {
+                id: mainArea_HomePage;
+                anchors.fill: parent;
+                visible: true;
+            }
+            MainAreaLikedPage {
+                id: mainArea_LikedPage;
+                anchors.fill: parent;
+            }
+            MainAreaRecentPage {
+                id: mainArea_RecentPage;
+                anchors.fill: parent;
+            }
+            MainAreaLocalPage {
+                id: mainArea_LocalPage;
+                anchors.fill: parent;
+            }
         }
         Rectangle {
             id: playerBar;
@@ -872,5 +959,6 @@ ApplicationWindow {
     }
     Component.onCompleted: {
         console.log("UI加载成功,开始读取程序储存");
+        window.visible=true;
     }
 }
