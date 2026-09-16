@@ -256,15 +256,16 @@ ApplicationWindow {
                             ListElement {svgname:"locallist"; title:"本地"}
                         }
                         delegate: Button {
-                            anchors {left:parent.left; right:parent.right;}
                             height: 50;
+                            x: (leftSidebar.spreaded? Define.windowRaduis:(parent.width-width)/2);
+                            width: (leftSidebar.spreaded? (parent.width-Define.windowRaduis*2):height);
                             background: Rectangle {
                                 anchors.fill: parent;
                                 color: (hovered? Define.hoverDarkColor:Define.canvasColor);
                                 radius: 10;
                                 Row {
                                     anchors.verticalCenter: parent.verticalCenter;
-                                    leftPadding: Define.windowRaduis*2;
+                                    x: (leftSidebar.spreaded? Define.windowRaduis*2:(parent.width-width)/2);
                                     spacing: 8;
                                     Image {
                                         anchors.verticalCenter: parent.verticalCenter;
@@ -276,6 +277,7 @@ ApplicationWindow {
                                         anchors.verticalCenter: parent.verticalCenter;
                                         text: title;
                                         font.pixelSize: 14;
+                                        visible: leftSidebar.spreaded;
                                     }
                                 }
                             }

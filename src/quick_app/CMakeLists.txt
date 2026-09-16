@@ -26,7 +26,7 @@ set(PROJECT_SOURCES
 )
 
 # 可执行目标
-qt_add_executable(appCryingMusic
+qt_add_executable(CryingMusic
     MANUAL_FINALIZATION
     ${PROJECT_SOURCES}
 )
@@ -40,7 +40,8 @@ set_source_files_properties(qml/Define.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE
 set_source_files_properties(qml/Assist.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 # 创建 QML 模块;RESOURCE_PREFIX "/" 与 NO_RESOURCE_TARGET_PATH 使 QML 文件
 # 按源码相对路径嵌入,如 qrc:/Main.qml、qrc:/qml/Define.qml,与 main.cpp 入口一致
-qt_add_qml_module(appCryingMusic
+qt_policy(SET QTP0004 NEW)
+qt_add_qml_module(CryingMusic
     URI CryingMusic
     VERSION 1.0
     RESOURCE_PREFIX /
@@ -50,7 +51,7 @@ qt_add_qml_module(appCryingMusic
 )
 
 # 预编译头
-target_precompile_headers(appCryingMusic PRIVATE defines.hpp)
+target_precompile_headers(CryingMusic PRIVATE defines.hpp)
 
 # Windows 资源文件处理
 if(MINGW)
@@ -58,40 +59,40 @@ if(MINGW)
 endif()
 
 # 链接库
-target_link_libraries(appCryingMusic
+target_link_libraries(CryingMusic
     PRIVATE Qt6::Quick Qt6::Multimedia Qt6::Qml
 )
 
 # 静态链接 MinGW 运行时
 if(MINGW)
-    target_link_options(appCryingMusic PRIVATE -static-libgcc -static-libstdc++)
+    target_link_options(CryingMusic PRIVATE -static-libgcc -static-libstdc++)
 endif()
 
 # Windows 属性
-set_target_properties(appCryingMusic PROPERTIES
+set_target_properties(CryingMusic PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
 )
 
-install(TARGETS appCryingMusic
+install(TARGETS CryingMusic
     BUNDLE  DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-qt_finalize_executable(appCryingMusic)
+qt_finalize_executable(CryingMusic)
 
 # 自动部署 DLL
 if(WIN32)
     find_program(WINDEPLOYQT_EXECUTABLE windeployqt6)
     if(WINDEPLOYQT_EXECUTABLE)
-        add_custom_command(TARGET appCryingMusic POST_BUILD
+        add_custom_command(TARGET CryingMusic POST_BUILD
             COMMAND ${WINDEPLOYQT_EXECUTABLE}
                 --no-system-d3d-compiler
                 --qmldir ${CMAKE_CURRENT_SOURCE_DIR}
-                $<TARGET_FILE:appCryingMusic>
+                $<TARGET_FILE:CryingMusic>
             COMMENT "复制 Qt6 依赖 DLL..."
         )
     else()

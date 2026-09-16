@@ -26,7 +26,7 @@ SOURCE_DIR = (SCRIPT_DIR / "../build/Desktop_Qt_6_11_1_MinGW_64_bit_Release").re
 DEST_DIR = (SCRIPT_DIR / "../release/Crying-Music").resolve()
 
 # 主可执行文件名
-MAIN_EXE = "appCryingMusic.exe"
+MAIN_EXE = "CryingMusic.exe"
 
 # 音频资源：源码目录中的音频复制到发布包的 MEDIA_DEST_NAME 目录
 # 主程序按 应用目录/music/<文件名> 读取音频，见 Main.qml 中 MediaPlayer.source
