@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
 import QtQuick.Controls.Basic
+import QtQuick.Controls.impl
 import QtMultimedia
 import Qt.labs.platform
 
@@ -181,6 +182,15 @@ ApplicationWindow {
                     }
                 }
             }
+            property var svg2obj: ({
+                "profile" : mainArea_ProfilePage,
+                "home" : mainArea_HomePage,
+                "likedlist" : mainArea_LikedPage,
+                "recentlist" : mainArea_RecentPage,
+                "locallist" : mainArea_LocalPage,
+                "settings" : mainArea_SettingsPage,
+                "theme" : mainArea_ThemePage
+            });
             Rectangle {
                 id: leftSidebarHeader;
                 anchors {left:parent.left; right:parent.right; top:parent.top;}
@@ -193,12 +203,15 @@ ApplicationWindow {
                 Row {
                     anchors {top:parent.top; bottom:parent.bottom;}
                     x: (leftSidebar.spreaded? Define.windowPadding*2:(leftSidebarHeader.width-width)/2);
+                    topPadding: 10;
                     spacing: 10;
-                    Button {
-                        anchors {top:parent.top; bottom:parent.bottom;}
-                        anchors.topMargin: 8;
-                        anchors.bottomMargin: 8;
+                    CustomButtonA {
+                        height: 50;
                         width: height;
+                        transEnabled: false;
+                        onClicked: {
+                            mainArea.jump2(leftSidebar.svg2obj["profile"]);
+                        }
                         background: Image {
                             anchors.fill: parent;
                             id: userAvatar;
@@ -225,7 +238,7 @@ ApplicationWindow {
                     }
                     Column {
                         anchors {top:parent.top; bottom:parent.bottom;}
-                        topPadding: 15;
+                        anchors.topMargin: 15;
                         spacing: 5;
                         visible: leftSidebar.spreaded;
                         Row {
@@ -244,6 +257,8 @@ ApplicationWindow {
                                 id: userVIP;
                                 icon.source: "qrc:/assets/iconfont/vip/vip10.svg";
                                 icon.color: Define.vipRed;
+                                transEnabled: false;
+                                hoverHandlerEnabled: false;
                             }
                         }
                     }
@@ -253,11 +268,7 @@ ApplicationWindow {
                 id: leftSidebarBody;
                 anchors {top:leftSidebarHeader.bottom; bottom:leftSidebarFoot.top; left:parent.left; right:parent.right;}
                 color: Define.canvasColor;
-                property var svg2obj: ({
-                    "likedlist": mainArea_LikedPage,
-                    "recentlist": mainArea_RecentPage,
-                    "locallist": mainArea_LocalPage
-                });
+                property var svg2obj: parent.svg2obj;
                 Column {
                     anchors.fill: parent;
                     anchors.topMargin: 10;
@@ -265,15 +276,17 @@ ApplicationWindow {
                     spacing: 1;
                     Repeater {
                         model: ListModel {
+                            ListElement {svgname:"home"; title:"首页"}
                             ListElement {svgname:"likedlist"; title:"喜欢"}
                             ListElement {svgname:"recentlist"; title:"最近播放"}
                             ListElement {svgname:"locallist"; title:"本地"}
                         }
-                        delegate: Button {
+                        delegate: CustomButtonA {
                             height: 50;
                             x: (leftSidebar.spreaded? Define.windowRaduis:(parent.width-width)/2);
                             width: (leftSidebar.spreaded? (parent.width-Define.windowRaduis*2):height);
-                            property var obj2: leftSidebarBody.svg2obj[svgname];
+                            property var obj2: leftSidebar.svg2obj[svgname];
+                            transEnabled: false;
                             background: Rectangle {
                                 anchors.fill: parent;
                                 color: (obj3.visible? (Define.choseDarkColor):(hovered? Define.hoverDarkColor:Define.canvasColor));
@@ -284,11 +297,12 @@ ApplicationWindow {
                                     x: (leftSidebar.spreaded? Define.windowRaduis*2:(parent.width-width)/2);
                                     spacing: 8;
                                     property var obj4: parent.obj3;
-                                    Image {
+                                    ColorImage  {
                                         anchors.verticalCenter: parent.verticalCenter;
                                         width: 25;
                                         height: 25;
                                         source: `qrc:/assets/iconfont/leftsidebar/${svgname}`+(parent.obj4.visible? "_ed":"")+".svg";
+                                        color: Define.btnIconColor;
                                     }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter;
@@ -326,10 +340,16 @@ ApplicationWindow {
                     CustomButtonA {
                         icon.source: "qrc:/assets/iconfont/leftsidebar/settings.svg";
                         visible: leftSidebar.spreaded;
+                        onClicked: {
+                            mainArea.jump2(leftSidebar.svg2obj["settings"]);
+                        }
                     }
                     CustomButtonA {
                         icon.source: "qrc:/assets/iconfont/leftsidebar/theme.svg";
                         visible: leftSidebar.spreaded;
+                        onClicked: {
+                            mainArea.jump2(leftSidebar.svg2obj["theme"]);
+                        }
                     }
                 }
             }
@@ -382,8 +402,9 @@ ApplicationWindow {
                 TopNavBarButton {
                     id: backwardBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/backward.svg";
-                    icon.color: (mainArea.uhis.length<=0? Define.forbdDarkColor:(hovered&&hoverColor? Define.btnHoverColor:Define.btnIconColor));
-                    transEnalbed: mainArea.uhis.length>0;
+                    icon.color: (mainArea.uhis.length<=0? Define.forbdDarkColor:(hovered&&hoverColorEnabled? Define.btnHoverColor:Define.btnIconColor));
+                    transEnabled: mainArea.uhis.length>0;
+                    hoverHandlerEnabled: transEnabled;
                     onClicked: {
                         mainArea.undo();
                     }
@@ -391,8 +412,9 @@ ApplicationWindow {
                 TopNavBarButton {
                     id: forwardBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/forward.svg";
-                    icon.color: (mainArea.rhis.length<=0? Define.forbdDarkColor:(hovered&&hoverColor? Define.btnHoverColor:Define.btnIconColor));
-                    transEnalbed: mainArea.rhis.length>0;
+                    icon.color: (mainArea.rhis.length<=0? Define.forbdDarkColor:(hovered&&hoverColorEnabled? Define.btnHoverColor:Define.btnIconColor));
+                    transEnabled: mainArea.rhis.length>0;
+                    hoverHandlerEnabled: transEnabled;
                     onClicked: {
                         mainArea.redo();
                     }
@@ -428,7 +450,7 @@ ApplicationWindow {
                     id: searchBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/search.svg";
                     anchors.verticalCenter: searchInput.verticalCenter;
-                    transEnalbed: false;
+                    transEnabled: false;
                     background: Rectangle {
                         color: "#d5d5d5";
                         width: 25;
@@ -449,9 +471,15 @@ ApplicationWindow {
                 TopNavBarButton {
                     id: flowCardWinBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/flowized.svg";
+                    icon.color: (((hovered&&hoverColorEnabled)||showed)? Define.btnHoverColor:Define.btnIconColor);
+                    property bool showed: false;
                     onClicked: {
-                        /* build flow window */
-                        window.hide();
+                        /* build flow card */
+                        if(!showed) {
+                            window.hide();
+                        }
+
+                        showed=!showed;
                     }
                 }
                 TopNavBarButton {
@@ -537,6 +565,10 @@ ApplicationWindow {
                     curr.refresh();
                 }
             }
+            MainAreaProfilePage {
+                id: mainArea_ProfilePage;
+                anchors.fill: parent;
+            }
             MainAreaHomePage {
                 id: mainArea_HomePage;
                 anchors.fill: parent;
@@ -552,6 +584,14 @@ ApplicationWindow {
             }
             MainAreaLocalPage {
                 id: mainArea_LocalPage;
+                anchors.fill: parent;
+            }
+            MainAreaSettingsPage {
+                id: mainArea_SettingsPage;
+                anchors.fill: parent;
+            }
+            MainAreaThemePage {
+                id: mainArea_ThemePage;
                 anchors.fill: parent;
             }
         }
@@ -645,7 +685,7 @@ ApplicationWindow {
                             anchors.verticalCenter: parent.verticalCenter;
                             icon.source: "qrc:/assets/iconfont/vip/viptip.svg";
                             icon.color: Define.btnHoverColor;
-                            transEnalbed: false;
+                            transEnabled: false;
                             height: 20;
                             width: 20;
                         }
@@ -751,7 +791,7 @@ ApplicationWindow {
                                         ListElement {name:"单曲循环"; svgname:"cycleone"; num:2;}
                                         ListElement {name:"列表循环"; svgname:"cyclelist"; num:3;}
                                     }
-                                    delegate: Button {
+                                    delegate: CustomButtonA {
                                         anchors.horizontalCenter: parent.horizontalCenter;
                                         width: sortSubTab.width-8;
                                         height: 30;
@@ -806,7 +846,7 @@ ApplicationWindow {
                             stampSlider.value=Math.floor(player.position/1000);
                             console.log("click play_pause, playing=",playing);
                         }
-                        transEnalbed: false;
+                        transEnabled: false;
                         background: Rectangle {
                             anchors.centerIn: parent;
                             width: parent.width+20;
@@ -921,7 +961,12 @@ ApplicationWindow {
                 rightPadding: 25;
                 PlayerBarButton {
                     id: lyricsCardBtn;
+                    property bool showed: false;
+                    icon.color: (((hovered&&hoverColorEnabled)||showed)? Define.btnHoverColor:Define.btnIconColor);
                     icon.source: "qrc:/assets/iconfont/playerbar/lyricsflow.svg";
+                    onClicked: {
+                        showed=!showed;
+                    }
                 }
                 PlayerBarButton {
                     id: playingListBtn;

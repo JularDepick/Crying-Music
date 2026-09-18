@@ -15,11 +15,16 @@ Button {
     icon.width: width;
     icon.height: height;
     background: Item {}
-    property bool hoverColor: true;
-    icon.color: (hovered&&hoverColor? Define.btnHoverColor:Define.btnIconColor);
-    property bool transEnalbed: true;
+    property bool hoverColorEnabled: true;
+    icon.color: (hovered&&hoverColorEnabled? Define.btnHoverColor:Define.btnIconColor);
+    property bool transEnabled: true;
     transform: Translate {
-        x: ((pressed&&transEnalbed)? 0.25:0);
-        y: ((pressed&&transEnalbed)? 0.25:0);
+        x: ((pressed&&transEnabled)? 0.5:0);
+        y: ((pressed&&transEnabled)? 0.5:0);
+    }
+    property bool hoverHandlerEnabled: true;
+    HoverHandler {
+        enabled: (parent.enabled && hoverHandlerEnabled);
+        cursorShape: Qt.PointingHandCursor;
     }
 }
