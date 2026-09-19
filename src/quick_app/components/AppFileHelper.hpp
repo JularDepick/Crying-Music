@@ -13,7 +13,15 @@ class AppFileHelper : public QObject {
     Q_OBJECT
 public:
     explicit AppFileHelper(QObject *parent=nullptr):QObject(parent) {}
-    /* 读: 入参带 file://, 默认 GBK */
+    /* 判断目录是否存在: 入参为绝对路径带 file:// */
+    Q_INVOKABLE bool existsDir(const QUrl &url) const {
+        return QFileInfo(url.toLocalFile()).isDir();
+    }
+    /* 判断文件是否存在: 入参为绝对路径带 file:// */
+    Q_INVOKABLE bool exists(const QUrl &url) const {
+        return QFile::exists(url.toLocalFile());
+    }
+    /* 读: 入参为绝对路径带 file://, 默认 GBK */
     Q_INVOKABLE QString read(const QUrl &url) const {
         return read(url,"GBK");
     }
@@ -32,7 +40,7 @@ public:
         }
         return decoder(data);
     }
-    /* 写: 入参带 file://, 默认 GBK */
+    /* 写: 入参为绝对路径带 file://, 默认 GBK */
     Q_INVOKABLE bool write(const QUrl &url,const QString &content) const {
         return write(url,content,"GBK");
     }

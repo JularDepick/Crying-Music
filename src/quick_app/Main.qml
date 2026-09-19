@@ -276,10 +276,10 @@ ApplicationWindow {
                     spacing: 1;
                     Repeater {
                         model: ListModel {
-                            ListElement {svgname:"home"; title:"首页"}
-                            ListElement {svgname:"likedlist"; title:"喜欢"}
+                            ListElement {svgname:"home"; title:"首页推荐"}
+                            ListElement {svgname:"likedlist"; title:"我的喜欢"}
                             ListElement {svgname:"recentlist"; title:"最近播放"}
-                            ListElement {svgname:"locallist"; title:"本地"}
+                            ListElement {svgname:"locallist"; title:"本地和下载"}
                         }
                         delegate: CustomButtonA {
                             height: 50;

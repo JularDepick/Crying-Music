@@ -19,11 +19,12 @@ Item {
     property int btnSize: 20;
     property int btnSpacing: 20;
     property color btnIconColor: "#434343";
-    property color btnHoverColor: "#00eea8";
+    property color btnHoverColor: "#00eb81";
     property color btnIconRed: "#f45555";
     property color btnHoverRed: "#e44545";
     property color hoverDarkColor: "#e8e8e8";
     property color choseDarkColor: "#d8d8d8";
+    property color choseCyanColor: "#00cc65";
     property color forbdDarkColor: "#bcbcbc";
     property color subGrey: "#e0e0e0";
     property color vipRed: "#fe3610";
