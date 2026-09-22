@@ -513,6 +513,7 @@ ApplicationWindow {
             bottomLeftRadius: Define.mainAreaRaduis;
             bottomRightRadius: Define.mainAreaRaduis;
             color: Define.mainAreaColor;
+            clip: true;
             property var uhis: [];
             property var rhis: [];
             property var curr: mainArea_HomePage;

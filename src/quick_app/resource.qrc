@@ -5,9 +5,15 @@
         <file>assets/iconfont/function/like.svg</file>
         <file>assets/iconfont/function/liked.svg</file>
         <file>assets/iconfont/function/download.svg</file>
+        <file>assets/iconfont/function/addbtn.svg</file>
         <file>assets/iconfont/function/addnew.svg</file>
         <file>assets/iconfont/function/addinto.svg</file>
         <file>assets/iconfont/function/more.svg</file>
+        <file>assets/iconfont/function/jump2top.svg</file>
+
+        <file>assets/iconfont/listview/upsort.svg</file>
+        <file>assets/iconfont/listview/downsort.svg</file>
+        <file>assets/iconfont/listview/justsort.svg</file>
 
         <file>assets/iconfont/leftsidebar/home.svg</file>
         <file>assets/iconfont/leftsidebar/home_ed.svg</file>
