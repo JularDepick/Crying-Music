@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.impl
 import "./"
 
 MainAreaFatherPage {
@@ -61,13 +62,45 @@ MainAreaFatherPage {
                 }
             }
         }
-        Rectangle {
+        Row {
             id: functionBox;
             anchors {left:parent.left; right:parent.right;}
             anchors.leftMargin: 40;
             anchors.rightMargin: 40;
-            height: 50;
-            color: "yellow";
+            anchors.topMargin: 10;
+            anchors.bottomMargin: 10;
+            spacing: 10;
+            property var funBoxModel: ([{},{},{}
+            ]);
+            Repeater {
+                model: functionBox.funBoxModel;
+                delegate: CustomButtonA {
+                    id: playList;
+                    width: 80;
+                    height: 30;
+                    onClicked: {
+                    }
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 15;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Row {
+                            anchors.centerIn: parent;
+                            ColorImage {
+                                anchors.verticalCenter: parent.verticalCenter;
+                                width: 15;
+                                height: 15;
+                                source: "qrc:/assets/iconfont/playerbar/play.svg";
+                                color: Define.btnIconColor;
+                            }
+                            Text {
+                                text: "播放";
+                            }
+                        }
+                    }
+                }
+            }
         }
         Row {
             id: sortRow;
@@ -89,25 +122,19 @@ MainAreaFatherPage {
             }
         }
     }
+    property var mainListViewModel: ([{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}
+    ]);
     Rectangle {
         id: mainViewArea;
         anchors {left:parent.left; right:parent.right; top:headColum.bottom; bottom:parent.bottom}
         color: Define.nocolor;
         ListView {
-            anchors.fill: parent;
             id: mainListView;
+            anchors.fill: parent;
             spacing: 10;
             clip: true;
             boundsBehavior: Flickable.StopAtBounds;
-            model: ListModel {
-                ListElement {}
-                ListElement {}
-                ListElement {}
-                ListElement {}
-                ListElement {}
-                ListElement {}
-                ListElement {}
-            }
+            model: mainArea_LocalPage.mainListViewModel;
             delegate: Item {
                 width: ListView.view.width;
                 height: 60;

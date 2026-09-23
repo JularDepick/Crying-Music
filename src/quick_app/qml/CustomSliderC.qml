@@ -23,7 +23,7 @@ Slider {
         width: 4;
         height: parent.height*parent.handleRatio;
         radius: 2;
-        color: Define.subGrey;
+        color: (hovered||pressed? Define.choseDarkColor:Define.subGrey);
         HoverHandler {
             cursorShape: Qt.PointingHandCursor;
         }
