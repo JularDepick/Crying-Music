@@ -20,20 +20,28 @@ MainAreaFatherPage {
         }
         Row {
             id: headRow;
-            topPadding: 10;
+            topPadding: 5;
             spacing: 0;
+            property string curr: "localSongs";
+            function jump2(which) {
+                console.log("curr=",curr," jump2->",which);
+                if(which!==curr) {
+                    curr=which;
+                }
+            }
             Repeater {
                 model: ListModel {
-                    ListElement {tabname:"本地歌曲";}
-                    ListElement {tabname:"下载歌曲";}
-                    ListElement {tabname:"正在下载";}
+                    ListElement {tabname:"本地歌曲"; btnID:"localSongs";}
+                    ListElement {tabname:"下载歌曲"; btnID:"downloadedSongs";}
+                    ListElement {tabname:"正在下载"; btnID:"downloadingSongs";}
                 }
                 delegate: CustomButtonA {
                     height: 24;
                     width: 96;
                     transEnabled: false;
-                    property bool selected: false;
+                    property bool selected: (headRow.curr===btnID);
                     onClicked: {
+                        headRow.jump2(btnID);
                     }
                     background: Rectangle {
                         anchors.fill: parent;
@@ -67,19 +75,20 @@ MainAreaFatherPage {
             anchors {left:parent.left; right:parent.right;}
             anchors.leftMargin: 40;
             anchors.rightMargin: 40;
-            anchors.topMargin: 10;
-            anchors.bottomMargin: 10;
-            spacing: 10;
-            property var funBoxModel: ([{},{},{}
+            topPadding: 20;
+            spacing: 20;
+            property var funBoxModel: ([
+                {svgname:"playerbar/play",text:"播放",box:true,clickFun:()=>{}},
+                {svgname:"function/addbtn",text:"添加",box:true,clickFun:()=>{}},
+                {svgname:"function/batch",text:"批量",box:true,clickFun:()=>{}}
             ]);
             Repeater {
                 model: functionBox.funBoxModel;
                 delegate: CustomButtonA {
                     id: playList;
-                    width: 80;
+                    width: (modelData.box? 80:30);
                     height: 30;
-                    onClicked: {
-                    }
+                    onClicked: modelData.clickFun;
                     transEnabled: false;
                     background: Rectangle {
                         anchors.fill: parent;
@@ -87,15 +96,16 @@ MainAreaFatherPage {
                         color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
                         Row {
                             anchors.centerIn: parent;
+                            spacing: 5;
                             ColorImage {
                                 anchors.verticalCenter: parent.verticalCenter;
-                                width: 15;
-                                height: 15;
-                                source: "qrc:/assets/iconfont/playerbar/play.svg";
+                                width: (modelData.box? 15:25);
+                                height: (modelData.box? 15:25);
+                                source: `qrc:/assets/iconfont/${modelData.svgname}.svg`;
                                 color: Define.btnIconColor;
                             }
                             Text {
-                                text: "播放";
+                                text: modelData.text;
                             }
                         }
                     }
@@ -107,16 +117,22 @@ MainAreaFatherPage {
             anchors {left:parent.left; right:parent.right;}
             anchors.leftMargin: 40;
             anchors.rightMargin: 40;
-            anchors.bottomMargin: 10;
+            topPadding: 10;
+            bottomPadding: 5;
             Button {
-                background: Item {
+                onClicked: {
+                    ;
+                }
+                background: Row {
                     Text {
-                        text: "歌手";
+                        text: title;
                     }
-                    Image {
-                        width: 5;
-                        height: 5;
+                    ColorImage {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        width: 10;
+                        height: 10;
                         source: "qrc:/assets/iconfont/listview/justsort.svg";
+                        color: Define.btnIconColor;
                     }
                 }
             }
