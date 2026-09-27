@@ -12,6 +12,7 @@ MainAreaFatherPage {
         anchors {left:parent.left; right:parent.right;}
         leftPadding: 40;
         rightPadding: 40;
+        bottomPadding: 10;
         Text {
             id: titleText;
             text: "本地和下载";
@@ -112,20 +113,71 @@ MainAreaFatherPage {
                 }
             }
         }
-        Row {
-            id: sortRow;
-            anchors {left:parent.left; right:parent.right;}
-            anchors.leftMargin: 40;
-            anchors.rightMargin: 40;
-            topPadding: 10;
-            bottomPadding: 5;
+    }
+    Row {
+        id: sortHead;
+        anchors {left:parent.left; right:parent.right; top:headColum.bottom;}
+        anchors.leftMargin: 40;
+        anchors.rightMargin: 40;
+        height: 20;
+        Rectangle {
+            anchors {top:parent.top; bottom:parent.bottom;}
+            width: parent.width*0.8;
+            color: Define.nocolor;
             Button {
+                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
                 onClicked: {
-                    ;
+                    console.log("歌名");
                 }
                 background: Row {
                     Text {
-                        text: title;
+                        text: "歌名";
+                    }
+                    ColorImage {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        width: 10;
+                        height: 10;
+                        source: "qrc:/assets/iconfont/listview/justsort.svg";
+                        color: Define.btnIconColor;
+                    }
+                }
+            }
+        }
+        Rectangle {
+            anchors {top:parent.top; bottom:parent.bottom;}
+            width: parent.width*0.1;
+            color: Define.nocolor;
+            Button {
+                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                onClicked: {
+                    console.log("大小");
+                }
+                background: Row {
+                    Text {
+                        text: "大小";
+                    }
+                    ColorImage {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        width: 10;
+                        height: 10;
+                        source: "qrc:/assets/iconfont/listview/justsort.svg";
+                        color: Define.btnIconColor;
+                    }
+                }
+            }
+        }
+        Rectangle {
+            anchors {top:parent.top; bottom:parent.bottom;}
+            width: parent.width*0.1;
+            color: Define.nocolor;
+            Button {
+                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                onClicked: {
+                    console.log("时长");
+                }
+                background: Row {
+                    Text {
+                        text: "时长";
                     }
                     ColorImage {
                         anchors.verticalCenter: parent.verticalCenter;
@@ -142,7 +194,7 @@ MainAreaFatherPage {
     ]);
     Rectangle {
         id: mainViewArea;
-        anchors {left:parent.left; right:parent.right; top:headColum.bottom; bottom:parent.bottom}
+        anchors {left:parent.left; right:parent.right; top:sortHead.bottom; bottom:parent.bottom}
         color: Define.nocolor;
         ListView {
             id: mainListView;
