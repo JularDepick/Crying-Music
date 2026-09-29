@@ -1039,6 +1039,12 @@ ApplicationWindow {
             visible=!visible;
         }
     }
+    function subsHide() {
+        playerSort.sub_hide();
+        soundCtrl.sub_hide();
+        playingListBtn.sub_hide();
+        mainArea.curr.subsHide();
+    }
     Component.onCompleted: {
         console.log("UI加载成功,开始读取程序储存");
         window.visible=true;

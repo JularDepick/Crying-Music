@@ -8,6 +8,8 @@ MainAreaFatherPage {
     Text {
         text: "This is mainArea_LikedPage";
     }
+    function subsHide() {
+    }
     function refresh() {
     }
 }

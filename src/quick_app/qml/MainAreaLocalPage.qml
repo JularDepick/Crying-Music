@@ -414,7 +414,8 @@ MainAreaFatherPage {
             console.log(value);
         }
     }
-
+    function subsHide() {
+    }
     function refresh() {
         console.log(mainListView.contentY);
     }

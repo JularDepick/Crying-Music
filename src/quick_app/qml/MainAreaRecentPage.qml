@@ -8,6 +8,8 @@ MainAreaFatherPage {
     Text {
         text: "This is mainArea_RecentPage";
     }
+    function subsHide() {
+    }
     function refresh() {
     }
 }

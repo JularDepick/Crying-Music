@@ -8,6 +8,8 @@ MainAreaFatherPage {
     Text {
         text: "This is mainArea_SettingsPage";
     }
+    function subsHide() {
+    }
     function refresh() {
     }
 }

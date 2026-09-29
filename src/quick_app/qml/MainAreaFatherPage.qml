@@ -6,5 +6,6 @@ Rectangle {
     visible: false;
     color: Define.mainAreaColor;
     radius: Define.mainAreaRaduis;
+    function subsHide() {}
     function refresh() {}
 }

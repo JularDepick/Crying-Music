@@ -8,6 +8,8 @@ MainAreaFatherPage {
     Text {
         text: "This is mainArea_ThemePage";
     }
+    function subsHide() {
+    }
     function refresh() {
     }
 }
