@@ -1,6 +1,10 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.impl
+import QtQuick.Dialogs
+
+import AppHelpers 1.0
+
 import "./"
 
 MainAreaFatherPage {
@@ -8,6 +12,7 @@ MainAreaFatherPage {
     visible: false;
     Column {
         id: headColum;
+        z: mainViewArea.z+1;
         y: Math.min(0,mainListView.contentY>=titleText.height? (-titleText.height):(-mainListView.contentY));
         anchors {left:parent.left; right:parent.right;}
         leftPadding: 40;
@@ -78,37 +83,199 @@ MainAreaFatherPage {
             anchors.rightMargin: 40;
             topPadding: 20;
             spacing: 20;
-            property var funBoxModel: ([
-                {svgname:"playerbar/play",text:"播放",box:true,clickFun:()=>{}},
-                {svgname:"function/addbtn",text:"添加",box:true,clickFun:()=>{}},
-                {svgname:"function/batch",text:"批量",box:true,clickFun:()=>{}}
-            ]);
-            Repeater {
-                model: functionBox.funBoxModel;
-                delegate: CustomButtonA {
-                    id: playList;
-                    width: (modelData.box? 80:30);
-                    height: 30;
-                    onClicked: modelData.clickFun;
-                    transEnabled: false;
-                    background: Rectangle {
-                        anchors.fill: parent;
-                        radius: 15;
-                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Row {
-                            anchors.centerIn: parent;
-                            spacing: 5;
-                            ColorImage {
-                                anchors.verticalCenter: parent.verticalCenter;
-                                width: (modelData.box? 15:25);
-                                height: (modelData.box? 15:25);
-                                source: `qrc:/assets/iconfont/${modelData.svgname}.svg`;
-                                color: Define.btnIconColor;
-                            }
-                            Text {
-                                text: modelData.text;
-                            }
+            CustomButtonA {
+                id: playList;
+                width: 80;
+                height: 30;
+                onClicked: {
+                    ;
+                }
+                transEnabled: false;
+                background: Rectangle {
+                    anchors.fill: parent;
+                    radius: 15;
+                    color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                    Row {
+                        anchors.centerIn: parent;
+                        spacing: 5;
+                        ColorImage {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            width: 15;
+                            height: 15;
+                            source: `qrc:/assets/iconfont/playerbar/play.svg`;
+                            color: Define.btnIconColor;
                         }
+                        Text {
+                            text: "播放";
+                        }
+                    }
+                }
+            }
+            CustomButtonA {
+                id: addSong;
+                width: 80;
+                height: 30;
+                onClicked: {
+                    addSongSubTab.updateP();
+                    addSongSubTab.tshow();
+                }
+                transEnabled: false;
+                background: Rectangle {
+                    anchors.fill: parent;
+                    radius: 15;
+                    color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                    Row {
+                        anchors.centerIn: parent;
+                        spacing: 5;
+                        ColorImage {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            width: 15;
+                            height: 15;
+                            source: `qrc:/assets/iconfont/function/addbtn.svg`;
+                            color: Define.btnIconColor;
+                        }
+                        Text {
+                            text: "添加";
+                        }
+                    }
+                }
+            }
+            CustomButtonA {
+                id: batchOp;
+                width: 80;
+                height: 30;
+                onClicked: {
+                    ;
+                }
+                transEnabled: false;
+                background: Rectangle {
+                    anchors.fill: parent;
+                    radius: 15;
+                    color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                    Row {
+                        anchors.centerIn: parent;
+                        spacing: 5;
+                        ColorImage {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            width: 15;
+                            height: 15;
+                            source: `qrc:/assets/iconfont/function/batch.svg`;
+                            color: Define.btnIconColor;
+                        }
+                        Text {
+                            text: "批量";
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Rectangle {
+        id: addSongSubTab;
+        z: mainViewArea.z+2;
+        radius: 8;
+        width: 120;
+        height: 65;
+        color: Define.mainAreaColor;
+        visible: false;
+        border.color: Define.subGrey;
+        border.width: 0.5;
+        function updateP() {
+            var p=addSong.mapToItem(mainArea_LocalPage,0,0);
+            x=p.x+(addSong.width-width)/2;
+            y=p.y+addSong.height+5;
+        }
+        function show() {
+            visible=true;
+        }
+        function hide() {
+            visible=false;
+        }
+        function tshow() {
+            visible=!visible;
+        }
+        Column {
+            anchors {fill:parent;}
+            padding: 2;
+            spacing: 2;
+            CustomButtonA {
+                width: parent.width-4;
+                height: 30;
+                transEnabled: false;
+                hoverColorEnabled: false;
+                onClicked: {
+                    songFileDialog.open();
+                }
+                background: Rectangle {
+                    anchors.fill: parent;
+                    color: (parent.hovered? Define.hoverDarkColor:Define.mainAreaColor);
+                    radius: 5;
+                    Row {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        spacing: 5;
+                        leftPadding: 10;
+                        ColorImage {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            width: 15;
+                            height: 15;
+                            source: "qrc:/assets/iconfont/function/addfiles.svg";
+                            color: Define.btnIconColor;
+                        }
+                        Text {
+                            text: "手动添加歌曲";
+                        }
+                    }
+                }
+                FileDialog {
+                    id: songFileDialog;
+                    title: "请选择需要导入的音频文件(可多选)";
+                    acceptLabel: "导入";
+                    fileMode: FileDialog.OpenFiles;
+                    nameFilters: [
+                        "音频文件 (*.mp3 *.m4a)"
+                    ];
+                    currentFolder: AppPathHelper.getAppPath();
+                    onAccepted: {
+                        console.log(selectedFiles);
+                    }
+                }
+            }
+            CustomButtonA {
+                width: parent.width-4;
+                height: 30;
+                transEnabled: false;
+                hoverColorEnabled: false;
+                onClicked: {
+                    songDirDialog.open();
+                }
+                background: Rectangle {
+                    anchors.fill: parent;
+                    color: (parent.hovered? Define.hoverDarkColor:Define.mainAreaColor);
+                    radius: 5;
+                    Row {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        spacing: 5;
+                        leftPadding: 10;
+                        ColorImage {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            width: 15;
+                            height: 15;
+                            source: "qrc:/assets/iconfont/function/add4dir.svg";
+                            color: Define.btnIconColor;
+                        }
+                        Text {
+                            text: "自动扫描歌曲";
+                        }
+                    }
+                }
+                FolderDialog {
+                    id: songDirDialog;
+                    title: "请选择需要扫描的文件夹(仅单选)";
+                    acceptLabel: "扫描";
+                    currentFolder: AppPathHelper.getAppPath();
+                    options: FolderDialog.ReadOnly;
+                    onAccepted: {
+                        console.log(selectedFolder);
                     }
                 }
             }

@@ -653,7 +653,7 @@ ApplicationWindow {
                         icon.width: parent.width-5;
                         icon.height: parent.width-5;
                         onClicked: {
-                            lyricsSubTab.visible=true;
+                            lyricsSubTab.tshow();
                             console.log("clicked lyricsOpenerBtn");
                         }
                         background: Rectangle {
@@ -769,6 +769,15 @@ ApplicationWindow {
                         */
                         property bool subTabVisible: false;
                         onClicked: {
+                            sub_tshow();
+                        }
+                        function sub_show() {
+                            subTabVisible=true;
+                        }
+                        function sub_hide() {
+                            subTabVisible=false;
+                        }
+                        function sub_tshow() {
                             subTabVisible=!subTabVisible;
                         }
                         Rectangle {
@@ -871,6 +880,15 @@ ApplicationWindow {
                         property int volume: soundSlider.value;
                         property bool sliderVisible: false;
                         onClicked: {
+                            sub_tshow();
+                        }
+                        function sub_show() {
+                            sliderVisible=true;
+                        }
+                        function sub_hide() {
+                            sliderVisible=false;
+                        }
+                        function sub_tshow() {
                             sliderVisible=!sliderVisible;
                         }
                         Rectangle {
@@ -972,9 +990,18 @@ ApplicationWindow {
                 PlayerBarButton {
                     id: playingListBtn;
                     icon.source: "qrc:/assets/iconfont/playerbar/playerlist.svg";
-                    property bool showed: false;
+                    property bool subVisible: false;
                     onClicked: {
-                        showed=!showed;
+                        sub_tshow();
+                    }
+                    function sub_show() {
+                        subVisible=true;
+                    }
+                    function sub_hide() {
+                        subVisible=false;
+                    }
+                    function sub_tshow() {
+                        subVisible=!subVisible;
                     }
                 }
             }
@@ -992,7 +1019,7 @@ ApplicationWindow {
             width: 450;
             border.color: Define.subGrey;
             border.width: 1;
-            visible: playingListBtn.showed;
+            visible: playingListBtn.subVisible;
             MouseArea {
                 anchors.fill: parent;
             }
@@ -1002,6 +1029,15 @@ ApplicationWindow {
         id: lyricsSubTab;
         anchors.fill: parent;
         visible: false;
+        function show() {
+            visible=true;
+        }
+        function hide() {
+            visible=false;
+        }
+        function tshow() {
+            visible=!visible;
+        }
     }
     Component.onCompleted: {
         console.log("UI加载成功,开始读取程序储存");
