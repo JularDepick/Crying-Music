@@ -95,8 +95,8 @@ ApplicationWindow {
     }
     MouseArea {
         anchors {left:parent.left; bottom:parent.bottom;}
-        width: 10;
-        height: 10;
+        width: Define.cornerMouseAreaD;
+        height: Define.cornerMouseAreaD;
         cursorShape: Qt.SizeBDiagCursor;
         onPressed: window.startSystemResize(Qt.LeftEdge | Qt.BottomEdge);
     }
@@ -1039,11 +1039,28 @@ ApplicationWindow {
             visible=!visible;
         }
     }
-    function subsHide() {
-        playerSort.sub_hide();
-        soundCtrl.sub_hide();
-        playingListBtn.sub_hide();
-        mainArea.curr.subsHide();
+    /* 收起 sub: 点击落在某个 sub 的按钮或面板内时放过它, 其余全部收起 */
+    function subsHide(scenePos) {
+        if(!Assist.hitItem(playerSort, scenePos) && !Assist.hitItem(sortSubTab, scenePos)) {
+            playerSort.sub_hide();
+        }
+        if(!Assist.hitItem(soundCtrl, scenePos) && !Assist.hitItem(soundSliderArea, scenePos)) {
+            soundCtrl.sub_hide();
+        }
+        if(!Assist.hitItem(playingListBtn, scenePos) && !Assist.hitItem(playingListArea, scenePos)) {
+            playingListBtn.sub_hide();
+        }
+        if(!Assist.hitItem(moreFunBtn, scenePos) && !Assist.hitItem(moreFunSubTab, scenePos)) {
+            moreFunBtn.subTabVisible=false;
+        }
+        mainArea.curr.subsHide(scenePos);
+    }
+    /* 全局点击: 由 C++ 侧旁观窗口事件后回调(只观察不消费, 已延后一拍) */
+    Connections {
+        target: AppClickHelper;
+        function onMousePressed(scenePos) {
+            window.subsHide(scenePos);
+        }
     }
     Component.onCompleted: {
         console.log("UI加载成功,开始读取程序储存");

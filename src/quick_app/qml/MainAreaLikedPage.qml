@@ -8,7 +8,7 @@ MainAreaFatherPage {
     Text {
         text: "This is mainArea_LikedPage";
     }
-    function subsHide() {
+    function subsHide(scenePos) {
     }
     function refresh() {
     }
