@@ -4,7 +4,6 @@ import QtQuick.Effects
 import QtQuick.Controls.Basic
 import QtQuick.Controls.impl
 import QtMultimedia
-import Qt.labs.platform
 
 import AppHelpers 1.0
 
@@ -22,33 +21,23 @@ ApplicationWindow {
     flags: Qt.Window | Qt.FramelessWindowHint;
 
     /* 系统托盘 */
-    SystemTrayIcon {
-        id: stIcon;
-        visible: true;
-        icon.source: "qrc:/favicon.jpg";
-        tooltip: "泣水音乐";
-        menu: Menu {
-            id: stMenu;
-            MenuItem {
-               text: "退出";
-               onTriggered: Qt.exit(0);
-           }
-           MenuSeparator {}
-       }
-       onActivated: (reason)=> {
-           if (reason === SystemTrayIcon.Trigger) {
-               if(window.visible === false) {
-                   window.show()
-                   window.raise()
-                   window.requestActivate()
-               } else {
-                   window.hide();
-               }
-           }
-       }
+    Connections {
+        target: AppTrayHelper;
+        function onTriggered() {
+            if(window.visible === false) {
+                window.show()
+                window.raise()
+                window.requestActivate()
+            } else {
+                window.hide();
+            }
+        }
+        function onQuitTriggered() {
+            Qt.exit(0);
+        }
     }
     onClosing: (close)=> {
-        if (stIcon.visible) {
+        if (AppTrayHelper.visible) {
             close.accepted=false;
             window.hide();
         }
@@ -1062,6 +1051,10 @@ ApplicationWindow {
     }
     Component.onCompleted: {
         console.log("UI加载成功,开始读取程序储存");
+        AppTrayHelper.iconSource="qrc:/favicon.jpg";
+        AppTrayHelper.tooltip="泣水音乐";
+        AppTrayHelper.quitText="退出";
+        AppTrayHelper.visible=true;
         window.visible=true;
     }
 }

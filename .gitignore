@@ -6,6 +6,9 @@ release/
 # Agent Runtime
 AGENT*.md
 .workbuddy/
+.agent*/
+temp/
+tmp/
 
 # Multimedia
 *.mp3
