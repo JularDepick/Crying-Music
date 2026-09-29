@@ -2,9 +2,8 @@
 从指定路径 P 复制纯净可独立运行的 Release 内容到指定路径 Q。
 在下方配置 SOURCE_DIR 和 DEST_DIR，然后运行此脚本。
 
-复制来源有两处：
-- SOURCE_DIR：windeployqt 部署后的构建输出目录，提供主程序与 Qt 运行时依赖
-- MEDIA_SOURCE_DIR：源码目录，提供构建系统不生成的音频资源
+复制来源为 SOURCE_DIR：windeployqt 部署后的构建输出目录，提供主程序与 Qt 运行时依赖；
+项目自身的许可、版权、说明与 Qt 许可文本从源码目录另行附加。
 
 配置路径以脚本所在目录为基准解析，可在任意工作目录下运行。
 复制结束后会自检构建产物中未纳入清单的 DLL 与插件目录，提示可能漏带的依赖。
@@ -27,12 +26,6 @@ DEST_DIR = (SCRIPT_DIR / "../release/Crying-Music").resolve()
 
 # 主可执行文件名
 MAIN_EXE = "CryingMusic.exe"
-
-# 音频资源：源码目录中的音频复制到发布包的 MEDIA_DEST_NAME 目录
-# 主程序按 应用目录/music/<文件名> 读取音频，见 Main.qml 中 MediaPlayer.source
-MEDIA_SOURCE_DIR = (SCRIPT_DIR / "..").resolve()
-MEDIA_DEST_NAME = "music"
-MEDIA_PATTERNS = ("*.mp3",)
 
 # 需要复制的文件和目录列表（相对于 SOURCE_DIR）
 # 清单按 windeployqt 实际产物逐项核对，覆盖 Qt Quick 与 Qt Multimedia 及其插件依赖
@@ -60,12 +53,17 @@ COPY_TARGETS: list[str] = [
     "Qt6QuickLayouts.dll",
     "Qt6QuickShapes.dll",
     "Qt6QuickTemplates2.dll",
-    "Qt6Quick3DUtils.dll",
     "Qt6Svg.dll",
     "Qt6Widgets.dll",
 
-    # QML 平台模块（qml/Qt/labs/platform 插件依赖）
+    # Qt Quick Dialogs（本地页的 FileDialog/FolderDialog 依赖）
+    "Qt6QuickDialogs2.dll",
+    "Qt6QuickDialogs2QuickImpl.dll",
+    "Qt6QuickDialogs2Utils.dll",
+
+    # QML 平台模块（qml/Qt/labs/platform 与 folderlistmodel 插件依赖）
     "Qt6LabsPlatform.dll",
+    "Qt6LabsFolderListModel.dll",
 
     # Qt Quick Controls 2：样式由 qml/QtQuick/Controls/<样式> 内插件按需加载
     "Qt6QuickControls2.dll",
@@ -110,8 +108,17 @@ COPY_TARGETS: list[str] = [
     "opengl32sw.dll",
 ]
 
-# 构建产物中属于开发用途、不进入发布包的目录，自检时跳过
-IGNORED_UNCOVERED = {"qmltooling"}
+# 发布包附加文件：项目许可、版权、说明与 Qt 许可文本（源路径, 发布包内文件名）
+# 这些文件取自源码目录，不属于 windeployqt 的构建产物
+EXTRA_SOURCES: list[tuple[Path, str]] = [
+    ((SCRIPT_DIR / "../../../LICENSE").resolve(), "LICENSE"),
+    ((SCRIPT_DIR / "../../../COPYRIGHT").resolve(), "COPYRIGHT"),
+    ((SCRIPT_DIR / "../README.md").resolve(), "README.md"),
+    ((SCRIPT_DIR / "../LICENSE.Qt").resolve(), "LICENSE.Qt"),
+]
+
+# 构建产物中属于开发用途或刻意不分发的条目，自检时跳过
+IGNORED_UNCOVERED = {"qmltooling", "Qt6Quick3DUtils.dll"}
 
 
 # ==== 逻辑 ====
@@ -146,23 +153,17 @@ def copy_entry(src: Path, dst: Path, name: str) -> tuple[int, bool]:
     return 0, False
 
 
-def copy_media(dst: Path) -> int:
-    """复制源码目录中的媒体资源到发布包的媒体目录，返回复制的文件数量。"""
-    sources: list[Path] = []
-    for pattern in MEDIA_PATTERNS:
-        sources.extend(sorted(p for p in MEDIA_SOURCE_DIR.glob(pattern) if p.is_file()))
-
-    if not sources:
-        print(f"  [警告] 未找到媒体资源: {MEDIA_SOURCE_DIR / MEDIA_PATTERNS[0]}")
-        print("         主程序播放音频依赖该资源，缺失时发布包无法播放音频")
-        return 0
-
-    media_dst = dst / MEDIA_DEST_NAME
-    media_dst.mkdir(parents=True, exist_ok=True)
-    for item in sources:
-        shutil.copy2(item, media_dst / item.name)
-        print(f"  [媒体] {MEDIA_DEST_NAME}/{item.name}")
-    return len(sources)
+def copy_extras(dst: Path) -> int:
+    """复制项目许可、版权、说明与 Qt 许可文本到发布包，返回复制的文件数量。"""
+    count = 0
+    for src, name in EXTRA_SOURCES:
+        if not src.is_file():
+            print(f"  [跳过] 未找到: {src}")
+            continue
+        shutil.copy2(src, dst / name)
+        print(f"  [许可] {name}")
+        count += 1
+    return count
 
 
 def check_uncovered(src: Path, covered: set[str]) -> None:
@@ -197,7 +198,7 @@ def main() -> None:
 
     print(f"源路径:    {SOURCE_DIR}")
     print(f"目标路径:  {DEST_DIR}")
-    print(f"共 {len(COPY_TARGETS)} 个复制目标")
+    print(f"共 {len(COPY_TARGETS)} 个复制目标，{len(EXTRA_SOURCES)} 个附加文件")
     print()
 
     # 如果目标目录已存在则先清空
@@ -214,7 +215,7 @@ def main() -> None:
         if not found:
             skipped.append(name)
 
-    total += copy_media(DEST_DIR)
+    total += copy_extras(DEST_DIR)
 
     print()
     if skipped:

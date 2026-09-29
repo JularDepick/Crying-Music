@@ -414,7 +414,6 @@ MainAreaFatherPage {
             console.log(value);
         }
     }
-    /* 收起本页 sub: 点击落在添加按钮或其面板内时放过它 */
     function subsHide(scenePos) {
         if(Assist.hitItem(addSong, scenePos) || Assist.hitItem(addSongSubTab, scenePos)) {
             return;

@@ -11,21 +11,27 @@
 
 </div>
 
+---
+
 A custom implementation that mimics mainstream music players.
 
-# Architecture and Technology
 
-## Quick App
+## Architecture and Technology
+
+### Quick App
 | Item | Technology |
 |:---:|:---:|
-| Programming Language | C++ |
-| GUI | Qt Quick Application |
+| Programming Language | C++17 |
+| GUI | Qt 6 Quick / QML |
+| Multimedia | Qt Multimedia |
+| Build System | CMake |
 
-# Directory Structure
+
+## Directory Structure
 ```
 Crying-Music/
 ├── src/                    # Source directory
-│   └── quick_app/          # Quick App
+│   └── quick_app/          # Quick App (see src/quick_app/README.md)
 ├── docs/                   # Documentation
 ├── .gitignore              # Git ignore configuration
 ├── README.md               # Project documentation (Chinese)
@@ -34,10 +40,20 @@ Crying-Music/
 └── COPYRIGHT               # Copyright information
 ```
 
-# Source Directory Index
+
+## Source Directory Index
 - [Quick App](./src/quick_app/README.md)
 
-# Version Number Index
-- [README.md:5](README.md)
-- [README_en-US.md:5](README_en-US.md)
-> Version number update rule: The project version is updated based on the comprehensive updates of submodules. Each submodule has its own independent version. Release includes both the project version and each submodule's internal version.
+
+## Copyright
+
+Copyright &copy; 2026 JularDepick
+
+See [COPYRIGHT](./COPYRIGHT) for details.
+
+
+## License
+
+This repository is licensed under the [AGPL-3.0 License](./LICENSE).
+
+Third-party component notices and related obligations of each submodule are documented in that submodule's own README, for example the [Quick App](./src/quick_app/README.md)

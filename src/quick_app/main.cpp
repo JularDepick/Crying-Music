@@ -34,7 +34,6 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection);
     /* 加载根QML文件 */
     engine.load(QStringLiteral("qrc:/Main.qml"));
-    /* 绑定主窗口的全局点击监听(只观察不消费) */
     if (!engine.rootObjects().isEmpty()) {
         _ach_.attach(engine.rootObjects().constFirst());
     }

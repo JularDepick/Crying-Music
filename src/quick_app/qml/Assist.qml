@@ -23,7 +23,6 @@ Item {
         }
         return res;
     }
-    /* 判断场景坐标是否落在某个可见项的矩形内 */
     function hitItem(item, scenePos) {
         if(item===null || !item.visible || scenePos===undefined) {
             return false;

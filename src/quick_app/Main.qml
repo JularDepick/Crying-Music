@@ -1039,7 +1039,6 @@ ApplicationWindow {
             visible=!visible;
         }
     }
-    /* 收起 sub: 点击落在某个 sub 的按钮或面板内时放过它, 其余全部收起 */
     function subsHide(scenePos) {
         if(!Assist.hitItem(playerSort, scenePos) && !Assist.hitItem(sortSubTab, scenePos)) {
             playerSort.sub_hide();
@@ -1055,7 +1054,6 @@ ApplicationWindow {
         }
         mainArea.curr.subsHide(scenePos);
     }
-    /* 全局点击: 由 C++ 侧旁观窗口事件后回调(只观察不消费, 已延后一拍) */
     Connections {
         target: AppClickHelper;
         function onMousePressed(scenePos) {
