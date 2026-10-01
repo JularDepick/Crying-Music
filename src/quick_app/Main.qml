@@ -112,10 +112,10 @@ ApplicationWindow {
     Rectangle {
         id: canvas;
         anchors.fill: parent;
-        topLeftRadius: Define.windowRaduis;
-        topRightRadius: Define.windowRaduis;
-        bottomLeftRadius: Define.windowRaduis;
-        bottomRightRadius: Define.windowRaduis;
+        topLeftRadius: Define.windowRadius;
+        topRightRadius: Define.windowRadius;
+        bottomLeftRadius: Define.windowRadius;
+        bottomRightRadius: Define.windowRadius;
         border.width: 0.5;
         border.color: Define.windowBorderColor;
         color: Define.canvasColor;
@@ -283,8 +283,8 @@ ApplicationWindow {
                         }
                         delegate: CustomButtonA {
                             height: 50;
-                            x: (leftSidebar.spreaded? Define.windowRaduis:(parent.width-width)/2);
-                            width: (leftSidebar.spreaded? (parent.width-Define.windowRaduis*2):height);
+                            x: (leftSidebar.spreaded? Define.windowRadius:(parent.width-width)/2);
+                            width: (leftSidebar.spreaded? (parent.width-Define.windowRadius*2):height);
                             property var obj2: leftSidebar.svg2obj[svgname];
                             transEnabled: false;
                             background: Rectangle {
@@ -294,7 +294,7 @@ ApplicationWindow {
                                 property var obj3: parent.obj2;
                                 Row {
                                     anchors.verticalCenter: parent.verticalCenter;
-                                    x: (leftSidebar.spreaded? Define.windowRaduis*2:(parent.width-width)/2);
+                                    x: (leftSidebar.spreaded? Define.windowRadius*2:(parent.width-width)/2);
                                     spacing: 8;
                                     property var obj4: parent.obj3;
                                     ColorImage  {

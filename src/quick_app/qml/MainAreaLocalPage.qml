@@ -205,6 +205,7 @@ MainAreaFatherPage {
                 hoverColorEnabled: false;
                 onClicked: {
                     songFileDialog.open();
+                    addSongSubTab.hide();
                 }
                 background: Rectangle {
                     anchors.fill: parent;
@@ -246,7 +247,8 @@ MainAreaFatherPage {
                 transEnabled: false;
                 hoverColorEnabled: false;
                 onClicked: {
-                    songDirDialog.open();
+                    addSongDirSubTab.open();
+                    addSongSubTab.hide();
                 }
                 background: Rectangle {
                     anchors.fill: parent;
@@ -266,16 +268,6 @@ MainAreaFatherPage {
                         Text {
                             text: "自动扫描歌曲";
                         }
-                    }
-                }
-                FolderDialog {
-                    id: songDirDialog;
-                    title: "请选择需要扫描的文件夹(仅单选)";
-                    acceptLabel: "扫描";
-                    currentFolder: AppPathHelper.getAppPath();
-                    options: FolderDialog.ReadOnly;
-                    onAccepted: {
-                        console.log(selectedFolder);
                     }
                 }
             }
@@ -412,6 +404,185 @@ MainAreaFatherPage {
         onMoved: {
             mainListView.contentY=(value/from)*Math.max(0,mainListView.contentHeight-mainListView.height);
             console.log(value);
+        }
+    }
+    Popup {
+        id: addSongDirSubTab;
+        parent: Overlay.overlay;
+        modal: true;
+        dim: false;
+        focus: true;
+        closePolicy: Popup.CloseOnEscape;
+        width: parent.width;
+        height: parent.height;
+        padding: 0;
+        background: Rectangle {
+            color: Define.nocolor;
+        }
+        onOpened: {
+            addSongDirSubTabArea.x=(width-addSongDirSubTabArea.width)/2;
+            addSongDirSubTabArea.y=(height-addSongDirSubTabArea.height)/2;
+        }
+        function confirm() {
+        }
+        Rectangle {
+            id: addSongDirSubTabArea;
+            width: 640;
+            height: 480;
+            radius: Define.windowRadius;
+            color: "white";
+            border.color: Define.subGrey;
+            border.width: 1;
+            MouseArea {
+                anchors.fill: parent;
+                acceptedButtons: Qt.LeftButton;
+                drag.target: addSongDirSubTabArea;
+                drag.axis: Drag.XAndYAxis;
+                drag.minimumX: Define.windowPadding;
+                drag.maximumX: addSongDirSubTab.width-addSongDirSubTabArea.width-Define.windowPadding;
+                drag.minimumY: Define.windowPadding;
+                drag.maximumY: addSongDirSubTab.height-addSongDirSubTabArea.height-Define.windowPadding;
+            }
+            CustomButtonA {
+                anchors {top:parent.top; right:parent.right; topMargin:10; rightMargin:10;}
+                width: 30;
+                height: 30;
+                icon.source: "qrc:/assets/iconfont/function/close.svg";
+                icon.color: (hovered? Define.mainAreaColor:Define.btnIconColor);
+                icon.width: 15;
+                icon.height: 15;
+                transEnabled: false;
+                background: Rectangle {
+                    anchors.fill: parent;
+                    color: (parent.hovered? Define.warnRed:Define.nocolor);
+                }
+                onClicked: {
+                    addSongDirSubTab.close();
+                }
+            }
+            Column {
+                anchors.fill: parent;
+                padding: 20;
+                spacing: 10;
+                Text {
+                    text: "自动扫描歌曲";
+                    font.pixelSize: 18;
+                    font.weight: 500;
+                }
+                Rectangle {
+                    anchors {left:parent.left; right:parent.right;}
+                    height: 2;
+                    radius: 1;
+                    color: Define.subGrey;
+                }
+                Rectangle {
+                    width: parent.width-parent.padding*2;
+                    height: 30;
+                    color: Define.nocolor;
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        text: "勾选自动扫描的文件夹(文件增删实时同步)";
+                        font.pixelSize: 15;
+                        font.weight: 400;
+                    }
+                    CustomButtonA {
+                        anchors.right: parent.right;
+                        transEnabled: false;
+                        width: 80;
+                        height: 25;
+                        background: Rectangle {
+                            anchors.fill: parent;
+                            radius: 5;
+                            color: (parent.hovered? Define.mainAreaColor:"white");
+                            border.color: Define.subGrey;
+                            border.width: 1;
+                            Text {
+                                anchors.centerIn: parent;
+                                text: "添加文件夹";
+                            }
+                        }
+                        onClicked: {
+                            songDirDialog.open();
+                        }
+                    }
+                }
+                Rectangle {
+                    id: addSongDirListArea;
+                    width: parent.width-parent.padding*2;
+                    height: parent.height*0.4;
+                    color: Define.mainAreaColor;
+                    property var dirListViewModel: ([{},{},{},{}]);
+                    ListView {
+                        id: addSongDirListView;
+                        anchors.fill: parent;
+                        spacing: 4;
+                        clip: true;
+                        boundsBehavior: Flickable.StopAtBounds;
+                        model: addSongDirListArea.dirListViewModel;
+                        delegate: Item {
+                            width: ListView.view.width;
+                            height: 30;
+                            Rectangle {
+                                anchors.fill: parent;
+                                color: "red";
+                            }
+                        }
+                    }
+                }
+                Text {
+                    text: "扫描规则";
+                    font.pixelSize: 15;
+                    font.weight: 400;
+                }
+                Row {
+                    Text {
+                        text: "文件时长";
+                        font.pixelSize: 14;
+                        font.weight: 400;
+                    }
+                }
+                Row {
+                    Text {
+                        text: "文件格式";
+                        font.pixelSize: 14;
+                        font.weight: 400;
+                    }
+                }
+            }
+            CustomButtonA {
+                anchors {bottom:parent.bottom; right:parent.right; bottomMargin:20; rightMargin:20;}
+                transEnabled: false;
+                width: 80;
+                height: 30;
+                background: Rectangle {
+                    anchors.fill: parent;
+                    radius: 5;
+                    color: (parent.hovered? Define.choseCyanColor:Define.btnHoverColor);
+                    border.color: Define.subGrey;
+                    border.width: 1;
+                    Text {
+                        anchors.centerIn: parent;
+                        text: "确认";
+                        color: "white";
+                        font.pixelSize: 14;
+                        font.weight: 500;
+                    }
+                }
+                onClicked: {
+                    addSongDirSubTab.close();
+                    addSongDirSubTab.confirm();
+                }
+            }
+        }
+        FolderDialog {
+            id: songDirDialog;
+            title: "请选择需要添加的文件夹(仅单选)";
+            acceptLabel: "添加";
+            currentFolder: AppPathHelper.getAppPath();
+            options: FolderDialog.ReadOnly;
+            onAccepted: {
+                console.log(selectedFolder);
+            }
         }
     }
     function subsHide(scenePos) {

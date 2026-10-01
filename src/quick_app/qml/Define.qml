@@ -5,7 +5,7 @@ Item {
     visible: false;
     property string initTitle: "CryingMusic";
     property int windowPadding: 10;
-    property int windowRaduis: 7;
+    property int windowRadius: 7;
     property int mainAreaRaduis: 7;
     property int edgeMouseAreaD: 5; /* 不要改变 */
     property int cornerMouseAreaD: 10; /* 不要改变 */
@@ -27,6 +27,7 @@ Item {
     property color choseCyanColor: "#00cc65";
     property color forbdDarkColor: "#bcbcbc";
     property color subGrey: "#e0e0e0";
+    property color warnRed: "#ff4411";
     property color vipRed: "#fe3610";
     property color vipGold: "#ffc400";
 }
