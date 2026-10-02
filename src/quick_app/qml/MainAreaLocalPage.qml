@@ -535,17 +535,136 @@ MainAreaFatherPage {
                     font.weight: 400;
                 }
                 Row {
+                    spacing: 10;
                     Text {
+                        anchors.verticalCenter: parent.verticalCenter;
                         text: "文件时长";
                         font.pixelSize: 14;
                         font.weight: 400;
                     }
+                    ButtonGroup { id: durationGroup1; }
+                    Repeater {
+                        id: durationRepeater1;
+                        model: ListModel {
+                            ListElement { radioText:"1分钟及以上"; radioMin:60; isChecked:true; }
+                            ListElement { radioText:"30秒及以上"; radioMin:30; isChecked:false; }
+                            ListElement { radioText:"全部时长"; radioMin:0; isChecked:false; }
+                        }
+                        delegate: RadioButton {
+                            id: durationRadio1;
+                            text: radioText;
+                            checked: isChecked;
+                            spacing: 6;
+                            font.pixelSize: 14;
+                            font.weight: 400;
+                            ButtonGroup.group: durationGroup1;
+                            property int minSecond: radioMin;
+                            indicator: Rectangle {
+                                implicitWidth: 16;
+                                implicitHeight: 16;
+                                x: durationRadio1.leftPadding;
+                                y: durationRadio1.height/2-height/2;
+                                radius: width/2;
+                                border.width: 1.2;
+                                border.color: (durationRadio1.checked? Define.choseCyanColor:Define.subGrey);
+                                color: Define.nocolor;
+                                Rectangle {
+                                    anchors.centerIn: parent;
+                                    width: parent.width*0.5;
+                                    height: parent.height*0.5;
+                                    radius: width/2;
+                                    color: Define.choseCyanColor;
+                                    visible: durationRadio1.checked;
+                                }
+                            }
+                            contentItem: Text {
+                                text: durationRadio1.text;
+                                font: durationRadio1.font;
+                                color: "black";
+                                verticalAlignment: Text.AlignVCenter;
+                                leftPadding: durationRadio1.indicator.width+durationRadio1.spacing;
+                            }
+                        }
+                    }
                 }
                 Row {
+                    spacing: 10;
                     Text {
+                        anchors.verticalCenter: parent.verticalCenter;
                         text: "文件格式";
                         font.pixelSize: 14;
                         font.weight: 400;
+                    }
+                    Item {
+                        id: formatCheckRoot1;
+                        property var fmts: ([]);
+                    }
+                    Repeater {
+                        id: formatCheckRepeater1;
+                        model: ListModel {
+                            ListElement { checkText:".mp4"; isChecked:true; }
+                            ListElement { checkText:".m4a"; isChecked:true; }
+                        }
+                        delegate: CheckBox {
+                            id: formatCheck;
+                            text: checkText;
+                            checked: isChecked;
+                            spacing: 6;
+                            font.pixelSize: 14;
+                            font.weight: 400;
+                            onCheckedChanged: {
+                                if(checked) {
+                                    var had=false;
+                                    var la=formatCheckRoot1.fmts.length;
+                                    var va=formatCheckRoot1.fmts.slice();
+                                    for(var ia=0;ia<la;ia++) {
+                                        if(va[ia]===checkText) {
+                                            had=true;
+                                            break;
+                                        }
+                                    }
+                                    if(!had) {
+                                        va.push(checkText);
+                                        formatCheckRoot1.fmts=va;
+                                    }
+                                } else {
+                                    var lb=formatCheckRoot1.fmts.length;
+                                    var vb=[];
+                                    for(var ib=0;ib<lb;ib++) {
+                                        var one=formatCheckRoot1.fmts[ib];
+                                        if(one!==checkText) {
+                                            vb.push(one);
+                                        }
+                                    }
+                                    formatCheckRoot1.fmts=vb;
+                                }
+                            }
+                            indicator: Rectangle {
+                                implicitWidth: 16;
+                                implicitHeight: 16;
+                                x: formatCheck.leftPadding;
+                                y: formatCheck.height/2-height/2;
+                                radius: 2;
+                                border.width: 1.2;
+                                border.color: (formatCheck.checked? Define.choseCyanColor:Define.subGrey);
+                                color: Define.nocolor;
+                                Rectangle {
+                                    anchors.centerIn: parent;
+                                    width: parent.width*0.5;
+                                    height: parent.height*0.5;
+                                    radius: parent.radius*0.6;
+                                    color: Define.choseCyanColor;
+                                    visible: formatCheck.checked;
+                                }
+                            }
+                            contentItem: Text {
+                                text: formatCheck.text;
+                                font: formatCheck.font;
+                                color: "black";
+                                verticalAlignment: Text.AlignVCenter;
+                                leftPadding: formatCheck.indicator.width+formatCheck.spacing;
+                            }
+                        }
                     }
                 }
             }
@@ -572,6 +691,31 @@ MainAreaFatherPage {
                     addSongDirSubTab.close();
                     addSongDirSubTab.confirm();
                 }
+            }
+            function toggleDuration2(which) {
+                var l=durationRepeater1.count;
+                for(var i=0;i<l;i++) {
+                    var it=durationRepeater1.itemAt(i);
+                    if(it && it.minSecond===which) {
+                        it.checked=true;
+                        return true;
+                    }
+                }
+                return false;
+            }
+            function toggleFormat(which,what) {
+                if(what!==true && what!==false) {
+                    return false;
+                }
+                var l=formatCheckRepeater1.count;
+                for(var i=0;i<l;i++) {
+                    var it=formatCheckRepeater1.itemAt(i);
+                    if(it && it.text===which) {
+                        it.checked=what;
+                        return true;
+                    }
+                }
+                return false;
             }
         }
         FolderDialog {
