@@ -585,6 +585,7 @@ ApplicationWindow {
             }
             MainAreaLocalPage {
                 id: mainArea_LocalPage;
+                thePlayer: player;
                 anchors.fill: parent;
             }
             MainAreaSettingsPage {
@@ -608,6 +609,10 @@ ApplicationWindow {
             bottomRightRadius: Define.mainAreaRaduis;
             color: Define.mainAreaColor;
             MediaPlayer {
+                id: fakePlayer;
+                source: "";
+            }
+            MediaPlayer {
                 id: player;
                 audioOutput: AudioOutput {
                     id: audioOutputer;
@@ -623,12 +628,36 @@ ApplicationWindow {
                     }
                 }
                 property var id2obj: new Map();
-                property var songobjs: [];
-                property int playingWhich: 0;
-                property var sortlist: [];
-                /*{
-                    {"songname":"心做し心理作用","singer":"双笙、陈元汐","path":"music/心做し_心理作用_双笙_陈元汐_.mp3","pathtype":"rel"}
-                };*/
+                property var songobjs: ([]);
+                property string playingWhich: "";
+                property var sortlist: ([]);
+                /*[
+                    {songname:"心做し 心理作用", singer:"双笙-陈元汐", absfpath:"file:///C:\\Users\\liwenfang\\GitHub\\JularDepick\\Crying-Music\\src\\quick_app\\心做し_心理作用_双笙_陈元汐_.mp3"}
+                ];*/
+                function insert(which) {
+                    if(AppFileHelper.exists(which)===false) {
+                        console.error("插入错误: ",which);
+                        return false;
+                    }
+                    var asl=[];
+                    var l=sortlist.length;
+                    var had=false;
+                    for(var i=0;i<l;i++) {
+                        if(sortlist[i]===playingWhich && had==true) {
+                            /* 如果插入的是列表中已有的,则不会让插入的这个重复 */
+                            continue;
+                        }
+                        asl.push(sortlist[i]);
+                        if(sortlist[i]===playingWhich) {
+                            asl.push(which);
+                            playingWhich=which.absfpath;
+                            had=true;
+                        }
+                    }
+                    source=playingWhich;
+                    console.log("插入成功: ",which);
+                    return true;
+                }
             }
             Row {
                 id: functionRows;
@@ -648,6 +677,7 @@ ApplicationWindow {
                     CustomButtonA {
                         id: lyricsOpenerBtn;
                         anchors.fill: parent;
+                        transEnabled: false;
                         icon.source: (hovered? "qrc:/assets/iconfont/playerbar/lyricsopen.svg":"");
                         icon.color: Define.mainAreaColor;
                         icon.width: parent.width-5;
@@ -657,10 +687,27 @@ ApplicationWindow {
                             console.log("clicked lyricsOpenerBtn");
                         }
                         background: Rectangle {
-                            color: (parent.hovered? Qt.rgba(0,0,0,0.4):Define.nocolor)  ;
-                            border.color: Define.subGrey;
-                            border.width: 1;
+                            id: lyricsOpenerBg;
+                            anchors.fill: parent;
+                            color: (parent.hovered? Qt.rgba(0,0,0,0.4):Define.nocolor);
                             radius: parent.parent.radius;
+                            layer.enabled: true;
+                            layer.effect: MultiEffect {
+                                maskEnabled: true;
+                                maskSource: lyricsOpenerMasker;
+                            }
+                            Item {
+                                id: lyricsOpenerMasker;
+                                anchors.fill: parent;
+                                visible: false;
+                                layer.enabled: true;
+                                Rectangle {
+                                    anchors.fill: parent;
+                                    radius: lyricsOpenerBg.radius;
+                                    border.color: Define.subGrey;
+                                    border.width: 1;
+                                }
+                            }
                         }
                     }
                 }

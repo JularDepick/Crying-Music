@@ -4,6 +4,7 @@ import "./"
 
 Slider {
     orientation: Qt.Vertical;
+    width: 4;
     from: 100;
     to: 0;
     stepSize: 1;

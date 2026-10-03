@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.impl
+import QtQuick.Effects
 import QtQuick.Dialogs
 
 import AppHelpers 1.0
@@ -349,27 +350,148 @@ MainAreaFatherPage {
             }
         }
     }
-    property var mainListViewModel: ([{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}
+    property var mainListViewModel: ([
+        {"songname":"心做し 心理作用", "singer":"双笙-陈元汐", "absfpath":"file:///C:\\Users\\liwenfang\\GitHub\\JularDepick\\Crying-Music\\src\\quick_app\\心做し_心理作用_双笙_陈元汐_.mp3", "absipath":""},
+        {},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}
     ]);
     Rectangle {
         id: mainViewArea;
         anchors {left:parent.left; right:parent.right; top:sortHead.bottom; bottom:parent.bottom}
         color: Define.nocolor;
+        DragHandler {
+            acceptedDevices: PointerDevice.Mouse;
+            target: null;
+        }
         ListView {
             id: mainListView;
             anchors.fill: parent;
-            spacing: 10;
+            anchors.topMargin: 5;
+            spacing: 1;
             clip: true;
+            DragHandler {
+                acceptedDevices: PointerDevice.Mouse;
+                target: null;
+            }
             boundsBehavior: Flickable.StopAtBounds;
+            property string selectedWhich: "";
             model: mainArea_LocalPage.mainListViewModel;
             delegate: Item {
                 width: ListView.view.width;
                 height: 60;
                 Rectangle {
+                    id: box;
                     anchors.fill: parent;
                     anchors.leftMargin: 40;
                     anchors.rightMargin: 40;
-                    color: "red";
+                    radius: 10;
+                    color: (mainListView.selectedWhich===modelData["absfpath"]? Define.choseDarkColor:(boxClick.containsMouse||songAvatarBtn.hovered? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
+                    MouseArea {
+                        id: boxClick;
+                        anchors.fill: parent;
+                        hoverEnabled: true;
+                        onClicked: {
+                            mainListView.selectedWhich=modelData["absfpath"];
+                            console.log("单击: ",mainListView.selectedWhich);
+                        }
+                        onDoubleClicked: {
+                            console.log("双击: ",modelData["absfpath"]);
+                            if(thePlayer.playingWhich===modelData["absfpath"]) {
+                                return;
+                            }
+                            if(thePlayer.insert(modelData)===true) {
+                                thePlayer.play();
+                            }
+                        }
+                    }
+                    Row {
+                        anchors.fill: parent;
+                        leftPadding: 10;
+                        rightPadding: 10;
+                        spacing: 10;
+                        CustomButtonA {
+                            id: songAvatarBtn;
+                            anchors.verticalCenter: parent.verticalCenter;
+                            height: 40;
+                            width: height;
+                            transEnabled: false;
+                            hoverHandlerEnabled: false;
+                            icon.source: (boxClick.containsMouse||hovered? "qrc:/assets/iconfont/playerbar/play.svg":"");
+                            icon.color: (hovered? Define.btnHoverColor:Define.mainAreaColor);
+                            icon.width: 17;
+                            icon.height: 17;
+                            onClicked: {
+                                if(thePlayer.playingWhich===modelData["absfpath"]) {
+                                    return;
+                                }
+                                if(thePlayer.insert(modelData)===true) {
+                                    thePlayer.play();
+                                }
+                            }
+                            background: Item {
+                                anchors.fill: parent;
+                                Image {
+                                    id: songAvatarImage;
+                                    anchors.fill: parent;
+                                    source: (modelData["absipath"]&&modelData["absipath"]!==""? modelData["absipath"]:"qrc:/favicon.jpg");
+                                    fillMode: Image.PreserveAspectCrop;
+                                    layer.enabled: true;
+                                    layer.effect: MultiEffect {
+                                        maskEnabled: true;
+                                        maskSource: songAvatarMasker;
+                                    }
+                                    Item {
+                                        id: songAvatarMasker;
+                                        anchors.fill: parent;
+                                        visible: false;
+                                        layer.enabled: true;
+                                        Rectangle {
+                                            anchors.fill: parent;
+                                            radius: 10;
+                                            border.color: Define.subGrey;
+                                            border.width: 1;
+                                        }
+                                    }
+                                }
+                                Rectangle {
+                                    anchors.fill: parent;
+                                    radius: 10;
+                                    color: (songAvatarBtn.hovered||boxClick.containsMouse? Qt.rgba(0,0,0,0.3):Define.nocolor);
+                                }
+                            }
+                        }
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            spacing: 5;
+                            width: 120;
+                            Text {
+                                text: modelData["songname"];
+                                font.pixelSize: 14;
+                                font.weight: 400;
+                            }
+                            Text {
+                                text: modelData["singer"];
+                                font.pixelSize: 13;
+                                font.weight: 400;
+                            }
+                        }
+                        CustomButtonA {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            height: 20;
+                            width: 20;
+                            icon.source: "qrc:/assets/iconfont/function/like.svg";
+                            icon.color: (hovered? Define.btnIconRed:Define.btnIconColor);
+                            transEnabled: false;
+                            property bool liked: false;
+                            onClicked: {
+                                if(liked) {
+                                    icon.source="qrc:/assets/iconfont/function/like.svg";
+                                } else {
+                                    icon.source="qrc:/assets/iconfont/function/liked.svg";
+                                }
+                                liked=!liked;
+                            }
+                        }
+                    }
                 }
             }
             CustomButtonA {
