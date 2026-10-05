@@ -37,6 +37,7 @@ file(GLOB_RECURSE QML_SUBDIR CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_
 set(ALL_QML_FILES ${QML_ROOT} ${QML_SUBDIR})
 # 标记单例
 set_source_files_properties(qml/Define.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(qml/GlobalFileStorage.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(qml/Assist.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 # 创建 QML 模块;RESOURCE_PREFIX "/" 与 NO_RESOURCE_TARGET_PATH 使 QML 文件
 # 按源码相对路径嵌入,如 qrc:/Main.qml、qrc:/qml/Define.qml,与 main.cpp 入口一致

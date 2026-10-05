@@ -4,7 +4,7 @@ import QtQuick.Controls.impl
 import QtQuick.Effects
 import QtQuick.Dialogs
 
-import AppHelpers 1.0
+import AppHelper 1.0
 
 import "./"
 

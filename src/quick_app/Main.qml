@@ -6,7 +6,7 @@ import QtQuick.Controls.impl
 import QtMultimedia
 import Qt.labs.platform
 
-import AppHelpers 1.0
+import AppHelper 1.0
 
 import "qml/"
 
@@ -635,7 +635,7 @@ ApplicationWindow {
                     {songname:"心做し 心理作用", singer:"双笙-陈元汐", absfpath:"file:///C:\\Users\\liwenfang\\GitHub\\JularDepick\\Crying-Music\\src\\quick_app\\心做し_心理作用_双笙_陈元汐_.mp3"}
                 ];*/
                 function insert(which) {
-                    if(AppFileHelper.exists(which)===false) {
+                    if(AppFileHelper.existsFile(which)===false) {
                         console.error("插入错误: ",which);
                         return false;
                     }
@@ -1109,6 +1109,7 @@ ApplicationWindow {
     }
     Component.onCompleted: {
         console.log("UI加载成功,开始读取程序储存");
+        GlobalFileStorage.load();
         window.visible=true;
     }
 }
