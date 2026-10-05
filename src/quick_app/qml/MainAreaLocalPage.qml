@@ -351,17 +351,12 @@ MainAreaFatherPage {
         }
     }
     property var mainListViewModel: ([
-        {"songname":"心做し 心理作用", "singer":"双笙-陈元汐", "absfpath":"file:///C:\\Users\\liwenfang\\GitHub\\JularDepick\\Crying-Music\\src\\quick_app\\心做し_心理作用_双笙_陈元汐_.mp3", "absipath":""},
-        {},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}
+        {"songname":"心做し 心理作用", "singer":"双笙-陈元汐", "absfpath":"file:///C:/Users/liwenfang/GitHub/JularDepick/Crying-Music/src/quick_app/心做し_心理作用_双笙_陈元汐_.mp3", "absipath":""}
     ]);
     Rectangle {
         id: mainViewArea;
         anchors {left:parent.left; right:parent.right; top:sortHead.bottom; bottom:parent.bottom}
         color: Define.nocolor;
-        DragHandler {
-            acceptedDevices: PointerDevice.Mouse;
-            target: null;
-        }
         ListView {
             id: mainListView;
             anchors.fill: parent;
@@ -520,14 +515,19 @@ MainAreaFatherPage {
     CustomSliderC {
         id: mainListViewScrollBar;
         anchors {top:parent.top; bottom:parent.bottom; right:parent.right;}
+        width: 4;
         visible: (mainListView.contentHeight > mainListView.height);
         handleRatio: Math.max(0.1,mainListView.height/mainListView.contentHeight);
+        hoverHandlerEnabled: false;
         value: from*(mainListView.contentY/Math.max(1,mainListView.contentHeight-mainListView.height));
         onMoved: {
             mainListView.contentY=(value/from)*Math.max(0,mainListView.contentHeight-mainListView.height);
-            console.log(value);
+            value=Qt.binding(function() {
+                return from*(mainListView.contentY/Math.max(1,mainListView.contentHeight-mainListView.height));
+            });
         }
     }
+    property var addSongDirViewModel: ([]);
     Popup {
         id: addSongDirSubTab;
         parent: Overlay.overlay;
@@ -633,21 +633,113 @@ MainAreaFatherPage {
                     width: parent.width-parent.padding*2;
                     height: parent.height*0.4;
                     color: Define.mainAreaColor;
-                    property var dirListViewModel: ([{},{},{},{}]);
+                    property var dirListViewModel: mainArea_LocalPage.addSongDirViewModel;
                     ListView {
                         id: addSongDirListView;
                         anchors.fill: parent;
-                        spacing: 4;
+                        spacing: 0;
                         clip: true;
                         boundsBehavior: Flickable.StopAtBounds;
                         model: addSongDirListArea.dirListViewModel;
+                        DragHandler {
+                            acceptedDevices: PointerDevice.Mouse;
+                            target: null;
+                        }
                         delegate: Item {
                             width: ListView.view.width;
-                            height: 30;
+                            height: 40;
                             Rectangle {
                                 anchors.fill: parent;
-                                color: "red";
+                                color: Define.nocolor;
+                                Row {
+                                    anchors.fill: parent;
+                                    spacing: 10;
+                                    leftPadding: 20;
+                                    CustomButtonA {
+                                        anchors.verticalCenter: parent.verticalCenter;
+                                        transEnabled: false;
+                                        hoverHandlerEnabled: false;
+                                        width: 16;
+                                        height: 16;
+                                        icon.source: "qrc:/assets/iconfont/function/checked_stark.svg";
+                                        icon.width: 8;
+                                        icon.height: 8;
+                                        icon.color: Define.mainAreaColor;
+                                        property bool selected: true;
+                                        onClicked: {
+                                            selected=!selected;
+                                            var v=mainArea_LocalPage.addSongDirViewModel.slice();
+                                            v[index]["included"]=selected;
+                                            mainArea_LocalPage.addSongDirViewModel=v;
+                                        }
+                                        background: Rectangle {
+                                            anchors.fill: parent;
+                                            radius: parent.width/2;
+                                            border.width: 1.5;
+                                            border.color: (parent.selected? Define.choseCyanColor:Define.btnIconColor);
+                                            color: (parent.selected? Define.choseCyanColor:Define.nocolor);
+                                        }
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter;
+                                        width: parent.width*0.7;
+                                        elide: Text.ElideRight;
+                                        wrapMode: Text.NoWrap;
+                                        font.pixelSize: 14;
+                                        font.weight: 400;
+                                        text: modelData["absdpath"];
+                                        HoverHandler {
+                                            id: texthh1;
+                                        }
+                                        ToolTip.visible: texthh1.hovered&&truncated;
+                                        ToolTip.text: text;
+                                        ToolTip.delay: 500;
+                                    }
+                                }
+                                CustomButtonA {
+                                    anchors.verticalCenter: parent.verticalCenter;
+                                    anchors.right: parent.right;
+                                    anchors.rightMargin: 20;
+                                    width: 12;
+                                    height: 12;
+                                    icon.source: "qrc:/assets/iconfont/function/close.svg";
+                                    icon.color: Define.btnIconColor;
+                                    transEnabled: false;
+                                    onClicked: {
+                                        var mlvm=mainArea_LocalPage.addSongDirViewModel;
+                                        var l=mlvm.length;
+                                        var v=[];
+                                        for(var i=0;i<l;i++) {
+                                            if(mlvm[i]["absdpath"]===modelData["absdpath"]) {
+                                                continue;
+                                            }
+                                            v.push(mlvm[i]);
+                                        }
+                                        mainArea_LocalPage.addSongDirViewModel=v;
+                                    }
+                                }
+                                Rectangle {
+                                    anchors {bottom:parent.bottom; left:parent.left; right:parent.right;}
+                                    anchors.leftMargin: 15;
+                                    anchors.rightMargin: 15;
+                                    height: 1;
+                                    color: Define.subGrey;
+                                }
                             }
+                        }
+                    }
+                    CustomSliderC {
+                        id: addSongDirListViewScrollBar;
+                        anchors {top:parent.top; bottom:parent.bottom; right:parent.right;}
+                        visible: (addSongDirListView.contentHeight > addSongDirListView.height);
+                        handleRatio: Math.max(0.1,addSongDirListView.height/addSongDirListView.contentHeight);
+                        hoverHandlerEnabled: false;
+                        value: from*(addSongDirListView.contentY/Math.max(1,addSongDirListView.contentHeight-addSongDirListView.height));
+                        onMoved: {
+                            addSongDirListView.contentY=(value/from)*Math.max(0,addSongDirListView.contentHeight-addSongDirListView.height);
+                            value=Qt.binding(function() {
+                                return from*(addSongDirListView.contentY/Math.max(1,addSongDirListView.contentHeight-addSongDirListView.height));
+                            });
                         }
                     }
                 }
@@ -848,6 +940,9 @@ MainAreaFatherPage {
             options: FolderDialog.ReadOnly;
             onAccepted: {
                 console.log(selectedFolder);
+                var v=mainArea_LocalPage.addSongDirViewModel.slice();
+                v.push({"absdpath":selectedFolder,"included":true});
+                mainArea_LocalPage.addSongDirViewModel=v;
             }
         }
     }
