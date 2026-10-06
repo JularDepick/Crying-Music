@@ -38,7 +38,6 @@ public:
             qWarning() << "AppFileHelper formatPath failed: empty path";
             return {};
         }
-
         if (local.startsWith("file:", Qt::CaseInsensitive)) {
             const QUrl url(local);
             if (!url.isValid() || url.scheme().compare("file", Qt::CaseInsensitive) != 0) {
@@ -47,15 +46,30 @@ public:
             }
             local = url.toLocalFile();
         }
-
         local.replace('\\', '/');
         if (!QDir::isAbsolutePath(local)) {
             qWarning() << "AppFileHelper formatPath failed: not an absolute path" << path;
             return {};
         }
-
         local = QDir::cleanPath(local);
         return QUrl::fromLocalFile(local).toString();
+    }
+
+    /* 清理路径(仅面向标准化路径):
+     * 入参为带 file:/// 的标准化绝对路径;
+     * 返回去除 file:/// 协议头后的本地绝对路径,反斜杠为普通斜杠,适合 UI 展示;
+     * 失败返回空字符串。 */
+    Q_INVOKABLE QString clearPath(const QUrl &url) const {
+        if (!url.isValid() || url.scheme().compare("file", Qt::CaseInsensitive) != 0) {
+            qWarning() << "AppFileHelper clearPath failed: invalid file url" << url;
+            return {};
+        }
+        const QString local = url.toLocalFile();
+        if (local.isEmpty()) {
+            qWarning() << "AppFileHelper clearPath failed: empty path" << url;
+            return {};
+        }
+        return QDir::cleanPath(local);
     }
 
     /* 获取应用安装路径,返回标准化绝对路径 */

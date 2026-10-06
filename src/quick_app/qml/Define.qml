@@ -3,7 +3,6 @@ import QtQuick
 
 Item {
     visible: false;
-    property string initTitle: "CryingMusic";
     property int windowPadding: 10;
     property int windowRadius: 7;
     property int mainAreaRaduis: 7;

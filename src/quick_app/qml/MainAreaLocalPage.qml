@@ -238,6 +238,23 @@ MainAreaFatherPage {
                     ];
                     currentFolder: AppPathHelper.getAppPath();
                     onAccepted: {
+                        var vg=GlobalFileStorage.localScan.singleFiles;
+                        var lg=vg.length;
+                        var vs=selectedFiles;
+                        var ls=vs.length;
+                        var newvg=vg.slice();
+                        for(var i=0;i<ls;i++) {
+                            var had=false;
+                            for(var j=0;j<lg;j++) {
+                                if(vs[i]===vg[j]) {
+                                    had=true;
+                                }
+                            }
+                            if(had===false) {
+                                newvg.push(vs[i]);
+                            }
+                        }
+                        GlobalFileStorage.localScan.singleFiles=newvg;
                         console.log(selectedFiles);
                     }
                 }
@@ -393,9 +410,7 @@ MainAreaFatherPage {
                             if(thePlayer.playingWhich===modelData["absfpath"]) {
                                 return;
                             }
-                            if(thePlayer.insert(modelData)===true) {
-                                thePlayer.play();
-                            }
+                            thePlayer.jump2play(modelData);
                         }
                     }
                     Row {
@@ -418,9 +433,7 @@ MainAreaFatherPage {
                                 if(thePlayer.playingWhich===modelData["absfpath"]) {
                                     return;
                                 }
-                                if(thePlayer.insert(modelData)===true) {
-                                    thePlayer.play();
-                                }
+                                thePlayer.jump2play(modelData);
                             }
                             background: Item {
                                 anchors.fill: parent;
@@ -510,6 +523,10 @@ MainAreaFatherPage {
                     mainListView.contentY=0;
                 }
             }
+            function rebuild() {
+                /* 从 GlobalFileStorage 加载并扫描 */
+                mainArea_LocalPage.mainListViewModel={};
+            }
         }
     }
     CustomSliderC {
@@ -528,6 +545,8 @@ MainAreaFatherPage {
         }
     }
     property var addSongDirViewModel: ([]);
+    property var addSongDirFmts: formatCheckRoot1.fmts;
+    property var addSongDirRadioMin: durationGroup1.checkedButton.radioMin;
     Popup {
         id: addSongDirSubTab;
         parent: Overlay.overlay;
@@ -546,6 +565,11 @@ MainAreaFatherPage {
             addSongDirSubTabArea.y=(height-addSongDirSubTabArea.height)/2;
         }
         function confirm() {
+            /* 保存到 GlobalFileStorage */
+            GlobalFileStorage.setMALocalP(mainArea_LocalPage.addSongDirViewModel,
+                                          mainArea_LocalPage.addSongDirFmts,
+                                          mainArea_LocalPage.addSongDirRadioMin);
+            mainArea_LocalPage.refresh();
         }
         Rectangle {
             id: addSongDirSubTabArea;
@@ -579,6 +603,7 @@ MainAreaFatherPage {
                     color: (parent.hovered? Define.warnRed:Define.nocolor);
                 }
                 onClicked: {
+                    addSongDirSubTab.confirm();
                     addSongDirSubTab.close();
                 }
             }
@@ -665,7 +690,7 @@ MainAreaFatherPage {
                                         icon.width: 8;
                                         icon.height: 8;
                                         icon.color: Define.mainAreaColor;
-                                        property bool selected: true;
+                                        property bool selected: modelData["included"];
                                         onClicked: {
                                             selected=!selected;
                                             var v=mainArea_LocalPage.addSongDirViewModel.slice();
@@ -682,12 +707,12 @@ MainAreaFatherPage {
                                     }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter;
-                                        width: parent.width*0.7;
+                                        width: parent.width*0.85;
                                         elide: Text.ElideRight;
                                         wrapMode: Text.NoWrap;
                                         font.pixelSize: 14;
                                         font.weight: 400;
-                                        text: modelData["absdpath"];
+                                        text: AppFileHelper.clearPath(modelData["absdpath"]);
                                         HoverHandler {
                                             id: texthh1;
                                         }
@@ -756,7 +781,9 @@ MainAreaFatherPage {
                         font.pixelSize: 14;
                         font.weight: 400;
                     }
-                    ButtonGroup { id: durationGroup1; }
+                    ButtonGroup {
+                        id: durationGroup1;
+                    }
                     Repeater {
                         id: durationRepeater1;
                         model: ListModel {
@@ -902,8 +929,8 @@ MainAreaFatherPage {
                     }
                 }
                 onClicked: {
-                    addSongDirSubTab.close();
                     addSongDirSubTab.confirm();
+                    addSongDirSubTab.close();
                 }
             }
             function toggleDuration2(which) {
@@ -940,7 +967,15 @@ MainAreaFatherPage {
             options: FolderDialog.ReadOnly;
             onAccepted: {
                 console.log(selectedFolder);
-                var v=mainArea_LocalPage.addSongDirViewModel.slice();
+                var mlvm=mainArea_LocalPage.addSongDirViewModel;
+                var l=mlvm.length;
+                for(var i=0;i<l;i++) {
+                    if(mlvm[i]["absdpath"]===selectedFolder) {
+                        console.log("repeat dir: ",selectedFolder);
+                        return;
+                    }
+                }
+                var v=mlvm.slice();
                 v.push({"absdpath":selectedFolder,"included":true});
                 mainArea_LocalPage.addSongDirViewModel=v;
             }
@@ -953,7 +988,9 @@ MainAreaFatherPage {
         addSongSubTab.hide();
     }
     function refresh() {
+        mainListView.contentY=0;
         console.log(mainListView.contentY);
+        mainListView.rebuild();
     }
     function jump2list() {
         ;

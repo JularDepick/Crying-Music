@@ -630,13 +630,14 @@ ApplicationWindow {
                 property var id2obj: new Map();
                 property var songobjs: ([]);
                 property string playingWhich: "";
+                property int playingIndex: 0;
                 property var sortlist: ([]);
                 /*[
                     {songname:"心做し 心理作用", singer:"双笙-陈元汐", absfpath:"file:///C:\\Users\\liwenfang\\GitHub\\JularDepick\\Crying-Music\\src\\quick_app\\心做し_心理作用_双笙_陈元汐_.mp3"}
                 ];*/
-                function insert(which) {
-                    if(AppFileHelper.existsFile(which)===false) {
-                        console.error("插入错误: ",which);
+                function jump2play(which) {
+                    if(AppFileHelper.existsFile(which.absfpath)===false) {
+                        console.error("跳转错误: ",which);
                         return false;
                     }
                     var asl=[];
@@ -655,8 +656,12 @@ ApplicationWindow {
                         }
                     }
                     source=playingWhich;
-                    console.log("插入成功: ",which);
+                    sortlist=asl;
+                    player.play();
+                    console.log("跳转成功: ",which);
                     return true;
+                }
+                function insertNext(which) {
                 }
             }
             Row {
