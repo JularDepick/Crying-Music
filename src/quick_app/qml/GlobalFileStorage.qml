@@ -1,6 +1,8 @@
 pragma Singleton
 import QtQuick
 
+import "./"
+
 Item {
     property var localScan:
     ({
@@ -8,9 +10,13 @@ Item {
         scanDirs: [],
         scanFmts: [],
         scanRadio: 0,
-        excludedFiles: [],
-        likedFiles: []
+        excludedFiles: []
     });
+    /* 与 localScan 相独立的歌曲路径列表, 只存内存 */
+    property var likedFiles: [];
+    property var recentFiles: [];
+    /* 时长缓存: 标准化路径 -> 秒(-1 表示无法解析), 只存内存 */
+    property var durationCache: ({});
     function load() {
     }
     function save() {
@@ -29,6 +35,25 @@ Item {
             }
         }
         return false;
+    }
+    /* 从列表中剔除指定路径, 返回新列表 */
+    function removePaths(list,absfpaths) {
+        var l=list.length;
+        var res=[];
+        for(var i=0;i<l;i++) {
+            if(hasPath(absfpaths,list[i])===false) {
+                res.push(list[i]);
+            }
+        }
+        return res;
+    }
+    /* 在列表中添加或移除单个路径, 返回新列表 */
+    function setPath(list,absfpath,on) {
+        var res=removePaths(list,[absfpath]);
+        if(on===true) {
+            res.push(absfpath);
+        }
+        return res;
     }
     /* 添加手动歌曲: 去重写入, 并解除这些路径的移除标记 */
     function addSingleFiles(files) {
@@ -49,35 +74,19 @@ Item {
     }
     /* 移除歌曲: 手动添加项直接移除, 扫描得到的项记为移除项 */
     function removeSongs(absfpaths) {
-        var vg=localScan.singleFiles;
-        var lg=vg.length;
-        var newvg=[];
-        for(var i=0;i<lg;i++) {
-            if(hasPath(absfpaths,vg[i])===false) {
-                newvg.push(vg[i]);
-            }
-        }
-        localScan.singleFiles=newvg;
-        var ls=absfpaths.length;
+        localScan.singleFiles=removePaths(localScan.singleFiles,absfpaths);
         var newe=localScan.excludedFiles.slice();
-        for(var j=0;j<ls;j++) {
-            if(hasPath(newe,absfpaths[j])===false) {
-                newe.push(absfpaths[j]);
+        var ls=absfpaths.length;
+        for(var i=0;i<ls;i++) {
+            if(hasPath(newe,absfpaths[i])===false) {
+                newe.push(absfpaths[i]);
             }
         }
         localScan.excludedFiles=newe;
     }
     /* 解除单个路径的移除标记 */
     function removeExclude(absfpath) {
-        var ve=localScan.excludedFiles;
-        var le=ve.length;
-        var newve=[];
-        for(var i=0;i<le;i++) {
-            if(ve[i]!==absfpath) {
-                newve.push(ve[i]);
-            }
-        }
-        localScan.excludedFiles=newve;
+        localScan.excludedFiles=removePaths(localScan.excludedFiles,[absfpath]);
     }
     /* 判断路径是否已被移除 */
     function isExcluded(absfpath) {
@@ -85,21 +94,48 @@ Item {
     }
     /* 设置喜欢状态 */
     function setLiked(absfpath,on) {
-        var vl=localScan.likedFiles;
-        var ll=vl.length;
-        var newvl=[];
-        for(var i=0;i<ll;i++) {
-            if(vl[i]!==absfpath) {
-                newvl.push(vl[i]);
-            }
-        }
-        if(on===true) {
-            newvl.push(absfpath);
-        }
-        localScan.likedFiles=newvl;
+        likedFiles=setPath(likedFiles,absfpath,on);
     }
     /* 判断路径是否已喜欢 */
     function isLiked(absfpath) {
-        return hasPath(localScan.likedFiles,absfpath);
+        return hasPath(likedFiles,absfpath);
+    }
+    /* 批量取消喜欢 */
+    function removeLiked(absfpaths) {
+        likedFiles=removePaths(likedFiles,absfpaths);
+    }
+    /* 记录最近播放: 去重后最新在前, 超出上限丢弃最旧 */
+    function addRecent(absfpath) {
+        if(absfpath===undefined || absfpath==="") {
+            return;
+        }
+        var v=[absfpath];
+        var l=recentFiles.length;
+        for(var i=0;i<l;i++) {
+            if(recentFiles[i]!==absfpath) {
+                v.push(recentFiles[i]);
+            }
+        }
+        while(v.length>Define.recentListSize) {
+            v.pop();
+        }
+        recentFiles=v;
+    }
+    /* 批量移除最近播放记录 */
+    function removeRecent(absfpaths) {
+        recentFiles=removePaths(recentFiles,absfpaths);
+    }
+    /* 写入时长缓存 */
+    function setDuration(absfpath,sec) {
+        durationCache[absfpath]=sec;
+    }
+    /* 读取时长缓存: 未探测返回 -1 */
+    function durationOf(absfpath) {
+        var v=durationCache[absfpath];
+        return (v===undefined? -1:v);
+    }
+    /* 判断路径是否已探测过时长 */
+    function hasDuration(absfpath) {
+        return (durationCache[absfpath]!==undefined);
     }
 }

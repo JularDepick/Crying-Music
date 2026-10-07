@@ -1295,10 +1295,13 @@ MainAreaFatherPage {
             }
         }
     }
-    /* 时长探测: 路径 -> 秒(-1 表示无法解析), 队列顺序探测 */
-    property var durationCache: ({});
+    /* 时长探测队列, 探测结果写入 GlobalFileStorage 的共享缓存 */
     property var probeQueue: ([]);
     property string probingPath: "";
+    /* theProber 由 Main.qml 注入, 注入后继续排队中的探测 */
+    onTheProberChanged: {
+        startProbe();
+    }
     Connections {
         target: mainArea_LocalPage.theProber;
         function onMediaStatusChanged() {
@@ -1342,8 +1345,8 @@ MainAreaFatherPage {
                 return;
             }
         }
-        var dur=durationCache[absfpath];
-        var known=(dur!==undefined && dur>=0);
+        var dur=GlobalFileStorage.durationOf(absfpath);
+        var known=(dur>=0);
         if(known && source==="scan" && dur<GlobalFileStorage.localScan.scanRadio) {
             /* 扫描项时长不满足扫描规则 */
             return;
@@ -1359,7 +1362,7 @@ MainAreaFatherPage {
             "liked": GlobalFileStorage.isLiked(absfpath),
             "checked": false
         });
-        if(dur===undefined) {
+        if(GlobalFileStorage.hasDuration(absfpath)===false) {
             probeDuration(absfpath);
         }
     }
@@ -1394,7 +1397,7 @@ MainAreaFatherPage {
     }
     /* 入队探测时长 */
     function probeDuration(absfpath) {
-        if(durationCache[absfpath]!==undefined || absfpath===probingPath) {
+        if(GlobalFileStorage.hasDuration(absfpath) || absfpath===probingPath) {
             return;
         }
         var l=probeQueue.length;
@@ -1440,7 +1443,7 @@ MainAreaFatherPage {
     function finishProbe(sec) {
         var done=probingPath;
         probingPath="";
-        durationCache[done]=(sec>0? sec:-1);
+        GlobalFileStorage.setDuration(done,(sec>0? sec:-1));
         mainListView.applyDuration(done,(sec>0? sec:-1));
         startProbe();
     }

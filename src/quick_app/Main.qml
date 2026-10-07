@@ -577,10 +577,12 @@ ApplicationWindow {
             }
             MainAreaLikedPage {
                 id: mainArea_LikedPage;
+                thePlayer: player;
                 anchors.fill: parent;
             }
             MainAreaRecentPage {
                 id: mainArea_RecentPage;
+                thePlayer: player;
                 anchors.fill: parent;
             }
             MainAreaLocalPage {
@@ -641,28 +643,80 @@ ApplicationWindow {
                         console.error("跳转错误: ",which);
                         return false;
                     }
-                    var asl=[];
-                    var l=sortlist.length;
-                    var had=false;
-                    for(var i=0;i<l;i++) {
-                        if(sortlist[i]===playingWhich && had==true) {
-                            /* 如果插入的是列表中已有的,则不会让插入的这个重复 */
-                            continue;
-                        }
-                        asl.push(sortlist[i]);
-                        if(sortlist[i]===playingWhich) {
-                            asl.push(which);
-                            playingWhich=which.absfpath;
-                            had=true;
-                        }
-                    }
+                    sortlist=insertAfterPlaying(which);
+                    playingWhich=which.absfpath;
                     source=playingWhich;
-                    sortlist=asl;
+                    GlobalFileStorage.addRecent(playingWhich);
                     player.play();
                     console.log("跳转成功: ",which);
                     return true;
                 }
                 function insertNext(which) {
+                    if(which===undefined || which.absfpath===undefined) {
+                        console.error("插入错误: ",which);
+                        return false;
+                    }
+                    sortlist=insertAfterPlaying(which);
+                    console.log("插入下一首: ",which);
+                    return true;
+                }
+                /* 去重后插到当前播放项之后, 当前无播放项时追加到末尾 */
+                function insertAfterPlaying(which) {
+                    var asl=[];
+                    var l=sortlist.length;
+                    for(var i=0;i<l;i++) {
+                        if(sortlist[i].absfpath!==which.absfpath) {
+                            asl.push(sortlist[i]);
+                        }
+                    }
+                    var res=[];
+                    var n=asl.length;
+                    var done=false;
+                    for(var j=0;j<n;j++) {
+                        res.push(asl[j]);
+                        if(done===false && asl[j].absfpath===playingWhich) {
+                            res.push(which);
+                            done=true;
+                        }
+                    }
+                    if(done===false) {
+                        res.push(which);
+                    }
+                    return res;
+                }
+                /* 直接切到列表中的某一项播放, 不改动队列顺序 */
+                function playItem(which) {
+                    if(AppFileHelper.existsFile(which.absfpath)===false) {
+                        console.error("跳转错误: ",which);
+                        return false;
+                    }
+                    playingWhich=which.absfpath;
+                    source=playingWhich;
+                    GlobalFileStorage.addRecent(playingWhich);
+                    player.play();
+                    return true;
+                }
+                /* 从播放队列中移除单项 */
+                function removeItem(which) {
+                    var asl=[];
+                    var l=sortlist.length;
+                    for(var i=0;i<l;i++) {
+                        if(sortlist[i].absfpath!==which.absfpath) {
+                            asl.push(sortlist[i]);
+                        }
+                    }
+                    sortlist=asl;
+                }
+                /* 清空播放队列, 保留当前正在播放的项 */
+                function clearList() {
+                    var keep=[];
+                    var l=sortlist.length;
+                    for(var i=0;i<l;i++) {
+                        if(sortlist[i].absfpath===playingWhich) {
+                            keep.push(sortlist[i]);
+                        }
+                    }
+                    sortlist=keep;
                 }
             }
             Row {
@@ -1075,6 +1129,220 @@ ApplicationWindow {
             visible: playingListBtn.subVisible;
             MouseArea {
                 anchors.fill: parent;
+            }
+            Column {
+                id: playingListHead;
+                anchors {left:parent.left; right:parent.right; top:parent.top;}
+                padding: 20;
+                bottomPadding: 10;
+                spacing: 10;
+                Rectangle {
+                    width: parent.width-parent.padding*2;
+                    height: 30;
+                    color: Define.nocolor;
+                    Text {
+                        id: playingListTitle;
+                        anchors.verticalCenter: parent.verticalCenter;
+                        text: "播放列表";
+                        font.pixelSize: 18;
+                        font.weight: 500;
+                    }
+                    Text {
+                        anchors {verticalCenter:parent.verticalCenter; left:playingListTitle.right; leftMargin:8;}
+                        text: `共 ${player.sortlist.length} 首`;
+                        font.pixelSize: 13;
+                        font.weight: 400;
+                        color: Define.btnIconColor;
+                    }
+                    CustomButtonA {
+                        anchors {verticalCenter:parent.verticalCenter; right:parent.right;}
+                        transEnabled: false;
+                        width: 80;
+                        height: 25;
+                        background: Rectangle {
+                            anchors.fill: parent;
+                            radius: 5;
+                            color: (parent.hovered? Define.mainAreaColor:"white");
+                            border.color: Define.subGrey;
+                            border.width: 1;
+                            Text {
+                                anchors.centerIn: parent;
+                                text: "清空列表";
+                            }
+                        }
+                        onClicked: {
+                            player.clearList();
+                        }
+                    }
+                }
+                Rectangle {
+                    width: parent.width-parent.padding*2;
+                    height: 2;
+                    radius: 1;
+                    color: Define.subGrey;
+                }
+            }
+            Rectangle {
+                id: playingListViewArea;
+                anchors {left:parent.left; right:parent.right; top:playingListHead.bottom; bottom:parent.bottom;}
+                color: Define.nocolor;
+                ListView {
+                    id: playingListView;
+                    anchors.fill: parent;
+                    anchors.topMargin: 5;
+                    spacing: 1;
+                    clip: true;
+                    DragHandler {
+                        acceptedDevices: PointerDevice.Mouse;
+                        target: null;
+                    }
+                    boundsBehavior: Flickable.StopAtBounds;
+                    property string selectedWhich: "";
+                    model: player.sortlist;
+                    delegate: Item {
+                        width: ListView.view.width;
+                        height: 60;
+                        Rectangle {
+                            id: playingBox;
+                            anchors.fill: parent;
+                            anchors.leftMargin: 20;
+                            anchors.rightMargin: 20;
+                            radius: 10;
+                            property bool selectedRow: (playingListView.selectedWhich===modelData["absfpath"]);
+                            property bool hoveredRow: (playingBoxClick.containsMouse||playingAvatarBtn.hovered);
+                            color: (selectedRow? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
+                            MouseArea {
+                                id: playingBoxClick;
+                                anchors.fill: parent;
+                                hoverEnabled: true;
+                                onClicked: {
+                                    playingListView.selectedWhich=modelData["absfpath"];
+                                    console.log("单击: ",playingListView.selectedWhich);
+                                }
+                                onDoubleClicked: {
+                                    console.log("双击: ",modelData["absfpath"]);
+                                    if(player.playingWhich===modelData["absfpath"]) {
+                                        return;
+                                    }
+                                    player.playItem(modelData);
+                                }
+                            }
+                            Row {
+                                anchors.fill: parent;
+                                leftPadding: 10;
+                                rightPadding: 10;
+                                spacing: 10;
+                                CustomButtonA {
+                                    id: playingAvatarBtn;
+                                    anchors.verticalCenter: parent.verticalCenter;
+                                    height: 40;
+                                    width: height;
+                                    transEnabled: false;
+                                    hoverHandlerEnabled: false;
+                                    icon.source: (playingBoxClick.containsMouse||hovered? "qrc:/assets/iconfont/playerbar/play.svg":"");
+                                    icon.color: (hovered? Define.btnHoverColor:Define.mainAreaColor);
+                                    icon.width: 17;
+                                    icon.height: 17;
+                                    onClicked: {
+                                        if(player.playingWhich===modelData["absfpath"]) {
+                                            return;
+                                        }
+                                        player.playItem(modelData);
+                                    }
+                                    background: Item {
+                                        anchors.fill: parent;
+                                        Image {
+                                            id: playingAvatarImage;
+                                            anchors.fill: parent;
+                                            source: (modelData["absipath"]&&modelData["absipath"]!==""? modelData["absipath"]:"qrc:/favicon.jpg");
+                                            fillMode: Image.PreserveAspectCrop;
+                                            layer.enabled: true;
+                                            layer.effect: MultiEffect {
+                                                maskEnabled: true;
+                                                maskSource: playingAvatarMasker;
+                                            }
+                                            Item {
+                                                id: playingAvatarMasker;
+                                                anchors.fill: parent;
+                                                visible: false;
+                                                layer.enabled: true;
+                                                Rectangle {
+                                                    anchors.fill: parent;
+                                                    radius: 10;
+                                                    border.color: Define.subGrey;
+                                                    border.width: 1;
+                                                }
+                                            }
+                                        }
+                                        Rectangle {
+                                            anchors.fill: parent;
+                                            radius: 10;
+                                            color: (playingAvatarBtn.hovered||playingBoxClick.containsMouse? Qt.rgba(0,0,0,0.3):Define.nocolor);
+                                        }
+                                    }
+                                }
+                                Column {
+                                    anchors.verticalCenter: parent.verticalCenter;
+                                    spacing: 5;
+                                    width: 280;
+                                    Text {
+                                        width: parent.width;
+                                        text: modelData["songname"];
+                                        font.pixelSize: 14;
+                                        font.weight: 400;
+                                        elide: Text.ElideRight;
+                                        wrapMode: Text.NoWrap;
+                                        HoverHandler {
+                                            id: playingSongnameHh;
+                                        }
+                                        ToolTip.visible: playingSongnameHh.hovered&&truncated;
+                                        ToolTip.text: text;
+                                        ToolTip.delay: 500;
+                                    }
+                                    Text {
+                                        width: parent.width;
+                                        text: modelData["singer"];
+                                        font.pixelSize: 13;
+                                        font.weight: 400;
+                                        elide: Text.ElideRight;
+                                        wrapMode: Text.NoWrap;
+                                        HoverHandler {
+                                            id: playingSingerHh;
+                                        }
+                                        ToolTip.visible: playingSingerHh.hovered&&truncated;
+                                        ToolTip.text: text;
+                                        ToolTip.delay: 500;
+                                    }
+                                }
+                                CustomButtonA {
+                                    anchors.verticalCenter: parent.verticalCenter;
+                                    width: 12;
+                                    height: 12;
+                                    icon.source: "qrc:/assets/iconfont/function/close.svg";
+                                    icon.color: Define.btnIconColor;
+                                    transEnabled: false;
+                                    onClicked: {
+                                        player.removeItem(modelData);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                CustomSliderC {
+                    id: playingListViewScrollBar;
+                    anchors {top:parent.top; bottom:parent.bottom; right:parent.right;}
+                    visible: (playingListView.contentHeight > playingListView.height);
+                    handleRatio: Math.max(0.1,playingListView.height/playingListView.contentHeight);
+                    hoverHandlerEnabled: false;
+                    value: from*(playingListView.contentY/Math.max(1,playingListView.contentHeight-playingListView.height));
+                    onMoved: {
+                        playingListView.contentY=(value/from)*Math.max(0,playingListView.contentHeight-playingListView.height);
+                        value=Qt.binding(function() {
+                            return from*(playingListView.contentY/Math.max(1,playingListView.contentHeight-playingListView.height));
+                        });
+                    }
+                }
             }
         }
     }

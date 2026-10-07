@@ -1,15 +1,632 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.impl
+import QtQuick.Effects
+
+import AppHelper 1.0
+
 import "./"
 
 MainAreaFatherPage {
     id: mainArea_RecentPage;
     visible: false;
-    Text {
-        text: "This is mainArea_RecentPage";
+    Column {
+        id: headColum;
+        z: mainViewArea.z+1;
+        y: Math.min(0,mainListView.contentY>=titleText.height? (-titleText.height):(-mainListView.contentY));
+        anchors {left:parent.left; right:parent.right;}
+        leftPadding: 40;
+        rightPadding: 40;
+        bottomPadding: 10;
+        Text {
+            id: titleText;
+            text: "最近播放";
+            font.pixelSize: 32;
+            font.weight: 700;
+        }
+        Row {
+            id: functionBox;
+            anchors {left:parent.left; right:parent.right;}
+            anchors.leftMargin: 40;
+            anchors.rightMargin: 40;
+            topPadding: 20;
+            spacing: 20;
+            CustomButtonA {
+                id: playList;
+                width: 80;
+                height: 30;
+                onClicked: {
+                    mainArea_RecentPage.playSelected();
+                }
+                transEnabled: false;
+                background: Rectangle {
+                    anchors.fill: parent;
+                    radius: 15;
+                    color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                    Row {
+                        anchors.centerIn: parent;
+                        spacing: 5;
+                        ColorImage {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            width: 15;
+                            height: 15;
+                            source: `qrc:/assets/iconfont/playerbar/play.svg`;
+                            color: Define.btnIconColor;
+                        }
+                        Text {
+                            text: "播放";
+                        }
+                    }
+                }
+            }
+            CustomButtonA {
+                id: batchOp;
+                width: 80;
+                height: 30;
+                onClicked: {
+                    mainListView.setBatchMode(!mainListView.batchMode);
+                }
+                transEnabled: false;
+                background: Rectangle {
+                    anchors.fill: parent;
+                    radius: 15;
+                    color: ((mainListView.batchMode||parent.hovered)? Define.choseDarkColor:Define.hoverDarkColor);
+                    Row {
+                        anchors.centerIn: parent;
+                        spacing: 5;
+                        ColorImage {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            width: 15;
+                            height: 15;
+                            source: `qrc:/assets/iconfont/function/batch.svg`;
+                            color: Define.btnIconColor;
+                        }
+                        Text {
+                            text: "批量";
+                        }
+                    }
+                }
+            }
+            Row {
+                id: batchBox;
+                visible: mainListView.batchMode;
+                spacing: 20;
+                CustomButtonA {
+                    id: selectAllBtn;
+                    width: 80;
+                    height: 30;
+                    onClicked: {
+                        mainListView.setAllChecked(true);
+                    }
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 15;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Row {
+                            anchors.centerIn: parent;
+                            spacing: 5;
+                            ColorImage {
+                                anchors.verticalCenter: parent.verticalCenter;
+                                width: 15;
+                                height: 15;
+                                source: `qrc:/assets/iconfont/function/checked_stark.svg`;
+                                color: Define.btnIconColor;
+                            }
+                            Text {
+                                text: "全选";
+                            }
+                        }
+                    }
+                }
+                CustomButtonA {
+                    id: batchRemoveBtn;
+                    width: 100;
+                    height: 30;
+                    onClicked: {
+                        mainListView.batchRemove();
+                    }
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 15;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Row {
+                            anchors.centerIn: parent;
+                            spacing: 5;
+                            ColorImage {
+                                anchors.verticalCenter: parent.verticalCenter;
+                                width: 15;
+                                height: 15;
+                                source: `qrc:/assets/iconfont/function/close.svg`;
+                                color: Define.btnIconColor;
+                            }
+                            Text {
+                                text: "移除记录";
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
-    function subsHide(scenePos) {
+    Row {
+        id: sortHead;
+        anchors {left:parent.left; right:parent.right; top:headColum.bottom;}
+        anchors.leftMargin: 40;
+        anchors.rightMargin: 40;
+        height: 20;
+        Rectangle {
+            anchors {top:parent.top; bottom:parent.bottom;}
+            width: parent.width*0.8;
+            color: Define.nocolor;
+            Button {
+                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                onClicked: {
+                    mainListView.sortBy("songname");
+                }
+                background: Row {
+                    Text {
+                        text: "歌名";
+                    }
+                    ColorImage {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        width: 10;
+                        height: 10;
+                        source: mainListView.sortIconOf("songname");
+                        color: Define.btnIconColor;
+                    }
+                }
+            }
+        }
+        Rectangle {
+            anchors {top:parent.top; bottom:parent.bottom;}
+            width: parent.width*0.1;
+            color: Define.nocolor;
+            Button {
+                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                onClicked: {
+                    mainListView.sortBy("size");
+                }
+                background: Row {
+                    Text {
+                        text: "大小";
+                    }
+                    ColorImage {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        width: 10;
+                        height: 10;
+                        source: mainListView.sortIconOf("size");
+                        color: Define.btnIconColor;
+                    }
+                }
+            }
+        }
+        Rectangle {
+            anchors {top:parent.top; bottom:parent.bottom;}
+            width: parent.width*0.1;
+            color: Define.nocolor;
+            Button {
+                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                onClicked: {
+                    mainListView.sortBy("duration");
+                }
+                background: Row {
+                    Text {
+                        text: "时长";
+                    }
+                    ColorImage {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        width: 10;
+                        height: 10;
+                        source: mainListView.sortIconOf("duration");
+                        color: Define.btnIconColor;
+                    }
+                }
+            }
+        }
+    }
+    property var mainListViewModel: ([]);
+    Rectangle {
+        id: mainViewArea;
+        anchors {left:parent.left; right:parent.right; top:sortHead.bottom; bottom:parent.bottom}
+        color: Define.nocolor;
+        ListView {
+            id: mainListView;
+            anchors.fill: parent;
+            anchors.topMargin: 5;
+            spacing: 1;
+            clip: true;
+            DragHandler {
+                acceptedDevices: PointerDevice.Mouse;
+                target: null;
+            }
+            boundsBehavior: Flickable.StopAtBounds;
+            property string selectedWhich: "";
+            property bool batchMode: false;
+            property string sortKey: "";
+            property bool sortAsc: true;
+            model: mainArea_RecentPage.mainListViewModel;
+            delegate: Item {
+                width: ListView.view.width;
+                height: 60;
+                Rectangle {
+                    id: box;
+                    anchors.fill: parent;
+                    anchors.leftMargin: 40;
+                    anchors.rightMargin: 40;
+                    radius: 10;
+                    property bool checkedRow: (modelData["checked"]===true);
+                    property bool selectedRow: (mainListView.selectedWhich===modelData["absfpath"]);
+                    property bool hoveredRow: (boxClick.containsMouse||songAvatarBtn.hovered);
+                    color: ((checkedRow||selectedRow)? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
+                    MouseArea {
+                        id: boxClick;
+                        anchors.fill: parent;
+                        hoverEnabled: true;
+                        onClicked: {
+                            if(mainListView.batchMode) {
+                                mainListView.toggleChecked(index);
+                                return;
+                            }
+                            mainListView.selectedWhich=modelData["absfpath"];
+                            console.log("单击: ",mainListView.selectedWhich);
+                        }
+                        onDoubleClicked: {
+                            if(mainListView.batchMode) {
+                                return;
+                            }
+                            console.log("双击: ",modelData["absfpath"]);
+                            if(thePlayer.playingWhich===modelData["absfpath"]) {
+                                return;
+                            }
+                            thePlayer.jump2play(modelData);
+                        }
+                    }
+                    Row {
+                        anchors.fill: parent;
+                        leftPadding: 10;
+                        rightPadding: 10;
+                        spacing: 10;
+                        CustomButtonA {
+                            id: songCheckBtn;
+                            visible: mainListView.batchMode;
+                            anchors.verticalCenter: parent.verticalCenter;
+                            width: 16;
+                            height: 16;
+                            transEnabled: false;
+                            hoverHandlerEnabled: false;
+                            icon.source: "qrc:/assets/iconfont/function/checked_stark.svg";
+                            icon.width: 8;
+                            icon.height: 8;
+                            icon.color: Define.mainAreaColor;
+                            property bool selected: (modelData["checked"]===true);
+                            onClicked: {
+                                mainListView.toggleChecked(index);
+                            }
+                            background: Rectangle {
+                                anchors.fill: parent;
+                                radius: parent.width/2;
+                                border.width: 1.5;
+                                border.color: (parent.selected? Define.choseCyanColor:Define.btnIconColor);
+                                color: (parent.selected? Define.choseCyanColor:Define.nocolor);
+                            }
+                        }
+                        CustomButtonA {
+                            id: songAvatarBtn;
+                            anchors.verticalCenter: parent.verticalCenter;
+                            height: 40;
+                            width: height;
+                            transEnabled: false;
+                            hoverHandlerEnabled: false;
+                            icon.source: (mainListView.batchMode? "":(boxClick.containsMouse||hovered? "qrc:/assets/iconfont/playerbar/play.svg":""));
+                            icon.color: (hovered? Define.btnHoverColor:Define.mainAreaColor);
+                            icon.width: 17;
+                            icon.height: 17;
+                            onClicked: {
+                                if(mainListView.batchMode) {
+                                    mainListView.toggleChecked(index);
+                                    return;
+                                }
+                                if(thePlayer.playingWhich===modelData["absfpath"]) {
+                                    return;
+                                }
+                                thePlayer.jump2play(modelData);
+                            }
+                            background: Item {
+                                anchors.fill: parent;
+                                Image {
+                                    id: songAvatarImage;
+                                    anchors.fill: parent;
+                                    source: (modelData["absipath"]&&modelData["absipath"]!==""? modelData["absipath"]:"qrc:/favicon.jpg");
+                                    fillMode: Image.PreserveAspectCrop;
+                                    layer.enabled: true;
+                                    layer.effect: MultiEffect {
+                                        maskEnabled: true;
+                                        maskSource: songAvatarMasker;
+                                    }
+                                    Item {
+                                        id: songAvatarMasker;
+                                        anchors.fill: parent;
+                                        visible: false;
+                                        layer.enabled: true;
+                                        Rectangle {
+                                            anchors.fill: parent;
+                                            radius: 10;
+                                            border.color: Define.subGrey;
+                                            border.width: 1;
+                                        }
+                                    }
+                                }
+                                Rectangle {
+                                    anchors.fill: parent;
+                                    radius: 10;
+                                    color: (songAvatarBtn.hovered||boxClick.containsMouse? Qt.rgba(0,0,0,0.3):Define.nocolor);
+                                }
+                            }
+                        }
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            spacing: 5;
+                            width: 240;
+                            Text {
+                                width: parent.width;
+                                text: modelData["songname"];
+                                font.pixelSize: 14;
+                                font.weight: 400;
+                                elide: Text.ElideRight;
+                                wrapMode: Text.NoWrap;
+                                HoverHandler {
+                                    id: songnameHh;
+                                }
+                                ToolTip.visible: songnameHh.hovered&&truncated;
+                                ToolTip.text: text;
+                                ToolTip.delay: 500;
+                            }
+                            Text {
+                                width: parent.width;
+                                text: modelData["singer"];
+                                font.pixelSize: 13;
+                                font.weight: 400;
+                                elide: Text.ElideRight;
+                                wrapMode: Text.NoWrap;
+                                HoverHandler {
+                                    id: singerHh;
+                                }
+                                ToolTip.visible: singerHh.hovered&&truncated;
+                                ToolTip.text: text;
+                                ToolTip.delay: 500;
+                            }
+                        }
+                        CustomButtonA {
+                            visible: !mainListView.batchMode;
+                            anchors.verticalCenter: parent.verticalCenter;
+                            height: 20;
+                            width: 20;
+                            icon.source: (liked? "qrc:/assets/iconfont/function/liked.svg":"qrc:/assets/iconfont/function/like.svg");
+                            icon.color: ((liked||hovered)? Define.btnIconRed:Define.btnIconColor);
+                            transEnabled: false;
+                            property bool liked: (modelData["liked"]===true);
+                            onClicked: {
+                                var next=!liked;
+                                GlobalFileStorage.setLiked(modelData["absfpath"],next);
+                                var v=mainArea_RecentPage.mainListViewModel.slice();
+                                v[index]["liked"]=next;
+                                mainArea_RecentPage.mainListViewModel=v;
+                            }
+                        }
+                    }
+                }
+            }
+            CustomButtonA {
+                id: jump2TopBtn;
+                anchors {bottom:parent.bottom; right:parent.right; bottomMargin:15; rightMargin:15;}
+                width: 30;
+                height: 30;
+                icon.source: "qrc:/assets/iconfont/function/jump2top.svg";
+                icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                icon.width: 20;
+                icon.height: 20;
+                transEnabled: false;
+                visible: (mainListView.contentY>=titleText.height);
+                background: Rectangle {
+                    anchors.fill: parent;
+                    color: Qt.rgba(246,246,246,0.8);
+                    border.width: 1.25;
+                    border.color: (jump2TopBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                }
+                onClicked: {
+                    mainListView.contentY=0;
+                }
+            }
+            /* 从 GlobalFileStorage 加载最近播放列表 */
+            function rebuild() {
+                mainArea_RecentPage.mainListViewModel=sortList(mainArea_RecentPage.collectRecentSongs());
+                selectedWhich="";
+                contentY=0;
+            }
+            /* 同步共享时长缓存, 并按当前排序键返回重排副本 */
+            function sortList(v) {
+                var l=v.length;
+                for(var i=0;i<l;i++) {
+                    var dur=GlobalFileStorage.durationOf(v[i]["absfpath"]);
+                    v[i]["duration"]=(dur>0? dur:0);
+                }
+                if(sortKey==="") {
+                    return v;
+                }
+                var asc=sortAsc;
+                var key=sortKey;
+                var res=v.slice();
+                res.sort(function(a,b) {
+                    if(a[key]===b[key]) {
+                        return 0;
+                    }
+                    return ((a[key]>b[key]? 1:-1)*(asc? 1:-1));
+                });
+                return res;
+            }
+            /* 排序表头: 同键切换升降序, 异键重置为升序 */
+            function sortBy(key) {
+                if(sortKey===key) {
+                    sortAsc=!sortAsc;
+                } else {
+                    sortKey=key;
+                    sortAsc=true;
+                }
+                mainArea_RecentPage.mainListViewModel=sortList(mainArea_RecentPage.mainListViewModel);
+            }
+            /* 排序指示图标 */
+            function sortIconOf(key) {
+                if(sortKey!==key) {
+                    return "qrc:/assets/iconfont/listview/justsort.svg";
+                }
+                return (sortAsc? "qrc:/assets/iconfont/listview/upsort.svg":"qrc:/assets/iconfont/listview/downsort.svg");
+            }
+            /* 进入或退出批量多选 */
+            function setBatchMode(on) {
+                if(batchMode===on) {
+                    return;
+                }
+                batchMode=on;
+                selectedWhich="";
+                if(!batchMode) {
+                    setAllChecked(false);
+                }
+            }
+            /* 切换单行勾选 */
+            function toggleChecked(idx) {
+                var v=mainArea_RecentPage.mainListViewModel.slice();
+                v[idx]["checked"]=(v[idx]["checked"]!==true);
+                mainArea_RecentPage.mainListViewModel=v;
+            }
+            /* 全选或取消全选 */
+            function setAllChecked(what) {
+                var v=mainArea_RecentPage.mainListViewModel;
+                var l=v.length;
+                for(var i=0;i<l;i++) {
+                    v[i]["checked"]=what;
+                }
+                mainArea_RecentPage.mainListViewModel=v.slice();
+            }
+            /* 已勾选的条目 */
+            function checkedItems() {
+                var v=mainArea_RecentPage.mainListViewModel;
+                var l=v.length;
+                var res=[];
+                for(var i=0;i<l;i++) {
+                    if(v[i]["checked"]===true) {
+                        res.push(v[i]);
+                    }
+                }
+                return res;
+            }
+            /* 批量移除记录: 交由 GlobalFileStorage 处理, 外部不直接改写其数据 */
+            function batchRemove() {
+                var items=checkedItems();
+                var l=items.length;
+                if(l<=0) {
+                    console.log("批量移除失败: 未勾选任何歌曲");
+                    return false;
+                }
+                var paths=[];
+                for(var i=0;i<l;i++) {
+                    paths.push(items[i]["absfpath"]);
+                }
+                GlobalFileStorage.removeRecent(paths);
+                console.log("批量移除记录: ",l);
+                rebuild();
+                return true;
+            }
+        }
+    }
+    CustomSliderC {
+        id: mainListViewScrollBar;
+        anchors {top:parent.top; bottom:parent.bottom; right:parent.right;}
+        width: 4;
+        visible: (mainListView.contentHeight > mainListView.height);
+        handleRatio: Math.max(0.1,mainListView.height/mainListView.contentHeight);
+        hoverHandlerEnabled: false;
+        value: from*(mainListView.contentY/Math.max(1,mainListView.contentHeight-mainListView.height));
+        onMoved: {
+            mainListView.contentY=(value/from)*Math.max(0,mainListView.contentHeight-mainListView.height);
+            value=Qt.binding(function() {
+                return from*(mainListView.contentY/Math.max(1,mainListView.contentHeight-mainListView.height));
+            });
+        }
+    }
+    /* 由最近播放的路径列表生成条目, 最新播放的在前 */
+    function collectRecentSongs() {
+        var vf=GlobalFileStorage.recentFiles;
+        var l=vf.length;
+        var v=[];
+        for(var i=0;i<l;i++) {
+            pushSong(v,vf[i]);
+        }
+        return v;
+    }
+    /* 追加单条歌曲: 跳过空路径与重复项 */
+    function pushSong(v,absfpath) {
+        if(absfpath===undefined || absfpath==="") {
+            return;
+        }
+        var l=v.length;
+        for(var i=0;i<l;i++) {
+            if(v[i]["absfpath"]===absfpath) {
+                return;
+            }
+        }
+        var dur=GlobalFileStorage.durationOf(absfpath);
+        v.push({
+            "songname": nameOfFile(absfpath),
+            "singer": "未知歌手",
+            "absfpath": absfpath,
+            "absipath": "",
+            "size": 0,
+            "duration": (dur>0? dur:0),
+            "liked": GlobalFileStorage.isLiked(absfpath),
+            "checked": false
+        });
+    }
+    /* 由标准化路径取歌曲名 */
+    function nameOfFile(absfpath) {
+        var p=AppFileHelper.clearPath(absfpath);
+        var i=p.lastIndexOf("/");
+        if(i>=0) {
+            p=p.substring(i+1);
+        }
+        var d=p.lastIndexOf(".");
+        if(d>0) {
+            p=p.substring(0,d);
+        }
+        return p;
+    }
+    /* 播放: 优先选中项, 无选中则列表首项 */
+    function playSelected() {
+        var v=mainArea_RecentPage.mainListViewModel;
+        var l=v.length;
+        if(l<=0) {
+            console.log("播放失败: 列表为空");
+            return false;
+        }
+        var which=mainListView.selectedWhich;
+        for(var i=0;i<l;i++) {
+            if(v[i]["absfpath"]===which) {
+                return thePlayer.jump2play(v[i]);
+            }
+        }
+        return thePlayer.jump2play(v[0]);
     }
     function refresh() {
+        mainListView.rebuild();
+    }
+    /* 最近播放由播放动作写入, 显示时重新加载 */
+    onVisibleChanged: {
+        if(visible) {
+            refresh();
+        }
+    }
+    Component.onCompleted: {
+        refresh();
     }
 }

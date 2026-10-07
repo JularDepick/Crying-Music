@@ -17,6 +17,7 @@ Item {
     property color topNavBarColor: "#f6f6f6";
     property int btnSize: 20;
     property int btnSpacing: 20;
+    property int recentListSize: 200; /* 最近播放列表的条数上限 */
     property color btnIconColor: "#434343";
     property color btnHoverColor: "#00eb81";
     property color btnIconRed: "#f45555";
