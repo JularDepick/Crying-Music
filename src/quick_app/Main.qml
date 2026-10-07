@@ -1104,23 +1104,45 @@ ApplicationWindow {
                     Row {
                         id: functionSubRowA;
                         spacing: 5;
-                        Text {
-                            id: plsyingTitle;
+                        /* 曲名与歌手: 宽度上限由设计常量给出, 未超出时宽度贴合文本(因此右侧的 VIP 标识紧邻文字),
+                         * 超出上限时宽度固定为上限并循环滚动轮播 */
+                        Item {
+                            id: playingTitleViewport;
                             anchors.verticalCenter: parent.verticalCenter;
-                            width: 180;
-                            text: `${song} - ${singer}`;
-                            font.pixelSize: 14;
-                            elide: Text.ElideRight;
-                            wrapMode: Text.NoWrap;
-                            /* 曲名与歌手取自播放模块, 未在播放时用占位文本 */
-                            property string song: (player.playingTitle===""? "曲名":player.playingTitle);
-                            property string singer: (player.playingTitle===""? "歌手":player.playingSinger);
-                            HoverHandler {
-                                id: playingTitleHh;
+                            width: Math.min(playingTitleText.implicitWidth,Define.playerTitleMaxWidth);
+                            height: playingTitleText.height;
+                            clip: true;
+                            Text {
+                                id: playingTitleText;
+                                text: `${song} - ${singer}`;
+                                font.pixelSize: 14;
+                                wrapMode: Text.NoWrap;
+                                /* 曲名与歌手取自播放模块, 未在播放时用占位文本 */
+                                property string song: (player.playingTitle===""? "曲名":player.playingTitle);
+                                property string singer: (player.playingTitle===""? "歌手":player.playingSinger);
+                                /* 换歌或换文本时回到开头, 避免停在上一次的滚动位置 */
+                                onTextChanged: {
+                                    x=0;
+                                }
+                                /* 轮播: 先停一下, 再滚到文本末尾, 再停一下, 然后回到开头重新开始 */
+                                SequentialAnimation {
+                                    running: (playingTitleText.implicitWidth>Define.playerTitleMaxWidth);
+                                    loops: Animation.Infinite;
+                                    PauseAnimation {
+                                        duration: 1200;
+                                    }
+                                    NumberAnimation {
+                                        target: playingTitleText;
+                                        property: "x";
+                                        from: 0;
+                                        to: (Define.playerTitleMaxWidth-playingTitleText.implicitWidth);
+                                        duration: Math.max(1200,(playingTitleText.implicitWidth-Define.playerTitleMaxWidth)*30);
+                                    }
+                                    PauseAnimation {
+                                        duration: 800;
+                                    }
+                                }
                             }
-                            ToolTip.visible: playingTitleHh.hovered&&truncated;
-                            ToolTip.text: text;
-                            ToolTip.delay: 500;
                         }
                         PlayerBarButton {
                             id: playingVIP;
@@ -1562,7 +1584,9 @@ ApplicationWindow {
                             radius: 10;
                             property bool selectedRow: (playingListView.selectedWhich===modelData["absfpath"]);
                             property bool playingRow: (player.playingWhich===modelData["absfpath"]);
-                            property bool hoveredRow: (playingBoxClick.containsMouse||playingAvatarBtn.hovered);
+                            /* 悬停高亮: 除整行区域外还要或上内部各组件自己的悬停态,
+                             * 因为子组件会接收悬停事件, 此时整行区域的 containsMouse 会变成 false */
+                            property bool hoveredRow: (playingBoxClick.containsMouse||playingAvatarBtn.hovered||playingRemoveBtn.hovered||playingSongnameHh.hovered||playingSingerHh.hovered);
                             /* 选中的行用深灰背景; 正在播放的行不用背景色区分, 只用下面那行青色文字标识, 两者可以同时成立 */
                             color: (selectedRow? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
                             MouseArea {
@@ -1671,6 +1695,7 @@ ApplicationWindow {
                                     }
                                 }
                                 CustomButtonA {
+                                    id: playingRemoveBtn;
                                     /* 正在播放的这一项不允许从列表中删除 */
                                     visible: (player.playingWhich!==modelData["absfpath"]);
                                     anchors.verticalCenter: parent.verticalCenter;
@@ -1686,48 +1711,51 @@ ApplicationWindow {
                             }
                         }
                     }
-                    /* 悬浮按钮: 自下而上依次为回到顶部, 定位到当前播放行 */
-                    CustomButtonA {
-                        id: playingJump2PlayingBtn;
-                        anchors {bottom:playingJump2TopBtn.top; right:parent.right; bottomMargin:10; rightMargin:15;}
-                        width: 30;
-                        height: 30;
-                        icon.source: "qrc:/assets/iconfont/function/jump2playing.svg";
-                        icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
-                        icon.width: 20;
-                        icon.height: 20;
-                        transEnabled: false;
-                        visible: playingListView.playingOutOfView();
-                        background: Rectangle {
-                            anchors.fill: parent;
-                            color: Qt.rgba(246,246,246,0.8);
-                            border.width: 1.25;
-                            border.color: (playingJump2PlayingBtn.hovered? Define.btnHoverColor:Define.subGrey);
-                        }
-                        onClicked: {
-                            playingListView.selectedWhich=player.playingWhich;
-                            playingListView.positionViewAtIndex(player.playingIndex,ListView.Beginning);
-                        }
-                    }
-                    CustomButtonA {
-                        id: playingJump2TopBtn;
+                    /* 悬浮按钮: 两个按钮用同一列自下而上排列, 只有一个可见时也落在右下角同一位置 */
+                    Column {
+                        id: playingJumpBtnColumn;
                         anchors {bottom:parent.bottom; right:parent.right; bottomMargin:15; rightMargin:15;}
-                        width: 30;
-                        height: 30;
-                        icon.source: "qrc:/assets/iconfont/function/jump2top.svg";
-                        icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
-                        icon.width: 20;
-                        icon.height: 20;
-                        transEnabled: false;
-                        visible: (playingListView.contentY>0);
-                        background: Rectangle {
-                            anchors.fill: parent;
-                            color: Qt.rgba(246,246,246,0.8);
-                            border.width: 1.25;
-                            border.color: (playingJump2TopBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                        spacing: 10;
+                        CustomButtonA {
+                            id: playingJump2PlayingBtn;
+                            width: 30;
+                            height: 30;
+                            icon.source: "qrc:/assets/iconfont/function/jump2playing.svg";
+                            icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                            icon.width: 20;
+                            icon.height: 20;
+                            transEnabled: false;
+                            visible: playingListView.playingOutOfView();
+                            background: Rectangle {
+                                anchors.fill: parent;
+                                color: Qt.rgba(246,246,246,0.8);
+                                border.width: 1.25;
+                                border.color: (playingJump2PlayingBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                            }
+                            onClicked: {
+                                playingListView.selectedWhich=player.playingWhich;
+                                playingListView.positionViewAtIndex(player.playingIndex,ListView.Beginning);
+                            }
                         }
-                        onClicked: {
-                            playingListView.contentY=0;
+                        CustomButtonA {
+                            id: playingJump2TopBtn;
+                            width: 30;
+                            height: 30;
+                            icon.source: "qrc:/assets/iconfont/function/jump2top.svg";
+                            icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                            icon.width: 20;
+                            icon.height: 20;
+                            transEnabled: false;
+                            visible: (playingListView.contentY>0);
+                            background: Rectangle {
+                                anchors.fill: parent;
+                                color: Qt.rgba(246,246,246,0.8);
+                                border.width: 1.25;
+                                border.color: (playingJump2TopBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                            }
+                            onClicked: {
+                                playingListView.contentY=0;
+                            }
                         }
                     }
                     /* 当前播放行是否落在视域之外 */

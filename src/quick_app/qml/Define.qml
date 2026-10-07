@@ -37,4 +37,6 @@ Item {
     property color vipGold: "#ffc400";
     /* 允许扫描与手动添加的音频格式: 带点号, 顺序即界面上的顺序, 界面默认全选 */
     property var audioFormats: [".mp3",".m4a",".wav",".flac",".ogg"];
+    /* 播放栏曲名与歌手的最大显示宽度: 未超出时宽度贴合文本, 超出该宽度时循环滚动轮播 */
+    property int playerTitleMaxWidth: 180;
 }

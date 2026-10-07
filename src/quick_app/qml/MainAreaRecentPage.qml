@@ -267,7 +267,9 @@ MainAreaFatherPage {
                     property bool checkedRow: (modelData["checked"]===true);
                     property bool selectedRow: (mainListView.selectedWhich===modelData["absfpath"]);
                     property bool playingRow: (GlobalFileStorage.playState.playingWhich===modelData["absfpath"]);
-                    property bool hoveredRow: (boxClick.containsMouse||songAvatarBtn.hovered);
+                    /* 悬停高亮: 除整行区域外还要或上内部各组件自己的悬停态,
+                     * 因为子组件会接收悬停事件, 此时整行区域的 containsMouse 会变成 false */
+                    property bool hoveredRow: (boxClick.containsMouse||songCheckBtn.hovered||songAvatarBtn.hovered||songLikeBtn.hovered||songAddIntoBtn.hovered||songnameHh.hovered||singerHh.hovered);
                     color: ((checkedRow||selectedRow)? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
                     MouseArea {
                         id: boxClick;
@@ -411,6 +413,7 @@ MainAreaFatherPage {
                             }
                         }
                         CustomButtonA {
+                            id: songLikeBtn;
                             visible: !mainListView.batchMode;
                             anchors.verticalCenter: parent.verticalCenter;
                             height: 20;
@@ -428,6 +431,7 @@ MainAreaFatherPage {
                             }
                         }
                         CustomButtonA {
+                            id: songAddIntoBtn;
                             visible: !mainListView.batchMode;
                             anchors.verticalCenter: parent.verticalCenter;
                             height: 20;
@@ -441,46 +445,50 @@ MainAreaFatherPage {
                     }
                 }
             }
-            CustomButtonA {
-                id: jump2PlayingBtn;
-                anchors {bottom:jump2TopBtn.top; right:parent.right; bottomMargin:10; rightMargin:15;}
-                width: 30;
-                height: 30;
-                icon.source: "qrc:/assets/iconfont/function/jump2playing.svg";
-                icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
-                icon.width: 20;
-                icon.height: 20;
-                transEnabled: false;
-                visible: mainArea_RecentPage.playingOutOfView();
-                background: Rectangle {
-                    anchors.fill: parent;
-                    color: Qt.rgba(246,246,246,0.8);
-                    border.width: 1.25;
-                    border.color: (jump2PlayingBtn.hovered? Define.btnHoverColor:Define.subGrey);
-                }
-                onClicked: {
-                    mainArea_RecentPage.jump2playing();
-                }
-            }
-            CustomButtonA {
-                id: jump2TopBtn;
+            /* 两个悬浮按钮用同一列自下而上排列: 只有一个可见时也落在右下角同一位置 */
+            Column {
+                id: jumpBtnColumn;
                 anchors {bottom:parent.bottom; right:parent.right; bottomMargin:15; rightMargin:15;}
-                width: 30;
-                height: 30;
-                icon.source: "qrc:/assets/iconfont/function/jump2top.svg";
-                icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
-                icon.width: 20;
-                icon.height: 20;
-                transEnabled: false;
-                visible: (mainListView.contentY>=titleText.height);
-                background: Rectangle {
-                    anchors.fill: parent;
-                    color: Qt.rgba(246,246,246,0.8);
-                    border.width: 1.25;
-                    border.color: (jump2TopBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                spacing: 10;
+                CustomButtonA {
+                    id: jump2PlayingBtn;
+                    width: 30;
+                    height: 30;
+                    icon.source: "qrc:/assets/iconfont/function/jump2playing.svg";
+                    icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                    icon.width: 20;
+                    icon.height: 20;
+                    transEnabled: false;
+                    visible: mainArea_RecentPage.playingOutOfView();
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        color: Qt.rgba(246,246,246,0.8);
+                        border.width: 1.25;
+                        border.color: (jump2PlayingBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                    }
+                    onClicked: {
+                        mainArea_RecentPage.jump2playing();
+                    }
                 }
-                onClicked: {
-                    mainListView.contentY=0;
+                CustomButtonA {
+                    id: jump2TopBtn;
+                    width: 30;
+                    height: 30;
+                    icon.source: "qrc:/assets/iconfont/function/jump2top.svg";
+                    icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                    icon.width: 20;
+                    icon.height: 20;
+                    transEnabled: false;
+                    visible: (mainListView.contentY>=titleText.height);
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        color: Qt.rgba(246,246,246,0.8);
+                        border.width: 1.25;
+                        border.color: (jump2TopBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                    }
+                    onClicked: {
+                        mainListView.contentY=0;
+                    }
                 }
             }
             /* 从 GlobalFileStorage 加载最近播放列表 */
