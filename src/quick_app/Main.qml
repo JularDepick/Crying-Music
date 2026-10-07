@@ -586,6 +586,7 @@ ApplicationWindow {
             MainAreaLocalPage {
                 id: mainArea_LocalPage;
                 thePlayer: player;
+                theProber: fakePlayer;
                 anchors.fill: parent;
             }
             MainAreaSettingsPage {
