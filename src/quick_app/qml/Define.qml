@@ -3,6 +3,8 @@ import QtQuick
 
 Item {
     visible: false;
+    /* 应用名常量: 同时用作窗口标题 */
+    property string initTitle: "CryingMusic";
     /* 全局设计常量: 窗口与布局尺寸, 主题色, 列表上限与探测阈值 */
     property int windowPadding: 10;
     property int windowRadius: 7;
@@ -33,4 +35,6 @@ Item {
     property color warnRed: "#ff4411";
     property color vipRed: "#fe3610";
     property color vipGold: "#ffc400";
+    /* 允许扫描与手动添加的音频格式: 带点号, 顺序即界面上的顺序, 界面默认全选 */
+    property var audioFormats: [".mp3",".m4a",".wav",".flac",".ogg"];
 }

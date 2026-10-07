@@ -329,10 +329,11 @@ MainAreaFatherPage {
                     title: "请选择需要导入的音频文件(可多选)";
                     acceptLabel: "导入";
                     fileMode: FileDialog.OpenFiles;
+                    /* 过滤器由设计常量拼出, 与扫描的格式预选项共用同一份清单 */
                     nameFilters: [
-                        "音频文件 (*.mp3 *.m4a)"
+                        "音频文件 ("+Define.audioFormats.map(function(f) { return "*"+f; }).join(" ")+")"
                     ];
-                    currentFolder: AppPathHelper.getAppPath();
+                    currentFolder: AppFileHelper.getAppPath();
                     onAccepted: {
                         var vs=selectedFiles;
                         var ls=vs.length;
@@ -496,6 +497,7 @@ MainAreaFatherPage {
                     radius: 10;
                     property bool checkedRow: (modelData["checked"]===true);
                     property bool selectedRow: (mainListView.selectedWhich===modelData["absfpath"]);
+                    property bool playingRow: (GlobalFileStorage.playState.playingWhich===modelData["absfpath"]);
                     property bool hoveredRow: (boxClick.containsMouse||songAvatarBtn.hovered);
                     color: ((checkedRow||selectedRow)? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
                     MouseArea {
@@ -607,11 +609,13 @@ MainAreaFatherPage {
                             anchors.verticalCenter: parent.verticalCenter;
                             spacing: 5;
                             width: 240;
+                            /* 正在播放的行把曲名与歌手改成选中青, 与选中背景并存 */
                             Text {
                                 width: parent.width;
                                 text: modelData["songname"];
                                 font.pixelSize: 14;
                                 font.weight: 400;
+                                color: (box.playingRow? Define.choseCyanColor:"black");
                                 elide: Text.ElideRight;
                                 wrapMode: Text.NoWrap;
                                 HoverHandler {
@@ -626,6 +630,7 @@ MainAreaFatherPage {
                                 text: modelData["singer"];
                                 font.pixelSize: 13;
                                 font.weight: 400;
+                                color: (box.playingRow? Define.choseCyanColor:"black");
                                 elide: Text.ElideRight;
                                 wrapMode: Text.NoWrap;
                                 HoverHandler {
@@ -779,7 +784,7 @@ MainAreaFatherPage {
                 var l=v.length;
                 var nv=[];
                 for(var i=0;i<l;i++) {
-                    var m=GlobalFileStorage.metaOf(v[i]["absfpath"]);
+                    var m=theMemStorage.metaOf(v[i]["absfpath"]);
                     if(m) {
                         if(m.title!=="") {
                             v[i]["songname"]=m.title;
@@ -797,6 +802,10 @@ MainAreaFatherPage {
                     nv.push(v[i]);
                 }
                 mainArea_LocalPage.mainListViewModel=sortList(nv);
+                /* 队列与列表共享条目对象, 回填后通知播放模块刷新播放栏显示的曲名与歌手 */
+                if(thePlayer!==undefined && thePlayer!==null) {
+                    thePlayer.syncPlayingInfo();
+                }
             }
             /* 喜欢状态轻量同步: 只刷新红心, 不重建列表, 因此滚动位置不跳 */
             function syncLiked() {
@@ -1195,14 +1204,12 @@ MainAreaFatherPage {
                     }
                     Repeater {
                         id: formatCheckRepeater1;
-                        model: ListModel {
-                            ListElement { checkText:".mp3"; isChecked:true; }
-                            ListElement { checkText:".m4a"; isChecked:true; }
-                        }
+                        /* 预选项取自设计常量, 界面默认全选 */
+                        model: Define.audioFormats;
                         delegate: CheckBox {
                             id: formatCheck;
-                            text: checkText;
-                            checked: isChecked;
+                            text: modelData;
+                            checked: true;
                             spacing: 6;
                             font.pixelSize: 14;
                             font.weight: 400;
@@ -1212,13 +1219,13 @@ MainAreaFatherPage {
                                     var la=formatCheckRoot1.fmts.length;
                                     var va=formatCheckRoot1.fmts.slice();
                                     for(var ia=0;ia<la;ia++) {
-                                        if(va[ia]===checkText) {
+                                        if(va[ia]===modelData) {
                                             had=true;
                                             break;
                                         }
                                     }
                                     if(!had) {
-                                        va.push(checkText);
+                                        va.push(modelData);
                                         formatCheckRoot1.fmts=va;
                                     }
                                 } else {
@@ -1226,7 +1233,7 @@ MainAreaFatherPage {
                                     var vb=[];
                                     for(var ib=0;ib<lb;ib++) {
                                         var one=formatCheckRoot1.fmts[ib];
-                                        if(one!==checkText) {
+                                        if(one!==modelData) {
                                             vb.push(one);
                                         }
                                     }
@@ -1351,7 +1358,7 @@ MainAreaFatherPage {
             id: songDirDialog;
             title: "请选择需要添加的文件夹(仅单选)";
             acceptLabel: "添加";
-            currentFolder: AppPathHelper.getAppPath();
+            currentFolder: AppFileHelper.getAppPath();
             options: FolderDialog.ReadOnly;
             onAccepted: {
                 console.log(selectedFolder);
@@ -1444,7 +1451,7 @@ MainAreaFatherPage {
                 return;
             }
         }
-        var m=GlobalFileStorage.metaOf(absfpath);
+        var m=theMemStorage.metaOf(absfpath);
         var dur=(m? m.duration:-1);
         if(dur>=0 && source==="scan" && dur<GlobalFileStorage.localScan.scanRadio) {
             /* 扫描项时长不满足扫描规则 */
@@ -1462,7 +1469,7 @@ MainAreaFatherPage {
             "liked": GlobalFileStorage.isLiked(absfpath),
             "checked": false
         });
-        if(GlobalFileStorage.hasMeta(absfpath)===false) {
+        if(theMemStorage.hasMeta(absfpath)===false) {
             probeMeta(absfpath);
         }
     }
@@ -1545,7 +1552,7 @@ MainAreaFatherPage {
     }
     /* 入队探测元数据: 队列由空转非空时视为新的一批, 占用加载条并重置计数 */
     function probeMeta(absfpath) {
-        if(GlobalFileStorage.hasMeta(absfpath) || absfpath===probingPath) {
+        if(theMemStorage.hasMeta(absfpath) || absfpath===probingPath) {
             return;
         }
         var l=probeQueue.length;
@@ -1562,7 +1569,7 @@ MainAreaFatherPage {
             probeQueue=v;
             if(probingPath==="" && probeQueue.length===1) {
                 probeDone=0;
-                GlobalFileStorage.startLoading("元数据探测完成",mainArea_LocalPage.loadingId);
+                theMemStorage.startLoading("元数据探测完成",mainArea_LocalPage.loadingId);
             }
         }
         startProbe();
@@ -1572,7 +1579,7 @@ MainAreaFatherPage {
         var remaining=probeQueue.length+(probingPath!==""? 1:0);
         var total=probeDone+remaining;
         var rate=(total<=0? 100:Math.floor(probeDone*100/total));
-        GlobalFileStorage.updateLoading(rate,mainArea_LocalPage.loadingId);
+        theMemStorage.updateLoading(rate,mainArea_LocalPage.loadingId);
     }
     /* 启动队列中的下一项探测; 队列排空后推进度到满并统一回填列表 */
     function startProbe() {
@@ -1655,7 +1662,7 @@ MainAreaFatherPage {
         cppProbing=false;
         probeTimeout.stop();
         fallbackTimeout.stop();
-        GlobalFileStorage.setMeta(done,{"duration":(meta.duration>0? meta.duration:-1),
+        theMemStorage.setMeta(done,{"duration":(meta.duration>0? meta.duration:-1),
                                         "title":(meta.title===undefined? "":meta.title),
                                         "artist":(meta.artist===undefined? "":meta.artist)});
         probeDone=probeDone+1;

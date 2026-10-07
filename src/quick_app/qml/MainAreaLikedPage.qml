@@ -266,6 +266,7 @@ MainAreaFatherPage {
                     radius: 10;
                     property bool checkedRow: (modelData["checked"]===true);
                     property bool selectedRow: (mainListView.selectedWhich===modelData["absfpath"]);
+                    property bool playingRow: (GlobalFileStorage.playState.playingWhich===modelData["absfpath"]);
                     property bool hoveredRow: (boxClick.containsMouse||songAvatarBtn.hovered);
                     color: ((checkedRow||selectedRow)? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
                     MouseArea {
@@ -377,11 +378,13 @@ MainAreaFatherPage {
                             anchors.verticalCenter: parent.verticalCenter;
                             spacing: 5;
                             width: 240;
+                            /* 正在播放的行把曲名与歌手改成选中青, 与选中背景并存 */
                             Text {
                                 width: parent.width;
                                 text: modelData["songname"];
                                 font.pixelSize: 14;
                                 font.weight: 400;
+                                color: (box.playingRow? Define.choseCyanColor:"black");
                                 elide: Text.ElideRight;
                                 wrapMode: Text.NoWrap;
                                 HoverHandler {
@@ -396,6 +399,7 @@ MainAreaFatherPage {
                                 text: modelData["singer"];
                                 font.pixelSize: 13;
                                 font.weight: 400;
+                                color: (box.playingRow? Define.choseCyanColor:"black");
                                 elide: Text.ElideRight;
                                 wrapMode: Text.NoWrap;
                                 HoverHandler {
@@ -486,7 +490,7 @@ MainAreaFatherPage {
             function sortList(v) {
                 var l=v.length;
                 for(var i=0;i<l;i++) {
-                    var m=GlobalFileStorage.metaOf(v[i]["absfpath"]);
+                    var m=theMemStorage.metaOf(v[i]["absfpath"]);
                     if(m) {
                         if(m.title!=="") {
                             v[i]["songname"]=m.title;
@@ -654,7 +658,7 @@ MainAreaFatherPage {
                 return;
             }
         }
-        var m=GlobalFileStorage.metaOf(absfpath);
+        var m=theMemStorage.metaOf(absfpath);
         var sz=AppFileHelper.fileSize(absfpath);
         v.push({
             "songname": (m && m.title!==""? m.title:nameOfFile(absfpath)),

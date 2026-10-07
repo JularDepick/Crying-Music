@@ -25,6 +25,7 @@ quick_app/
 ├── README_en-US.md # English documentation
 ├── LICENSE.Qt      # Full Qt license texts (GPLv3 and LGPLv3) and Qt copyright notice
 ├── LICENSE.FDL     # GNU Free Documentation License (Qt documentation is not distributed here)
+├── licenses/       # License text set completed into the storage directory (COPYRIGHT/LICENSE/LICENSE.FDL/LICENSE.Qt)
 ├── resource.qrc    # Qt resource manifest
 ├── resource.rc     # Windows resource file
 ├── favicon.jpg     # Application icon

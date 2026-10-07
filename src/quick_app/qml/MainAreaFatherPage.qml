@@ -9,6 +9,8 @@ Rectangle {
     radius: Define.mainAreaRaduis;
     /* 播放器由主界面注入, 页面只调用它的播放命令, 读取播放数据一律走存储枢纽 */
     property var thePlayer;
+    /* 内存枢纽由主界面注入, 承载元数据缓存与加载进度这类只存内存的临时状态 */
+    property var theMemStorage;
     /* 钩子: 点界面空白处时收起本页子菜单; 顶栏刷新时重建本页列表 */
     function subsHide(scenePos) {}
     function refresh() {}

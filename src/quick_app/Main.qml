@@ -21,6 +21,65 @@ ApplicationWindow {
     title: qsTr(Define.initTitle);
     flags: Qt.Window | Qt.FramelessWindowHint;
 
+    /* 内存枢纽: 只存内存的临时状态, 不落盘; 由主界面持有并注入给各页。
+     * 声明在页面之前, 保证页面构建时它已存在 */
+    QtObject {
+        id: memStorage;
+        /* 音频元数据缓存: 标准化路径 -> {duration:秒, title:曲名, artist:歌手} */
+        property var metaCache: ({});
+        /* 加载进度: 供各模块共用的加载反馈, 同一时刻只服务一个使用者 */
+        property var loadingState:
+        ({
+            using: false,
+            value: 0,
+            finishedTip: "",
+            usedByWho: ""
+        });
+        /* 写入音频元数据 */
+        function setMeta(absfpath,meta) {
+            metaCache[absfpath]=meta;
+        }
+        /* 读取音频元数据: 未探测返回 null */
+        function metaOf(absfpath) {
+            var m=metaCache[absfpath];
+            return (m===undefined? null:m);
+        }
+        /* 判断路径是否已探测过元数据 */
+        function hasMeta(absfpath) {
+            return (metaCache[absfpath]!==undefined);
+        }
+        /* 开始加载: 已在加载中时不打断当前使用者, 返回是否成功占用 */
+        function startLoading(finishedTip,usedByWho) {
+            if(loadingState.using) {
+                return false;
+            }
+            loadingState=({"using":true,"value":0,"finishedTip":finishedTip,"usedByWho":usedByWho});
+            return true;
+        }
+        /* 更新加载进度: 只接受当前使用者的更新, 返回是否被采纳 */
+        function updateLoading(value,usedByWho) {
+            if(loadingState.using===false || loadingState.usedByWho!==usedByWho) {
+                return false;
+            }
+            loadingState=({"using":true,
+                           "value":value,
+                           "finishedTip":loadingState.finishedTip,
+                           "usedByWho":usedByWho});
+            return true;
+        }
+        /* 结束加载: 传使用者标识时只有匹配才结束 */
+        function stopLoading(usedByWho) {
+            if(loadingState.using===false) {
+                return false;
+            }
+            if(usedByWho!==undefined && usedByWho!==loadingState.usedByWho) {
+                return false;
+            }
+            loadingState=({"using":false,"value":0,"finishedTip":"","usedByWho":""});
+            return true;
+        }
+    }
+
     /* 系统托盘 */
     SystemTrayIcon {
         id: stIcon;
@@ -145,21 +204,17 @@ ApplicationWindow {
             bottomLeftRadius: Define.mainAreaRaduis;
             bottomRightRadius: Define.mainAreaRaduis;
             clip: true;
-            width: 220;
             property int bigWidth: 220;
             property int smallWidth: 75;
-            property bool spreaded: true;
+            /* 展开状态取自存储单例的界面状态, 改动只经存储接口写回, 因此重启后保持上次的状态 */
+            property bool spreaded: GlobalFileStorage.uiState.leftSidebarSpreaded;
+            width: (spreaded? bigWidth: smallWidth);
             color: Define.leftSidebarColor;
             function spread(b=true) {
-                if(b===true && !spreaded) {
-                    leftSidebar.spreaded=false;
-                    leftSidebar.width=leftSidebar.bigWidth;
-                    leftSidebar.spreaded=true;
-                } else if(b===false && spreaded) {
-                    leftSidebar.spreaded=false;
-                    leftSidebar.width=leftSidebar.smallWidth;
-                    leftSidebar.spreaded=false;
+                if(b===spreaded) {
+                    return;
                 }
+                GlobalFileStorage.setLeftSidebarSpreaded(b);
             }
             /* 左侧栏的右边框拖拽 */
             MouseArea {
@@ -517,6 +572,16 @@ ApplicationWindow {
             property var uhis: [];
             property var rhis: [];
             property var curr: mainArea_HomePage;
+            /* 按当前页反查路由键: 路由表由左侧栏持有, 这里只做反查, 用于把导航位置落盘 */
+            function routeKeyOf(which) {
+                var t=leftSidebar.svg2obj;
+                for(var k in t) {
+                    if(t[k]===which) {
+                        return k;
+                    }
+                }
+                return "";
+            }
             function _show(which) {
                 if(curr===which) {
                     return;
@@ -524,6 +589,17 @@ ApplicationWindow {
                 curr.visible=false;
                 curr=which;
                 curr.visible=true;
+                /* 每次真正换页都把当前页写进界面状态, 供下次启动停在同一页 */
+                GlobalFileStorage.setMainAreaPage(routeKeyOf(which));
+            }
+            /* 按存储里的界面状态恢复上次停留的页面: 只换页, 不进历史栈 */
+            function applyStoredPage() {
+                var obj=leftSidebar.svg2obj[GlobalFileStorage.uiState.mainAreaPage];
+                if(obj===undefined || obj===null) {
+                    return false;
+                }
+                _show(obj);
+                return true;
             }
             function undo() {
                 if(uhis.length<=0) {
@@ -578,17 +654,20 @@ ApplicationWindow {
             MainAreaLikedPage {
                 id: mainArea_LikedPage;
                 thePlayer: player;
+                theMemStorage: memStorage;
                 anchors.fill: parent;
             }
             MainAreaRecentPage {
                 id: mainArea_RecentPage;
                 thePlayer: player;
+                theMemStorage: memStorage;
                 anchors.fill: parent;
             }
             MainAreaLocalPage {
                 id: mainArea_LocalPage;
                 thePlayer: player;
                 theProber: fakePlayer;
+                theMemStorage: memStorage;
                 anchors.fill: parent;
             }
             MainAreaSettingsPage {
@@ -612,6 +691,12 @@ ApplicationWindow {
             bottomLeftRadius: Define.mainAreaRaduis;
             bottomRightRadius: Define.mainAreaRaduis;
             color: Define.mainAreaColor;
+            /* 把进度条手柄与已播放填充同步到当前播放位置; 按住拖动时不打断用户 */
+            function syncStampDisplay() {
+                if(stampSlider.pressed===false) {
+                    stampSlider.value=Math.floor(player.position/1000);
+                }
+            }
             MediaPlayer {
                 id: fakePlayer;
                 source: "";
@@ -622,11 +707,17 @@ ApplicationWindow {
                     id: audioOutputer;
                     volume: soundCtrl.volume/100;
                 }
-                source: AppPathHelper.getAbsolutePath("");
+                source: "";
                 onErrorOccurred: (error, errorString)=>{
                     console.error("音频播放错误:",error,errorString);
                 }
                 onMediaStatusChanged: {
+                    if(mediaStatus===MediaPlayer.LoadedMedia && pendingRestore===true) {
+                        /* 断点恢复: 音频加载完成后回到上次的播放进度, 但不自动播放 */
+                        pendingRestore=false;
+                        position=(GlobalFileStorage.playState.playingPosition===undefined? 0:GlobalFileStorage.playState.playingPosition);
+                        console.log("断点恢复: ",source," 进度 ",position);
+                    }
                     if(mediaStatus===MediaPlayer.EndOfMedia) {
                         console.log("播放结束: ",source);
                         player.playNext(true);
@@ -640,6 +731,11 @@ ApplicationWindow {
                 property var sortlist: ([]);
                 /* 播放顺序: 0 随机播放, 1 顺序播放, 2 单曲循环, 3 列表循环 */
                 property int playMode: 1;
+                /* 断点恢复中: 待音频加载完成后把播放进度恢复到上次的位置 */
+                property bool pendingRestore: false;
+                /* 播放栏显示的曲名与歌手: 由 syncPlayingInfo 从当前播放项刷新, 空字符串表示未在播放 */
+                property string playingTitle: "";
+                property string playingSinger: "";
                 /*[
                     {songname:"心做し 心理作用", singer:"双笙-陈元汐", absfpath:"file:///C:\\Users\\liwenfang\\GitHub\\JularDepick\\Crying-Music\\src\\quick_app\\心做し_心理作用_双笙_陈元汐_.mp3"}
                 ];*/
@@ -652,6 +748,8 @@ ApplicationWindow {
                     playingWhich=which.absfpath;
                     syncPlayingIndex();
                     syncPlayState();
+                    /* 换歌即把播放进度归零, 避免断点恢复落到上一首的位置 */
+                    GlobalFileStorage.setPlayPosition(0);
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
@@ -712,6 +810,8 @@ ApplicationWindow {
                     playingWhich=one.absfpath;
                     syncPlayingIndex();
                     syncPlayState();
+                    /* 换歌即把播放进度归零, 避免断点恢复落到上一首的位置 */
+                    GlobalFileStorage.setPlayPosition(0);
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
@@ -727,6 +827,8 @@ ApplicationWindow {
                     playingWhich=which.absfpath;
                     syncPlayingIndex();
                     syncPlayState();
+                    /* 换歌即把播放进度归零, 避免断点恢复落到上一首的位置 */
+                    GlobalFileStorage.setPlayPosition(0);
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
@@ -741,6 +843,8 @@ ApplicationWindow {
                     playingIndex=idx;
                     playingWhich=sortlist[idx].absfpath;
                     syncPlayState();
+                    /* 换歌即把播放进度归零, 避免断点恢复落到上一首的位置 */
+                    GlobalFileStorage.setPlayPosition(0);
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
@@ -856,6 +960,43 @@ ApplicationWindow {
                 /* 把本模块的播放状态推到枢纽, 供其它模块读取 */
                 function syncPlayState() {
                     GlobalFileStorage.setPlayState(sortlist,playingWhich,playingIndex,playMode);
+                    syncPlayingInfo();
+                }
+                /* 刷新播放栏显示的曲名与歌手: 取当前播放项, 找不到时清空 */
+                function syncPlayingInfo() {
+                    var idx=indexOfPlaying();
+                    if(idx<0) {
+                        playingTitle="";
+                        playingSinger="";
+                        return false;
+                    }
+                    var one=sortlist[idx];
+                    playingTitle=(one["songname"]===undefined? "":one["songname"]);
+                    playingSinger=(one["singer"]===undefined? "":one["singer"]);
+                    return true;
+                }
+                /* 把播放进度推到枢纽: 落盘与断点恢复都从枢纽取 */
+                function syncPlayPosition(ms) {
+                    GlobalFileStorage.setPlayPosition(ms);
+                }
+                /* 断点恢复: 校验队列与当前播放项后加载音频, 不自动播放 */
+                function restoreFromState() {
+                    var st=GlobalFileStorage.playState;
+                    sortlist=st.sortlist;
+                    playingWhich=st.playingWhich;
+                    playingIndex=st.playingIndex;
+                    playMode=st.playMode;
+                    if(playingWhich==="" || AppFileHelper.existsFile(playingWhich)===false) {
+                        /* 上次的音频已不存在: 清掉当前播放项, 队列保留 */
+                        playingWhich="";
+                        playingIndex=-1;
+                        syncPlayState();
+                        return false;
+                    }
+                    pendingRestore=true;
+                    syncPlayingInfo();
+                    source=playingWhich;
+                    return true;
                 }
                 /* 从枢纽取回播放状态: 值不同才覆盖, 避免与推送动作形成回环 */
                 function updateFromPlayState() {
@@ -872,6 +1013,17 @@ ApplicationWindow {
                     if(st.playMode!==playMode) {
                         playMode=st.playMode;
                     }
+                    syncPlayingInfo();
+                }
+            }
+            /* 播放进度节流上报: 播放中每 5 秒把当前位置写入枢纽, 供落盘与断点恢复 */
+            Timer {
+                id: positionReport;
+                interval: 5000;
+                repeat: true;
+                running: player.playing;
+                onTriggered: {
+                    player.syncPlayPosition(Math.floor(player.position));
                 }
             }
             /* 枢纽上的播放状态被其它模块改写时取回 */
@@ -879,6 +1031,16 @@ ApplicationWindow {
                 target: GlobalFileStorage;
                 function onPlayStateChanged() {
                     player.updateFromPlayState();
+                }
+            }
+            /* 播放位置与时长变化时同步进度条: 手柄与已播放填充都读滑块的值 */
+            Connections {
+                target: player;
+                function onPositionChanged() {
+                    playerBar.syncStampDisplay();
+                }
+                function onDurationChanged() {
+                    playerBar.syncStampDisplay();
                 }
             }
             Row {
@@ -945,10 +1107,20 @@ ApplicationWindow {
                         Text {
                             id: plsyingTitle;
                             anchors.verticalCenter: parent.verticalCenter;
+                            width: 180;
                             text: `${song} - ${singer}`;
                             font.pixelSize: 14;
-                            property string song: "曲名";
-                            property string singer: "歌手";
+                            elide: Text.ElideRight;
+                            wrapMode: Text.NoWrap;
+                            /* 曲名与歌手取自播放模块, 未在播放时用占位文本 */
+                            property string song: (player.playingTitle===""? "曲名":player.playingTitle);
+                            property string singer: (player.playingTitle===""? "歌手":player.playingSinger);
+                            HoverHandler {
+                                id: playingTitleHh;
+                            }
+                            ToolTip.visible: playingTitleHh.hovered&&truncated;
+                            ToolTip.text: text;
+                            ToolTip.delay: 500;
                         }
                         PlayerBarButton {
                             id: playingVIP;
@@ -965,11 +1137,13 @@ ApplicationWindow {
                         spacing: 10;
                         PlayerBarButton {
                             id: likeSongBtn;
+                            /* 喜欢状态取自存储里当前播放项的记录, 未在播放时按钮不可用 */
+                            enabled: (player.playingWhich!=="");
+                            property bool liked: (enabled && GlobalFileStorage.isLiked(player.playingWhich));
                             icon.source: (liked? "qrc:/assets/iconfont/function/liked.svg":"qrc:/assets/iconfont/function/like.svg");
-                            icon.color: (liked? (hovered? Define.btnHoverRed:Define.btnIconRed):(hovered? Define.btnIconRed:Define.btnIconColor));
-                            property bool liked: false;
+                            icon.color: (enabled===false? Define.forbdDarkColor:(liked? (hovered? Define.btnHoverRed:Define.btnIconRed):(hovered? Define.btnIconRed:Define.btnIconColor)));
                             onClicked: {
-                                liked=!liked;
+                                GlobalFileStorage.setLiked(player.playingWhich,!liked);
                             }
                         }
                         PlayerBarButton {
@@ -1029,13 +1203,13 @@ ApplicationWindow {
                     spacing: ((leftSidebar.spreaded? 1.5:2)*Define.btnSpacing);
                     PlayerBarButton {
                         id: playerSort;
-                        icon.source: "qrc:/assets/iconfont/playerbar/listsort.svg";
+                        /* 播放顺序: 0 随机, 1 顺序, 2 单曲, 3 列表; 图标随播放模块的当前模式变化 */
                         property int sortID: player.playMode;
-                        /* 0 randomsort
-                           1 listsort
-                           2 cycleone
-                           3 cyclelist
-                        */
+                        function modeSvgName(mode) {
+                            var names=["randomsort","listsort","cycleone","cyclelist"];
+                            return (mode>=0 && mode<names.length? names[mode]:"listsort");
+                        }
+                        icon.source: `qrc:/assets/iconfont/playerbar/${modeSvgName(player.playMode)}.svg`;
                         property bool subTabVisible: false;
                         onClicked: {
                             sub_tshow();
@@ -1077,7 +1251,6 @@ ApplicationWindow {
                                         onClicked: {
                                             playerSort.subTabVisible=false;
                                             player.setPlayMode(num);
-                                            playerSort.icon.source=`qrc:/assets/iconfont/playerbar/${svgname}.svg`;
                                         }
                                         background: Rectangle {
                                             anchors.fill: parent;
@@ -1149,6 +1322,8 @@ ApplicationWindow {
                         id: soundCtrl;
                         icon.source: (volume==0? "qrc:/assets/iconfont/playerbar/soundless.svg":"qrc:/assets/iconfont/playerbar/sound.svg");
                         property int volume: soundSlider.value;
+                        /* 静音前的音量, 供取消静音时恢复 */
+                        property int lastVolume: 100;
                         property bool sliderVisible: false;
                         onClicked: {
                             sub_tshow();
@@ -1185,10 +1360,13 @@ ApplicationWindow {
                                     id: soundSlider;
                                     anchors.horizontalCenter: parent.horizontalCenter;
                                     height: 120;
-                                    value: 100;
-                                    onValueChanged: {
-                                        soundCtrl.volume=value;
-                                        console.log("音量: ",soundCtrl.volume);
+                                    /* 初值取自存储枢纽里的音量, 拖动结束后写回存储 */
+                                    value: GlobalFileStorage.playState.volume;
+                                    onPressedChanged: {
+                                        if(!pressed) {
+                                            GlobalFileStorage.setVolume(value);
+                                            console.log("音量: ",value);
+                                        }
                                     }
                                 }
                                 PlayerBarButton {
@@ -1197,11 +1375,13 @@ ApplicationWindow {
                                     icon.source: (soundCtrl.volume==0? "qrc:/assets/iconfont/playerbar/soundless.sub.svg":"qrc:/assets/iconfont/playerbar/sound.sub.svg");
                                     onClicked: {
                                         if(soundCtrl.volume==0) {
-                                            soundCtrl.volume=soundSlider.value;
+                                            soundSlider.value=soundCtrl.lastVolume;
                                         } else {
-                                            soundCtrl.volume=0;
+                                            soundCtrl.lastVolume=soundCtrl.volume;
+                                            soundSlider.value=0;
                                         }
-                                        console.log("音量: ",soundCtrl.volume);
+                                        GlobalFileStorage.setVolume(soundSlider.value);
+                                        console.log("音量: ",soundSlider.value);
                                     }
                                 }
                             }
@@ -1224,7 +1404,7 @@ ApplicationWindow {
                         id: stampSlider;
                         width: playerBar.width*0.3;
                         anchors.verticalCenter: parent.verticalCenter;
-                        maxStamp: Math.floor(player.duration/1000);
+                        maxStamp: Math.max(0,Math.floor(player.duration/1000));
                         property int showedValue: (pressed? value:Math.floor(player.position/1000));
                         onPressedChanged: {
                             if(!pressed) {
@@ -1292,8 +1472,13 @@ ApplicationWindow {
             border.color: Define.subGrey;
             border.width: 1;
             visible: playingListBtn.subVisible;
+            /* 这一层既挡住面板下方主内容区的点击, 也吃掉列表没有消费的滚轮事件,
+             * 避免列表滚到边界后继续滚动主内容区的列表 */
             MouseArea {
                 anchors.fill: parent;
+                onWheel: (wheel)=> {
+                    wheel.accepted=true;
+                }
             }
             Column {
                 id: playingListHead;
@@ -1363,10 +1548,12 @@ ApplicationWindow {
                     }
                     boundsBehavior: Flickable.StopAtBounds;
                     property string selectedWhich: "";
+                    /* 单行高度, 与委托保持一致 */
+                    property int rowHeight: 60;
                     model: player.sortlist;
                     delegate: Item {
                         width: ListView.view.width;
-                        height: 60;
+                        height: playingListView.rowHeight;
                         Rectangle {
                             id: playingBox;
                             anchors.fill: parent;
@@ -1376,7 +1563,8 @@ ApplicationWindow {
                             property bool selectedRow: (playingListView.selectedWhich===modelData["absfpath"]);
                             property bool playingRow: (player.playingWhich===modelData["absfpath"]);
                             property bool hoveredRow: (playingBoxClick.containsMouse||playingAvatarBtn.hovered);
-                            color: ((selectedRow||playingRow)? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
+                            /* 选中的行用深灰背景; 正在播放的行不用背景色区分, 只用下面那行青色文字标识, 两者可以同时成立 */
+                            color: (selectedRow? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
                             MouseArea {
                                 id: playingBoxClick;
                                 anchors.fill: parent;
@@ -1456,6 +1644,7 @@ ApplicationWindow {
                                         text: modelData["songname"];
                                         font.pixelSize: 14;
                                         font.weight: 400;
+                                        color: (playingBox.playingRow? Define.choseCyanColor:"black");
                                         elide: Text.ElideRight;
                                         wrapMode: Text.NoWrap;
                                         HoverHandler {
@@ -1470,6 +1659,7 @@ ApplicationWindow {
                                         text: modelData["singer"];
                                         font.pixelSize: 13;
                                         font.weight: 400;
+                                        color: (playingBox.playingRow? Define.choseCyanColor:"black");
                                         elide: Text.ElideRight;
                                         wrapMode: Text.NoWrap;
                                         HoverHandler {
@@ -1495,6 +1685,60 @@ ApplicationWindow {
                                 }
                             }
                         }
+                    }
+                    /* 悬浮按钮: 自下而上依次为回到顶部, 定位到当前播放行 */
+                    CustomButtonA {
+                        id: playingJump2PlayingBtn;
+                        anchors {bottom:playingJump2TopBtn.top; right:parent.right; bottomMargin:10; rightMargin:15;}
+                        width: 30;
+                        height: 30;
+                        icon.source: "qrc:/assets/iconfont/function/jump2playing.svg";
+                        icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                        icon.width: 20;
+                        icon.height: 20;
+                        transEnabled: false;
+                        visible: playingListView.playingOutOfView();
+                        background: Rectangle {
+                            anchors.fill: parent;
+                            color: Qt.rgba(246,246,246,0.8);
+                            border.width: 1.25;
+                            border.color: (playingJump2PlayingBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                        }
+                        onClicked: {
+                            playingListView.selectedWhich=player.playingWhich;
+                            playingListView.positionViewAtIndex(player.playingIndex,ListView.Beginning);
+                        }
+                    }
+                    CustomButtonA {
+                        id: playingJump2TopBtn;
+                        anchors {bottom:parent.bottom; right:parent.right; bottomMargin:15; rightMargin:15;}
+                        width: 30;
+                        height: 30;
+                        icon.source: "qrc:/assets/iconfont/function/jump2top.svg";
+                        icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                        icon.width: 20;
+                        icon.height: 20;
+                        transEnabled: false;
+                        visible: (playingListView.contentY>0);
+                        background: Rectangle {
+                            anchors.fill: parent;
+                            color: Qt.rgba(246,246,246,0.8);
+                            border.width: 1.25;
+                            border.color: (playingJump2TopBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                        }
+                        onClicked: {
+                            playingListView.contentY=0;
+                        }
+                    }
+                    /* 当前播放行是否落在视域之外 */
+                    function playingOutOfView() {
+                        var idx=player.playingIndex;
+                        if(idx<0) {
+                            return false;
+                        }
+                        var top=idx*(rowHeight+spacing);
+                        var bottom=top+rowHeight;
+                        return (bottom<=contentY || top>=contentY+height);
                     }
                 }
                 CustomSliderC {
@@ -1528,7 +1772,7 @@ ApplicationWindow {
             visible=!visible;
         }
     }
-    /* 加载进度条: 状态由存储枢纽的加载状态驱动 */
+    /* 加载进度条: 状态由内存枢纽的加载状态驱动 */
     Rectangle {
         id: loadingRate;
         anchors {bottom:parent.bottom; left:parent.left; right:parent.right;}
@@ -1536,22 +1780,22 @@ ApplicationWindow {
         color: Define.subGrey;
         bottomLeftRadius: Define.windowRadius;
         bottomRightRadius: Define.windowRadius;
-        visible: GlobalFileStorage.loadingState.using;
+        visible: memStorage.loadingState.using;
         /* 本次加载是否已提示过完成, 避免重复弹出 */
         property bool tipShown: false;
         /* 进度填充: 宽度按枢纽里的百分比换算 */
         Rectangle {
             anchors {left:parent.left; top:parent.top; bottom:parent.bottom;}
-            width: parent.width*GlobalFileStorage.loadingState.value/100;
+            width: parent.width*memStorage.loadingState.value/100;
             color: Define.choseCyanColor;
             bottomLeftRadius: parent.bottomLeftRadius;
             bottomRightRadius: parent.bottomRightRadius;
         }
         /* 进度满时弹一次完成提示, 并让枢纽结束本次加载 */
         Connections {
-            target: GlobalFileStorage;
+            target: memStorage;
             function onLoadingStateChanged() {
-                var st=GlobalFileStorage.loadingState;
+                var st=memStorage.loadingState;
                 if(st.using===false) {
                     loadingRate.tipShown=false;
                     return;
@@ -1559,7 +1803,7 @@ ApplicationWindow {
                 if(st.value>=100 && loadingRate.tipShown===false) {
                     loadingRate.tipShown=true;
                     loadingTip.showTip(st.finishedTip);
-                    GlobalFileStorage.stopLoading(st.usedByWho);
+                    memStorage.stopLoading(st.usedByWho);
                 }
             }
         }
@@ -1620,7 +1864,17 @@ ApplicationWindow {
     }
     Component.onCompleted: {
         console.log("UI加载成功,开始读取程序储存");
+        /* 先确定存储目录, 再读取落盘数据; 子项先于本处理器完成构建, 因此列表需在读盘后重建一次 */
+        GlobalFileStorage.verifyStorageDir();
         GlobalFileStorage.load();
+        mainArea.applyStoredPage();
+        mainArea_LocalPage.refresh();
+        player.restoreFromState();
         window.visible=true;
+    }
+    Component.onDestruction: {
+        /* 退出前把当前播放进度与全部数据落盘 */
+        player.syncPlayPosition(Math.floor(player.position));
+        GlobalFileStorage.save();
     }
 }

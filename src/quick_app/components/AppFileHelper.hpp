@@ -30,6 +30,40 @@ public:
         return QFile::exists(url.toLocalFile());
     }
 
+    /* 判断目录是否可读: 入参为标准化绝对路径;
+     * 目录不存在或当前进程无读取权限时返回 false。 */
+    Q_INVOKABLE bool canReadDir(const QUrl &url) const {
+        const QString path = url.toLocalFile();
+        if (path.isEmpty()) {
+            qWarning() << "AppFileHelper canReadDir failed: empty path";
+            return false;
+        }
+        const QFileInfo info(path);
+        return (info.exists() && info.isDir() && info.isReadable());
+    }
+
+    /* 判断目录是否可写: 入参为标准化绝对路径;
+     * 目录不存在时返回 false, 创建目录请先用 makeDir;
+     * 判定方式为在目录内建立临时文件后立即删除, 因此能反映真实的写入权限。 */
+    Q_INVOKABLE bool canWriteDir(const QUrl &url) const {
+        const QString path = url.toLocalFile();
+        if (path.isEmpty()) {
+            qWarning() << "AppFileHelper canWriteDir failed: empty path";
+            return false;
+        }
+        const QDir dir(path);
+        if (!dir.exists()) {
+            return false;
+        }
+        const QString probePath = dir.absoluteFilePath(QStringLiteral(".cryingmusic_write_probe"));
+        QFile probe(probePath);
+        if (!probe.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            return false;
+        }
+        probe.close();
+        return QFile::remove(probePath);
+    }
+
     /* 标准化路径(仅面向外部输入):
      * 入参为非标准化的绝对路径,不接受相对路径;
      * 可能带也可能不带 file:// 协议头,可能包含反斜杠;
@@ -184,6 +218,70 @@ public:
             return dir.mkpath(url.toLocalFile());
         }
         return dir.mkdir(url.toLocalFile());
+    }
+
+    /* 复制文件: srcPath 可以是程序资源路径(如 :/licenses/LICENSE)或本地绝对路径,
+     * dstUrl 为标准化绝对路径; 目标父目录不存在时自动补全, 目标已存在时覆盖;
+     * 按二进制复制, 因此不受文本编码影响。成功 true,失败 false。 */
+    Q_INVOKABLE bool copyFile(const QString &srcPath, const QUrl &dstUrl) const {
+        QFile fin(srcPath);
+        if (!fin.open(QIODevice::ReadOnly)) {
+            qWarning() << "AppFileHelper copyFile failed: cannot read " << srcPath
+                       << fin.errorString();
+            return false;
+        }
+        const QByteArray data = fin.readAll();
+        fin.close();
+        const QString dstPath = dstUrl.toLocalFile();
+        if (dstPath.isEmpty()) {
+            qWarning() << "AppFileHelper copyFile failed: empty destination";
+            return false;
+        }
+        const QDir parentDir = QFileInfo(dstPath).absoluteDir();
+        if (!parentDir.exists() && !parentDir.mkpath(".")) {
+            qWarning() << "AppFileHelper copyFile failed: cannot create dir "
+                       << parentDir.absolutePath();
+            return false;
+        }
+        QFile fout(dstPath);
+        if (!fout.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            qWarning() << "AppFileHelper copyFile failed: cannot write " << dstUrl
+                       << fout.errorString();
+            return false;
+        }
+        const bool ok = (fout.write(data) != -1);
+        fout.close();
+        return ok;
+    }
+
+    /* 删除文件: 入参为标准化绝对路径, 文件本就不存在时视为成功 */
+    Q_INVOKABLE bool removeFile(const QUrl &url) const {
+        const QString path = url.toLocalFile();
+        if (path.isEmpty() || !QFile::exists(path)) {
+            return true;
+        }
+        if (!QFile::remove(path)) {
+            qWarning() << "AppFileHelper removeFile failed: " << url;
+            return false;
+        }
+        return true;
+    }
+
+    /* 删除文件夹: 入参为标准化绝对路径, recursive 为 true 时连同其中内容一起删除,
+     * 调用方需自行确认路径, 该操作不可撤销。文件夹本就不存在时视为成功。 */
+    Q_INVOKABLE bool removeDir(const QUrl &url, bool recursive) const {
+        const QString path = url.toLocalFile();
+        if (path.isEmpty()) {
+            return true;
+        }
+        QDir dir(path);
+        if (!dir.exists()) {
+            return true;
+        }
+        if (recursive) {
+            return dir.removeRecursively();
+        }
+        return dir.remove(path);
     }
 
     /* 列出: 入参为标准化绝对路径,返回直接子文件标准化绝对路径列表 */

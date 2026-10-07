@@ -22,6 +22,7 @@ quick_app/
 ├── README_en-US.md # 英文说明
 ├── LICENSE.Qt      # Qt 许可全文(GPLv3 与 LGPLv3)与 Qt 版权声明
 ├── LICENSE.FDL     # GNU 文档许可(本项目不分发 Qt 文档)
+├── licenses/       # 随存储目录补全的许可文本四件套(COPYRIGHT/LICENSE/LICENSE.FDL/LICENSE.Qt)
 ├── resource.qrc    # qrc 资源清单
 ├── resource.rc     # Windows 资源文件
 ├── favicon.jpg     # 应用图标

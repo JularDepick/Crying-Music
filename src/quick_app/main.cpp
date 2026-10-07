@@ -12,6 +12,11 @@
 
 int main(int argc, char *argv[])
 {
+    /* 媒体后端与编解码器: 必须在构造应用之前设置。
+     * QT_MEDIA_BACKEND 强制使用 FFmpeg 后端, 避免回退到系统原生后端;
+     * QT_ENABLE_EXPERIMENTAL_CODECS 启用 Vorbis 与 Opus 等实验性编解码器, 以便播放 .ogg。 */
+    qputenv("QT_MEDIA_BACKEND", "ffmpeg");
+    qputenv("QT_ENABLE_EXPERIMENTAL_CODECS", "1");
     /* 创建GUI应用并接收命令行参数 */
     QGuiApplication app(argc, argv);
     /* 设置GUI应用版本号 */

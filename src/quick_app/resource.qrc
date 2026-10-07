@@ -72,5 +72,10 @@
         <file>assets/iconfont/vip/vip10.svg</file>
         <file>assets/iconfont/vip/vipcard.svg</file>
         <file>assets/iconfont/vip/viptip.svg</file>
+
+        <file alias="licenses/COPYRIGHT">COPYRIGHT</file>
+        <file alias="licenses/LICENSE">LICENSE</file>
+        <file alias="licenses/LICENSE.FDL">LICENSE.FDL</file>
+        <file alias="licenses/LICENSE.Qt">LICENSE.Qt</file>
     </qresource>
 </RCC>
