@@ -10,6 +10,9 @@
 #include <QStringConverter>
 #include <QCoreApplication>
 #include <QStandardPaths>
+#include <QMediaPlayer>
+#include <QMediaMetaData>
+#include <QTimer>
 #include <qdebug.h>
 
 class AppFileHelper : public QObject {
@@ -70,6 +73,16 @@ public:
             return {};
         }
         return QDir::cleanPath(local);
+    }
+
+    /* 获取文件大小: 入参为标准化绝对路径, 返回字节数, 失败返回 -1 */
+    Q_INVOKABLE qint64 fileSize(const QUrl &url) const {
+        const QFileInfo fileInfo(url.toLocalFile());
+        if (!fileInfo.isFile()) {
+            qWarning() << "AppFileHelper fileSize failed: " << url << " not a file";
+            return -1;
+        }
+        return fileInfo.size();
     }
 
     /* 获取应用安装路径,返回标准化绝对路径 */
@@ -239,6 +252,88 @@ public:
             result << QUrl::fromLocalFile(dir.absoluteFilePath(name)).toString();
         }
         return result;
+    }
+
+    /* 读取音频元数据(兜底): 入参为标准化绝对路径, 异步返回;
+     * 结果由 audioMetaReady 信号给出, 超时或无法解析时时长为 -1。 */
+    Q_INVOKABLE void readAudioMeta(const QUrl &url) {
+        if (!QFile::exists(url.toLocalFile())) {
+            qWarning() << "AppFileHelper readAudioMeta failed: " << url << " not exists";
+            emit audioMetaReady(url.toString(), -1, QString(), QString());
+            return;
+        }
+        ensureMetaReader();
+        metaAbsfpath = url.toString();
+        metaPlayer->setSource(url);
+        metaTimeout->start();
+    }
+
+signals:
+    /* 音频元数据读取结果: 标准化路径, 时长毫秒, 曲名, 歌手 */
+    void audioMetaReady(const QString &absfpath, qint64 duration, const QString &title, const QString &artist);
+
+private:
+    /* 元数据兜底读取的超时阈值(毫秒) */
+    static constexpr int metaTimeoutMs = 3000;
+    QMediaPlayer *metaPlayer=nullptr;
+    QTimer *metaTimeout=nullptr;
+    QString metaAbsfpath;
+
+    /* 首次使用时创建元数据读取器 */
+    void ensureMetaReader() {
+        if (metaPlayer != nullptr) {
+            return;
+        }
+        metaPlayer = new QMediaPlayer(this);
+        metaTimeout = new QTimer(this);
+        metaTimeout->setSingleShot(true);
+        metaTimeout->setInterval(metaTimeoutMs);
+        connect(metaPlayer, &QMediaPlayer::mediaStatusChanged,
+                this, &AppFileHelper::onMetaStatusChanged);
+        connect(metaTimeout, &QTimer::timeout, this, &AppFileHelper::onMetaTimeout);
+    }
+
+    /* 元数据读取状态变化: 只关心加载完成与无法解析 */
+    void onMetaStatusChanged(QMediaPlayer::MediaStatus status) {
+        if (status != QMediaPlayer::LoadedMedia
+            && status != QMediaPlayer::BufferedMedia
+            && status != QMediaPlayer::InvalidMedia) {
+            return;
+        }
+        metaTimeout->stop();
+        if (status == QMediaPlayer::InvalidMedia) {
+            qWarning() << "AppFileHelper readAudioMeta failed: " << metaAbsfpath;
+            emit audioMetaReady(metaAbsfpath, -1, QString(), QString());
+            return;
+        }
+        const QMediaMetaData meta = metaPlayer->metaData();
+        emit audioMetaReady(metaAbsfpath,
+                            metaPlayer->duration(),
+                            meta.stringValue(QMediaMetaData::Title),
+                            readArtist(meta));
+    }
+
+    /* 元数据读取超时: 按无法解析返回 */
+    void onMetaTimeout() {
+        qWarning() << "AppFileHelper readAudioMeta timeout: " << metaAbsfpath;
+        emit audioMetaReady(metaAbsfpath, -1, QString(), QString());
+    }
+
+    /* 歌手优先取贡献艺术家, 依次回退到专辑艺术家与作者 */
+    static QString readArtist(const QMediaMetaData &meta) {
+        const QVariant artists = meta.value(QMediaMetaData::ContributingArtist);
+        const QStringList artistList = artists.toStringList();
+        if (!artistList.isEmpty()) {
+            return artistList.join(", ");
+        }
+        if (!artists.toString().isEmpty()) {
+            return artists.toString();
+        }
+        const QString albumArtist = meta.stringValue(QMediaMetaData::AlbumArtist);
+        if (!albumArtist.isEmpty()) {
+            return albumArtist;
+        }
+        return meta.stringValue(QMediaMetaData::Author);
     }
 };
 

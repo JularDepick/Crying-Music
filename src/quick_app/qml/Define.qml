@@ -18,6 +18,8 @@ Item {
     property int btnSize: 20;
     property int btnSpacing: 20;
     property int recentListSize: 200; /* 最近播放列表的条数上限 */
+    property int probeTimeoutMs: 1000; /* FakePlayer 探测元数据的超时阈值, 超时转 AppFileHelper 兜底 */
+    property int probeFallbackMs: 4000; /* AppFileHelper 兜底读取的超时阈值 */
     property color btnIconColor: "#434343";
     property color btnHoverColor: "#00eb81";
     property color btnIconRed: "#f45555";
