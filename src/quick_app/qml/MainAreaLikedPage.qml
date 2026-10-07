@@ -36,7 +36,7 @@ MainAreaFatherPage {
                 width: 80;
                 height: 30;
                 onClicked: {
-                    mainArea_LikedPage.playSelected();
+                    mainArea_LikedPage.playAllSongs();
                 }
                 transEnabled: false;
                 background: Rectangle {
@@ -158,7 +158,7 @@ MainAreaFatherPage {
         height: 20;
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.8;
+            width: parent.width*0.4;
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
@@ -181,7 +181,30 @@ MainAreaFatherPage {
         }
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.1;
+            width: parent.width*0.3;
+            color: Define.nocolor;
+            Button {
+                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                onClicked: {
+                    mainListView.sortBy("singer");
+                }
+                background: Row {
+                    Text {
+                        text: "歌手";
+                    }
+                    ColorImage {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        width: 10;
+                        height: 10;
+                        source: mainListView.sortIconOf("singer");
+                        color: Define.btnIconColor;
+                    }
+                }
+            }
+        }
+        Rectangle {
+            anchors {top:parent.top; bottom:parent.bottom;}
+            width: parent.width*0.15;
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
@@ -204,7 +227,7 @@ MainAreaFatherPage {
         }
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.1;
+            width: parent.width*0.15;
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
@@ -416,6 +439,27 @@ MainAreaFatherPage {
                 }
             }
             CustomButtonA {
+                id: jump2PlayingBtn;
+                anchors {bottom:jump2TopBtn.top; right:parent.right; bottomMargin:10; rightMargin:15;}
+                width: 30;
+                height: 30;
+                icon.source: "qrc:/assets/iconfont/function/jump2playing.svg";
+                icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                icon.width: 20;
+                icon.height: 20;
+                transEnabled: false;
+                visible: (mainArea_LikedPage.playingRowIndex()>=0);
+                background: Rectangle {
+                    anchors.fill: parent;
+                    color: Qt.rgba(246,246,246,0.8);
+                    border.width: 1.25;
+                    border.color: (jump2PlayingBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                }
+                onClicked: {
+                    mainArea_LikedPage.jump2playing();
+                }
+            }
+            CustomButtonA {
                 id: jump2TopBtn;
                 anchors {bottom:parent.bottom; right:parent.right; bottomMargin:15; rightMargin:15;}
                 width: 30;
@@ -442,12 +486,20 @@ MainAreaFatherPage {
                 selectedWhich="";
                 contentY=0;
             }
-            /* 同步共享时长缓存, 并按当前排序键返回重排副本 */
+            /* 同步元数据缓存, 并按当前排序键返回重排副本 */
             function sortList(v) {
                 var l=v.length;
                 for(var i=0;i<l;i++) {
-                    var dur=GlobalFileStorage.durationOf(v[i]["absfpath"]);
-                    v[i]["duration"]=(dur>0? dur:0);
+                    var m=GlobalFileStorage.metaOf(v[i]["absfpath"]);
+                    if(m) {
+                        if(m.title!=="") {
+                            v[i]["songname"]=m.title;
+                        }
+                        if(m.artist!=="") {
+                            v[i]["singer"]=m.artist;
+                        }
+                        v[i]["duration"]=(m.duration>0? m.duration:0);
+                    }
                 }
                 if(sortKey==="") {
                     return v;
@@ -585,14 +637,15 @@ MainAreaFatherPage {
                 return;
             }
         }
-        var dur=GlobalFileStorage.durationOf(absfpath);
+        var m=GlobalFileStorage.metaOf(absfpath);
+        var sz=AppFileHelper.fileSize(absfpath);
         v.push({
-            "songname": nameOfFile(absfpath),
-            "singer": "未知歌手",
+            "songname": (m && m.title!==""? m.title:nameOfFile(absfpath)),
+            "singer": (m && m.artist!==""? m.artist:"未知歌手"),
             "absfpath": absfpath,
             "absipath": "",
-            "size": 0,
-            "duration": (dur>0? dur:0),
+            "size": (sz>0? sz:0),
+            "duration": (m && m.duration>0? m.duration:0),
             "liked": true,
             "checked": false
         });
@@ -610,8 +663,8 @@ MainAreaFatherPage {
         }
         return p;
     }
-    /* 播放: 优先选中项, 无选中则列表首项 */
-    function playSelected() {
+    /* 播放: 以整个列表构造播放队列, 优先从选中项开始 */
+    function playAllSongs() {
         var v=mainArea_LikedPage.mainListViewModel;
         var l=v.length;
         if(l<=0) {
@@ -619,12 +672,43 @@ MainAreaFatherPage {
             return false;
         }
         var which=mainListView.selectedWhich;
+        var one=v[0];
         for(var i=0;i<l;i++) {
             if(v[i]["absfpath"]===which) {
-                return thePlayer.jump2play(v[i]);
+                one=v[i];
+                break;
             }
         }
-        return thePlayer.jump2play(v[0]);
+        return thePlayer.playAll(v,one);
+    }
+    /* 当前播放项在列表中的下标, 不在列表中返回 -1 */
+    function playingRowIndex() {
+        if(thePlayer===undefined || thePlayer===null) {
+            return -1;
+        }
+        var which=thePlayer.playingWhich;
+        if(which===undefined || which==="") {
+            return -1;
+        }
+        var v=mainArea_LikedPage.mainListViewModel;
+        var l=v.length;
+        for(var i=0;i<l;i++) {
+            if(v[i]["absfpath"]===which) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    /* 定位到当前播放的歌曲 */
+    function jump2playing() {
+        var idx=mainArea_LikedPage.playingRowIndex();
+        if(idx<0) {
+            console.log("定位失败: 当前播放的歌曲不在列表中");
+            return false;
+        }
+        mainListView.selectedWhich=thePlayer.playingWhich;
+        mainListView.positionViewAtIndex(idx,ListView.Beginning);
+        return true;
     }
     function refresh() {
         mainListView.rebuild();

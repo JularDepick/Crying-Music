@@ -628,6 +628,7 @@ ApplicationWindow {
                 onMediaStatusChanged: {
                     if(mediaStatus===MediaPlayer.EndOfMedia) {
                         console.log("播放结束: ",source);
+                        player.playNext(true);
                     }
                 }
                 property var id2obj: new Map();
@@ -635,6 +636,8 @@ ApplicationWindow {
                 property string playingWhich: "";
                 property int playingIndex: 0;
                 property var sortlist: ([]);
+                /* 播放顺序: 0 随机播放, 1 顺序播放, 2 单曲循环, 3 列表循环 */
+                property int playMode: 1;
                 /*[
                     {songname:"心做し 心理作用", singer:"双笙-陈元汐", absfpath:"file:///C:\\Users\\liwenfang\\GitHub\\JularDepick\\Crying-Music\\src\\quick_app\\心做し_心理作用_双笙_陈元汐_.mp3"}
                 ];*/
@@ -645,6 +648,7 @@ ApplicationWindow {
                     }
                     sortlist=insertAfterPlaying(which);
                     playingWhich=which.absfpath;
+                    syncPlayingIndex();
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
@@ -657,6 +661,7 @@ ApplicationWindow {
                         return false;
                     }
                     sortlist=insertAfterPlaying(which);
+                    syncPlayingIndex();
                     console.log("插入下一首: ",which);
                     return true;
                 }
@@ -684,17 +689,135 @@ ApplicationWindow {
                     }
                     return res;
                 }
-                /* 直接切到列表中的某一项播放, 不改动队列顺序 */
+                /* 以整份列表构造播放队列并开始播放 */
+                function playAll(list,which) {
+                    if(list===undefined || list.length<=0) {
+                        console.error("播放失败: 列表为空");
+                        return false;
+                    }
+                    var one=(which===undefined? list[0]:which);
+                    if(AppFileHelper.existsFile(one.absfpath)===false) {
+                        console.error("播放错误: ",one);
+                        return false;
+                    }
+                    sortlist=list.slice();
+                    if(playMode===0) {
+                        /* 随机播放: 换列表时同样先打乱 */
+                        sortlist=shuffleList(sortlist);
+                    }
+                    playingWhich=one.absfpath;
+                    syncPlayingIndex();
+                    source=playingWhich;
+                    GlobalFileStorage.addRecent(playingWhich);
+                    player.play();
+                    console.log("播放列表: ",sortlist.length);
+                    return true;
+                }
+                /* 直接切到队列中的某一项播放, 不改动队列顺序 */
                 function playItem(which) {
                     if(AppFileHelper.existsFile(which.absfpath)===false) {
                         console.error("跳转错误: ",which);
                         return false;
                     }
                     playingWhich=which.absfpath;
+                    syncPlayingIndex();
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
                     return true;
+                }
+                /* 播放队列中指定下标的项 */
+                function playIndex(idx) {
+                    var l=sortlist.length;
+                    if(idx<0 || idx>=l) {
+                        return false;
+                    }
+                    playingIndex=idx;
+                    playingWhich=sortlist[idx].absfpath;
+                    source=playingWhich;
+                    GlobalFileStorage.addRecent(playingWhich);
+                    player.play();
+                    return true;
+                }
+                /* 下一曲: auto 为 true 表示播放结束后的自动切换 */
+                function playNext(auto) {
+                    var l=sortlist.length;
+                    if(l<=0) {
+                        return false;
+                    }
+                    if(auto===true && playMode===2) {
+                        /* 单曲循环: 重播当前项 */
+                        position=0;
+                        play();
+                        return true;
+                    }
+                    var next=playingIndex+1;
+                    if(next<l) {
+                        return playIndex(next);
+                    }
+                    if(playMode===1) {
+                        /* 顺序播放: 自动切换时停止 */
+                        if(auto===true) {
+                            stop();
+                            console.log("顺序播放结束");
+                        }
+                        return false;
+                    }
+                    if(playMode===0) {
+                        /* 随机播放: 重新打乱后从头播放 */
+                        sortlist=shuffleList(sortlist);
+                    }
+                    return playIndex(0);
+                }
+                /* 上一曲 */
+                function playPrev() {
+                    var l=sortlist.length;
+                    if(l<=0) {
+                        return false;
+                    }
+                    var prev=playingIndex-1;
+                    if(prev<0) {
+                        if(playMode===1) {
+                            return false;
+                        }
+                        prev=l-1;
+                    }
+                    return playIndex(prev);
+                }
+                /* 切换播放顺序: 切到随机时立即打乱当前队列 */
+                function setPlayMode(mode) {
+                    playMode=mode;
+                    if(mode===0) {
+                        sortlist=shuffleList(sortlist);
+                        syncPlayingIndex();
+                    }
+                    console.log("播放顺序: ",mode);
+                }
+                /* 打乱列表顺序 */
+                function shuffleList(v) {
+                    var res=v.slice();
+                    for(var i=res.length-1;i>0;i--) {
+                        var j=Math.floor(Math.random()*(i+1));
+                        var tmp=res[i];
+                        res[i]=res[j];
+                        res[j]=tmp;
+                    }
+                    return res;
+                }
+                /* 当前播放项在队列中的下标, 未找到返回 -1 */
+                function indexOfPlaying() {
+                    var l=sortlist.length;
+                    for(var i=0;i<l;i++) {
+                        if(sortlist[i].absfpath===playingWhich) {
+                            return i;
+                        }
+                    }
+                    return -1;
+                }
+                /* 同步当前播放项下标 */
+                function syncPlayingIndex() {
+                    playingIndex=indexOfPlaying();
+                    return playingIndex;
                 }
                 /* 从播放队列中移除单项 */
                 function removeItem(which) {
@@ -706,6 +829,7 @@ ApplicationWindow {
                         }
                     }
                     sortlist=asl;
+                    syncPlayingIndex();
                 }
                 /* 清空播放队列, 保留当前正在播放的项 */
                 function clearList() {
@@ -717,6 +841,7 @@ ApplicationWindow {
                         }
                     }
                     sortlist=keep;
+                    syncPlayingIndex();
                 }
             }
             Row {
@@ -868,7 +993,7 @@ ApplicationWindow {
                     PlayerBarButton {
                         id: playerSort;
                         icon.source: "qrc:/assets/iconfont/playerbar/listsort.svg";
-                        property int sortID: 0;
+                        property int sortID: player.playMode;
                         /* 0 randomsort
                            1 listsort
                            2 cycleone
@@ -914,7 +1039,7 @@ ApplicationWindow {
                                         height: 30;
                                         onClicked: {
                                             playerSort.subTabVisible=false;
-                                            playerSort.sortID=num;
+                                            player.setPlayMode(num);
                                             playerSort.icon.source=`qrc:/assets/iconfont/playerbar/${svgname}.svg`;
                                         }
                                         background: Rectangle {
@@ -946,6 +1071,7 @@ ApplicationWindow {
                         id: lastOne;
                         icon.source: "qrc:/assets/iconfont/playerbar/lastone.svg";
                         onClicked: {
+                            player.playPrev();
                         }
                     }
                     PlayerBarButton {
@@ -979,6 +1105,7 @@ ApplicationWindow {
                         id: nextOne;
                         icon.source: "qrc:/assets/iconfont/playerbar/nextone.svg";
                         onClicked: {
+                            player.playNext(false);
                         }
                     }
                     PlayerBarButton {
@@ -1209,8 +1336,9 @@ ApplicationWindow {
                             anchors.rightMargin: 20;
                             radius: 10;
                             property bool selectedRow: (playingListView.selectedWhich===modelData["absfpath"]);
+                            property bool playingRow: (player.playingWhich===modelData["absfpath"]);
                             property bool hoveredRow: (playingBoxClick.containsMouse||playingAvatarBtn.hovered);
-                            color: (selectedRow? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
+                            color: ((selectedRow||playingRow)? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
                             MouseArea {
                                 id: playingBoxClick;
                                 anchors.fill: parent;
@@ -1315,6 +1443,8 @@ ApplicationWindow {
                                     }
                                 }
                                 CustomButtonA {
+                                    /* 正在播放的这一项不允许从列表中删除 */
+                                    visible: (player.playingWhich!==modelData["absfpath"]);
                                     anchors.verticalCenter: parent.verticalCenter;
                                     width: 12;
                                     height: 12;

@@ -15,8 +15,8 @@ Item {
     /* 与 localScan 相独立的歌曲路径列表, 只存内存 */
     property var likedFiles: [];
     property var recentFiles: [];
-    /* 时长缓存: 标准化路径 -> 秒(-1 表示无法解析), 只存内存 */
-    property var durationCache: ({});
+    /* 音频元数据缓存: 标准化路径 -> {duration:秒, title:曲名, artist:歌手}, 只存内存 */
+    property var metaCache: ({});
     function load() {
     }
     function save() {
@@ -125,17 +125,17 @@ Item {
     function removeRecent(absfpaths) {
         recentFiles=removePaths(recentFiles,absfpaths);
     }
-    /* 写入时长缓存 */
-    function setDuration(absfpath,sec) {
-        durationCache[absfpath]=sec;
+    /* 写入音频元数据 */
+    function setMeta(absfpath,meta) {
+        metaCache[absfpath]=meta;
     }
-    /* 读取时长缓存: 未探测返回 -1 */
-    function durationOf(absfpath) {
-        var v=durationCache[absfpath];
-        return (v===undefined? -1:v);
+    /* 读取音频元数据: 未探测返回 null */
+    function metaOf(absfpath) {
+        var m=metaCache[absfpath];
+        return (m===undefined? null:m);
     }
-    /* 判断路径是否已探测过时长 */
-    function hasDuration(absfpath) {
-        return (durationCache[absfpath]!==undefined);
+    /* 判断路径是否已探测过元数据 */
+    function hasMeta(absfpath) {
+        return (metaCache[absfpath]!==undefined);
     }
 }

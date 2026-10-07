@@ -94,7 +94,7 @@ MainAreaFatherPage {
                 width: 80;
                 height: 30;
                 onClicked: {
-                    mainArea_LocalPage.playSelected();
+                    mainArea_LocalPage.playAllSongs();
                 }
                 transEnabled: false;
                 background: Rectangle {
@@ -387,7 +387,7 @@ MainAreaFatherPage {
         height: 20;
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.8;
+            width: parent.width*0.4;
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
@@ -410,7 +410,30 @@ MainAreaFatherPage {
         }
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.1;
+            width: parent.width*0.3;
+            color: Define.nocolor;
+            Button {
+                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                onClicked: {
+                    mainListView.sortBy("singer");
+                }
+                background: Row {
+                    Text {
+                        text: "歌手";
+                    }
+                    ColorImage {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        width: 10;
+                        height: 10;
+                        source: mainListView.sortIconOf("singer");
+                        color: Define.btnIconColor;
+                    }
+                }
+            }
+        }
+        Rectangle {
+            anchors {top:parent.top; bottom:parent.bottom;}
+            width: parent.width*0.15;
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
@@ -433,7 +456,7 @@ MainAreaFatherPage {
         }
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.1;
+            width: parent.width*0.15;
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
@@ -648,6 +671,27 @@ MainAreaFatherPage {
                 }
             }
             CustomButtonA {
+                id: jump2PlayingBtn;
+                anchors {bottom:jump2TopBtn.top; right:parent.right; bottomMargin:10; rightMargin:15;}
+                width: 30;
+                height: 30;
+                icon.source: "qrc:/assets/iconfont/function/jump2playing.svg";
+                icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                icon.width: 20;
+                icon.height: 20;
+                transEnabled: false;
+                visible: (mainArea_LocalPage.playingRowIndex()>=0);
+                background: Rectangle {
+                    anchors.fill: parent;
+                    color: Qt.rgba(246,246,246,0.8);
+                    border.width: 1.25;
+                    border.color: (jump2PlayingBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                }
+                onClicked: {
+                    mainArea_LocalPage.jump2playing();
+                }
+            }
+            CustomButtonA {
                 id: jump2TopBtn;
                 anchors {bottom:parent.bottom; right:parent.right; bottomMargin:15; rightMargin:15;}
                 width: 30;
@@ -712,16 +756,20 @@ MainAreaFatherPage {
                 }
                 return (sortAsc? "qrc:/assets/iconfont/listview/upsort.svg":"qrc:/assets/iconfont/listview/downsort.svg");
             }
-            /* 时长回填: 不满足扫描规则的扫描项从列表移除 */
-            function applyDuration(absfpath,sec) {
+            /* 时长回填: 更新曲名/歌手/时长, 不满足扫描规则的扫描项从列表移除 */
+            function applyMeta(absfpath) {
                 var v=mainArea_LocalPage.mainListViewModel;
                 var l=v.length;
                 for(var i=0;i<l;i++) {
                     if(v[i]["absfpath"]!==absfpath) {
                         continue;
                     }
-                    v[i]["duration"]=(sec>0? sec:0);
-                    if(v[i]["source"]==="scan" && sec>=0 && sec<GlobalFileStorage.localScan.scanRadio) {
+                    var m=GlobalFileStorage.metaOf(absfpath);
+                    var dur=(m? m.duration:-1);
+                    v[i]["songname"]=(m && m.title!==""? m.title:v[i]["songname"]);
+                    v[i]["singer"]=(m && m.artist!==""? m.artist:v[i]["singer"]);
+                    v[i]["duration"]=(dur>0? dur:0);
+                    if(v[i]["source"]==="scan" && dur>=0 && dur<GlobalFileStorage.localScan.scanRadio) {
                         var nv=[];
                         for(var j=0;j<l;j++) {
                             if(j!==i) {
@@ -729,7 +777,9 @@ MainAreaFatherPage {
                             }
                         }
                         mainArea_LocalPage.mainListViewModel=nv;
-                    } else if(sortKey==="duration") {
+                    } else if(sortKey==="") {
+                        mainArea_LocalPage.mainListViewModel=v.slice();
+                    } else {
                         mainArea_LocalPage.mainListViewModel=sortList(v);
                     }
                     return;
@@ -1295,9 +1345,24 @@ MainAreaFatherPage {
             }
         }
     }
-    /* 时长探测队列, 探测结果写入 GlobalFileStorage 的共享缓存 */
+    /* 元数据探测: 先由 FakePlayer 探测, 超时转 AppFileHelper 兜底 */
     property var probeQueue: ([]);
     property string probingPath: "";
+    property bool cppProbing: false;
+    Timer {
+        id: probeTimeout;
+        interval: Define.probeTimeoutMs;
+        onTriggered: {
+            mainArea_LocalPage.fallbackProbe();
+        }
+    }
+    Timer {
+        id: fallbackTimeout;
+        interval: Define.probeFallbackMs;
+        onTriggered: {
+            mainArea_LocalPage.finishProbe({"duration":-1,"title":"","artist":""});
+        }
+    }
     /* theProber 由 Main.qml 注入, 注入后继续排队中的探测 */
     onTheProberChanged: {
         startProbe();
@@ -1306,6 +1371,12 @@ MainAreaFatherPage {
         target: mainArea_LocalPage.theProber;
         function onMediaStatusChanged() {
             mainArea_LocalPage.onProbeStatus();
+        }
+    }
+    Connections {
+        target: AppFileHelper;
+        function onAudioMetaReady(absfpath,duration,title,artist) {
+            mainArea_LocalPage.onFallbackMeta(absfpath,duration,title,artist);
         }
     }
     /* 汇总本地歌曲: 手动添加项在前, 扫描文件夹项在后 */
@@ -1331,7 +1402,7 @@ MainAreaFatherPage {
         }
         return v;
     }
-    /* 追加单条歌曲: 跳过已移除项与重复项, 同时入队探测时长 */
+    /* 追加单条歌曲: 跳过已移除项与重复项, 同时入队探测元数据 */
     function pushSong(v,absfpath,source) {
         if(absfpath===undefined || absfpath==="") {
             return;
@@ -1345,25 +1416,26 @@ MainAreaFatherPage {
                 return;
             }
         }
-        var dur=GlobalFileStorage.durationOf(absfpath);
-        var known=(dur>=0);
-        if(known && source==="scan" && dur<GlobalFileStorage.localScan.scanRadio) {
+        var m=GlobalFileStorage.metaOf(absfpath);
+        var dur=(m? m.duration:-1);
+        if(dur>=0 && source==="scan" && dur<GlobalFileStorage.localScan.scanRadio) {
             /* 扫描项时长不满足扫描规则 */
             return;
         }
+        var sz=AppFileHelper.fileSize(absfpath);
         v.push({
-            "songname": nameOfFile(absfpath),
-            "singer": "未知歌手",
+            "songname": (m && m.title!==""? m.title:nameOfFile(absfpath)),
+            "singer": (m && m.artist!==""? m.artist:"未知歌手"),
             "absfpath": absfpath,
             "absipath": "",
-            "size": 0,
-            "duration": (known? dur:0),
+            "size": (sz>0? sz:0),
+            "duration": (dur>0? dur:0),
             "source": source,
             "liked": GlobalFileStorage.isLiked(absfpath),
             "checked": false
         });
-        if(GlobalFileStorage.hasDuration(absfpath)===false) {
-            probeDuration(absfpath);
+        if(GlobalFileStorage.hasMeta(absfpath)===false) {
+            probeMeta(absfpath);
         }
     }
     /* 由标准化路径取歌曲名 */
@@ -1379,8 +1451,8 @@ MainAreaFatherPage {
         }
         return p;
     }
-    /* 播放: 优先选中项, 无选中则列表首项 */
-    function playSelected() {
+    /* 播放: 以整个列表构造播放队列, 优先从选中项开始 */
+    function playAllSongs() {
         var v=mainArea_LocalPage.mainListViewModel;
         var l=v.length;
         if(l<=0) {
@@ -1388,16 +1460,47 @@ MainAreaFatherPage {
             return false;
         }
         var which=mainListView.selectedWhich;
+        var one=v[0];
         for(var i=0;i<l;i++) {
             if(v[i]["absfpath"]===which) {
-                return thePlayer.jump2play(v[i]);
+                one=v[i];
+                break;
             }
         }
-        return thePlayer.jump2play(v[0]);
+        return thePlayer.playAll(v,one);
     }
-    /* 入队探测时长 */
-    function probeDuration(absfpath) {
-        if(GlobalFileStorage.hasDuration(absfpath) || absfpath===probingPath) {
+    /* 当前播放项在列表中的下标, 不在列表中返回 -1 */
+    function playingRowIndex() {
+        if(thePlayer===undefined || thePlayer===null) {
+            return -1;
+        }
+        var which=thePlayer.playingWhich;
+        if(which===undefined || which==="") {
+            return -1;
+        }
+        var v=mainArea_LocalPage.mainListViewModel;
+        var l=v.length;
+        for(var i=0;i<l;i++) {
+            if(v[i]["absfpath"]===which) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    /* 定位到当前播放的歌曲 */
+    function jump2playing() {
+        var idx=mainArea_LocalPage.playingRowIndex();
+        if(idx<0) {
+            console.log("定位失败: 当前播放的歌曲不在列表中");
+            return false;
+        }
+        mainListView.selectedWhich=thePlayer.playingWhich;
+        mainListView.positionViewAtIndex(idx,ListView.Beginning);
+        return true;
+    }
+    /* 入队探测元数据 */
+    function probeMeta(absfpath) {
+        if(GlobalFileStorage.hasMeta(absfpath) || absfpath===probingPath) {
             return;
         }
         var l=probeQueue.length;
@@ -1424,27 +1527,77 @@ MainAreaFatherPage {
         var one=v.shift();
         probeQueue=v;
         probingPath=one;
+        cppProbing=false;
+        fallbackTimeout.stop();
+        probeTimeout.restart();
         theProber.source=one;
     }
-    /* 探测状态回调 */
+    /* FakePlayer 探测状态回调 */
     function onProbeStatus() {
-        if(probingPath==="") {
+        if(probingPath==="" || cppProbing) {
             return;
         }
         var st=theProber.mediaStatus;
         if(st===MediaPlayer.LoadedMedia || st===MediaPlayer.BufferedMedia) {
-            finishProbe(Math.floor(theProber.duration/1000));
+            var sec=Math.floor(theProber.duration/1000);
+            var title=proberTitle();
+            if(sec<=0 && title==="") {
+                /* 加载完成但没拿到数据, 直接转兜底 */
+                fallbackProbe();
+                return;
+            }
+            finishProbe({"duration":sec,"title":title,"artist":proberArtist()});
         } else if(st===MediaPlayer.InvalidMedia) {
-            /* 无法解析的文件按未知时长处理, 不重复探测 */
-            finishProbe(-1);
+            fallbackProbe();
         }
     }
+    /* FakePlayer 探测到的曲名 */
+    function proberTitle() {
+        var v=theProber.metaData.stringValue(MediaMetaData.Title);
+        return (v===undefined? "":v);
+    }
+    /* FakePlayer 探测到的歌手: 优先贡献艺术家, 依次回退专辑艺术家与作者 */
+    function proberArtist() {
+        var md=theProber.metaData;
+        var v=md.stringValue(MediaMetaData.ContributingArtist);
+        if(v===undefined || v==="") {
+            v=md.stringValue(MediaMetaData.AlbumArtist);
+        }
+        if(v===undefined || v==="") {
+            v=md.stringValue(MediaMetaData.Author);
+        }
+        return (v===undefined? "":v);
+    }
+    /* 超时转 AppFileHelper 兜底 */
+    function fallbackProbe() {
+        if(probingPath==="" || cppProbing) {
+            return;
+        }
+        probeTimeout.stop();
+        cppProbing=true;
+        /* 取消 FakePlayer 上未完成的加载 */
+        theProber.source="";
+        fallbackTimeout.restart();
+        AppFileHelper.readAudioMeta(probingPath);
+    }
+    /* AppFileHelper 兜底结果回调 */
+    function onFallbackMeta(absfpath,duration,title,artist) {
+        if(cppProbing===false || absfpath!==probingPath) {
+            return;
+        }
+        finishProbe({"duration":Math.floor(duration/1000),"title":title,"artist":artist});
+    }
     /* 记录探测结果并继续队列 */
-    function finishProbe(sec) {
+    function finishProbe(meta) {
         var done=probingPath;
         probingPath="";
-        GlobalFileStorage.setDuration(done,(sec>0? sec:-1));
-        mainListView.applyDuration(done,(sec>0? sec:-1));
+        cppProbing=false;
+        probeTimeout.stop();
+        fallbackTimeout.stop();
+        GlobalFileStorage.setMeta(done,{"duration":(meta.duration>0? meta.duration:-1),
+                                        "title":(meta.title===undefined? "":meta.title),
+                                        "artist":(meta.artist===undefined? "":meta.artist)});
+        mainListView.applyMeta(done);
         startProbe();
     }
     function subsHide(scenePos) {
