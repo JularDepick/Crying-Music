@@ -387,45 +387,22 @@ MainAreaFatherPage {
         height: 20;
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.4;
+            width: parent.width*0.7;
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
                 onClicked: {
-                    mainListView.sortBy("songname");
+                    mainListView.sortByName();
                 }
                 background: Row {
                     Text {
-                        text: "歌名";
+                        text: mainListView.nameSortLabel();
                     }
                     ColorImage {
                         anchors.verticalCenter: parent.verticalCenter;
                         width: 10;
                         height: 10;
-                        source: mainListView.sortIconOf("songname");
-                        color: Define.btnIconColor;
-                    }
-                }
-            }
-        }
-        Rectangle {
-            anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.3;
-            color: Define.nocolor;
-            Button {
-                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
-                onClicked: {
-                    mainListView.sortBy("singer");
-                }
-                background: Row {
-                    Text {
-                        text: "歌手";
-                    }
-                    ColorImage {
-                        anchors.verticalCenter: parent.verticalCenter;
-                        width: 10;
-                        height: 10;
-                        source: mainListView.sortIconOf("singer");
+                        source: mainListView.nameSortIcon();
                         color: Define.btnIconColor;
                     }
                 }
@@ -498,10 +475,14 @@ MainAreaFatherPage {
             property bool batchMode: false;
             property string sortKey: "";
             property bool sortAsc: true;
+            /* 曲名与歌手合并按钮的四态下标, -1 表示尚未点过该按钮 */
+            property int nameSortStep: -1;
+            /* 单行高度, 与委托保持一致 */
+            property int rowHeight: 60;
             model: mainArea_LocalPage.mainListViewModel;
             delegate: Item {
                 width: ListView.view.width;
-                height: 60;
+                height: mainListView.rowHeight;
                 Rectangle {
                     id: box;
                     anchors.fill: parent;
@@ -532,7 +513,7 @@ MainAreaFatherPage {
                             if(thePlayer.playingWhich===modelData["absfpath"]) {
                                 return;
                             }
-                            thePlayer.jump2play(modelData);
+                            mainArea_LocalPage.playRow(modelData);
                         }
                     }
                     Row {
@@ -583,7 +564,7 @@ MainAreaFatherPage {
                                 if(thePlayer.playingWhich===modelData["absfpath"]) {
                                     return;
                                 }
-                                thePlayer.jump2play(modelData);
+                                mainArea_LocalPage.playRow(modelData);
                             }
                             background: Item {
                                 anchors.fill: parent;
@@ -667,6 +648,17 @@ MainAreaFatherPage {
                                 mainArea_LocalPage.mainListViewModel=v;
                             }
                         }
+                        CustomButtonA {
+                            visible: !mainListView.batchMode;
+                            anchors.verticalCenter: parent.verticalCenter;
+                            height: 20;
+                            width: 20;
+                            icon.source: "qrc:/assets/iconfont/function/addinto.svg";
+                            transEnabled: false;
+                            onClicked: {
+                                thePlayer.insertNext(modelData);
+                            }
+                        }
                     }
                 }
             }
@@ -680,7 +672,7 @@ MainAreaFatherPage {
                 icon.width: 20;
                 icon.height: 20;
                 transEnabled: false;
-                visible: (mainArea_LocalPage.playingRowIndex()>=0);
+                visible: mainArea_LocalPage.playingOutOfView();
                 background: Rectangle {
                     anchors.fill: parent;
                     color: Qt.rgba(246,246,246,0.8);
@@ -749,6 +741,26 @@ MainAreaFatherPage {
                 }
                 mainArea_LocalPage.mainListViewModel=sortList(mainArea_LocalPage.mainListViewModel);
             }
+            /* 曲名与歌手合并按钮: 0 歌名升, 1 歌名降, 2 歌手升, 3 歌手降, 每次点击进入下一态 */
+            function sortByName() {
+                nameSortStep=(nameSortStep+1)%4;
+                sortKey=(nameSortStep<2? "songname":"singer");
+                sortAsc=(nameSortStep===0 || nameSortStep===2);
+                mainArea_LocalPage.mainListViewModel=sortList(mainArea_LocalPage.mainListViewModel);
+            }
+            /* 合并按钮当前态对应的键名 */
+            function nameSortLabel() {
+                return (nameSortStep<2? "歌名":"歌手");
+            }
+            /* 合并按钮的排序指示图标: 键与方向都正是当前排序时才显示方向 */
+            function nameSortIcon() {
+                var key=(nameSortStep<2? "songname":"singer");
+                var asc=(nameSortStep===0 || nameSortStep===2);
+                if(sortKey===key && sortAsc===asc) {
+                    return (asc? "qrc:/assets/iconfont/listview/upsort.svg":"qrc:/assets/iconfont/listview/downsort.svg");
+                }
+                return "qrc:/assets/iconfont/listview/justsort.svg";
+            }
             /* 排序指示图标 */
             function sortIconOf(key) {
                 if(sortKey!==key) {
@@ -756,34 +768,30 @@ MainAreaFatherPage {
                 }
                 return (sortAsc? "qrc:/assets/iconfont/listview/upsort.svg":"qrc:/assets/iconfont/listview/downsort.svg");
             }
-            /* 时长回填: 更新曲名/歌手/时长, 不满足扫描规则的扫描项从列表移除 */
-            function applyMeta(absfpath) {
+            /* 元数据回填: 探测队列排空后统一更新一次列表, 不在每项探测完成时更新 */
+            function applyMetaAll() {
                 var v=mainArea_LocalPage.mainListViewModel;
                 var l=v.length;
+                var nv=[];
                 for(var i=0;i<l;i++) {
-                    if(v[i]["absfpath"]!==absfpath) {
+                    var m=GlobalFileStorage.metaOf(v[i]["absfpath"]);
+                    if(m) {
+                        if(m.title!=="") {
+                            v[i]["songname"]=m.title;
+                        }
+                        if(m.artist!=="") {
+                            v[i]["singer"]=m.artist;
+                        }
+                        v[i]["duration"]=(m.duration>0? m.duration:0);
+                    }
+                    if(v[i]["source"]==="scan" && m && m.duration>=0
+                       && m.duration<GlobalFileStorage.localScan.scanRadio) {
+                        /* 扫描项时长不满足扫描规则, 不进入列表 */
                         continue;
                     }
-                    var m=GlobalFileStorage.metaOf(absfpath);
-                    var dur=(m? m.duration:-1);
-                    v[i]["songname"]=(m && m.title!==""? m.title:v[i]["songname"]);
-                    v[i]["singer"]=(m && m.artist!==""? m.artist:v[i]["singer"]);
-                    v[i]["duration"]=(dur>0? dur:0);
-                    if(v[i]["source"]==="scan" && dur>=0 && dur<GlobalFileStorage.localScan.scanRadio) {
-                        var nv=[];
-                        for(var j=0;j<l;j++) {
-                            if(j!==i) {
-                                nv.push(v[j]);
-                            }
-                        }
-                        mainArea_LocalPage.mainListViewModel=nv;
-                    } else if(sortKey==="") {
-                        mainArea_LocalPage.mainListViewModel=v.slice();
-                    } else {
-                        mainArea_LocalPage.mainListViewModel=sortList(v);
-                    }
-                    return;
+                    nv.push(v[i]);
                 }
+                mainArea_LocalPage.mainListViewModel=sortList(nv);
             }
             /* 进入或退出批量多选 */
             function setBatchMode(on) {
@@ -1469,6 +1477,13 @@ MainAreaFatherPage {
         }
         return thePlayer.playAll(v,one);
     }
+    /* 播放某一行: 播放队列为空时以整个列表构造队列, 否则插到当前播放项之后 */
+    function playRow(one) {
+        if(thePlayer.sortlist.length<=0) {
+            return thePlayer.playAll(mainArea_LocalPage.mainListViewModel,one);
+        }
+        return thePlayer.jump2play(one);
+    }
     /* 当前播放项在列表中的下标, 不在列表中返回 -1 */
     function playingRowIndex() {
         if(thePlayer===undefined || thePlayer===null) {
@@ -1486,6 +1501,16 @@ MainAreaFatherPage {
             }
         }
         return -1;
+    }
+    /* 当前播放项是否落在列表视域之外 */
+    function playingOutOfView() {
+        var idx=mainArea_LocalPage.playingRowIndex();
+        if(idx<0) {
+            return false;
+        }
+        var top=idx*(mainListView.rowHeight+mainListView.spacing);
+        var bottom=top+mainListView.rowHeight;
+        return (bottom<=mainListView.contentY || top>=mainListView.contentY+mainListView.height);
     }
     /* 定位到当前播放的歌曲 */
     function jump2playing() {
@@ -1518,9 +1543,13 @@ MainAreaFatherPage {
         }
         startProbe();
     }
-    /* 启动队列中的下一项探测 */
+    /* 启动队列中的下一项探测; 队列排空后统一回填列表 */
     function startProbe() {
-        if(theProber===undefined || theProber===null || probingPath!=="" || probeQueue.length<=0) {
+        if(probeQueue.length<=0) {
+            mainListView.applyMetaAll();
+            return;
+        }
+        if(theProber===undefined || theProber===null || probingPath!=="") {
             return;
         }
         var v=probeQueue.slice();
@@ -1597,7 +1626,6 @@ MainAreaFatherPage {
         GlobalFileStorage.setMeta(done,{"duration":(meta.duration>0? meta.duration:-1),
                                         "title":(meta.title===undefined? "":meta.title),
                                         "artist":(meta.artist===undefined? "":meta.artist)});
-        mainListView.applyMeta(done);
         startProbe();
     }
     function subsHide(scenePos) {

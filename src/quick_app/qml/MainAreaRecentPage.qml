@@ -158,45 +158,22 @@ MainAreaFatherPage {
         height: 20;
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.4;
+            width: parent.width*0.7;
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
                 onClicked: {
-                    mainListView.sortBy("songname");
+                    mainListView.sortByName();
                 }
                 background: Row {
                     Text {
-                        text: "歌名";
+                        text: mainListView.nameSortLabel();
                     }
                     ColorImage {
                         anchors.verticalCenter: parent.verticalCenter;
                         width: 10;
                         height: 10;
-                        source: mainListView.sortIconOf("songname");
-                        color: Define.btnIconColor;
-                    }
-                }
-            }
-        }
-        Rectangle {
-            anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.3;
-            color: Define.nocolor;
-            Button {
-                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
-                onClicked: {
-                    mainListView.sortBy("singer");
-                }
-                background: Row {
-                    Text {
-                        text: "歌手";
-                    }
-                    ColorImage {
-                        anchors.verticalCenter: parent.verticalCenter;
-                        width: 10;
-                        height: 10;
-                        source: mainListView.sortIconOf("singer");
+                        source: mainListView.nameSortIcon();
                         color: Define.btnIconColor;
                     }
                 }
@@ -269,10 +246,14 @@ MainAreaFatherPage {
             property bool batchMode: false;
             property string sortKey: "";
             property bool sortAsc: true;
+            /* 曲名与歌手合并按钮的四态下标, -1 表示尚未点过该按钮 */
+            property int nameSortStep: -1;
+            /* 单行高度, 与委托保持一致 */
+            property int rowHeight: 60;
             model: mainArea_RecentPage.mainListViewModel;
             delegate: Item {
                 width: ListView.view.width;
-                height: 60;
+                height: mainListView.rowHeight;
                 Rectangle {
                     id: box;
                     anchors.fill: parent;
@@ -303,7 +284,7 @@ MainAreaFatherPage {
                             if(thePlayer.playingWhich===modelData["absfpath"]) {
                                 return;
                             }
-                            thePlayer.jump2play(modelData);
+                            mainArea_RecentPage.playRow(modelData);
                         }
                     }
                     Row {
@@ -354,7 +335,7 @@ MainAreaFatherPage {
                                 if(thePlayer.playingWhich===modelData["absfpath"]) {
                                     return;
                                 }
-                                thePlayer.jump2play(modelData);
+                                mainArea_RecentPage.playRow(modelData);
                             }
                             background: Item {
                                 anchors.fill: parent;
@@ -438,6 +419,17 @@ MainAreaFatherPage {
                                 mainArea_RecentPage.mainListViewModel=v;
                             }
                         }
+                        CustomButtonA {
+                            visible: !mainListView.batchMode;
+                            anchors.verticalCenter: parent.verticalCenter;
+                            height: 20;
+                            width: 20;
+                            icon.source: "qrc:/assets/iconfont/function/addinto.svg";
+                            transEnabled: false;
+                            onClicked: {
+                                thePlayer.insertNext(modelData);
+                            }
+                        }
                     }
                 }
             }
@@ -451,7 +443,7 @@ MainAreaFatherPage {
                 icon.width: 20;
                 icon.height: 20;
                 transEnabled: false;
-                visible: (mainArea_RecentPage.playingRowIndex()>=0);
+                visible: mainArea_RecentPage.playingOutOfView();
                 background: Rectangle {
                     anchors.fill: parent;
                     color: Qt.rgba(246,246,246,0.8);
@@ -527,6 +519,26 @@ MainAreaFatherPage {
                     sortAsc=true;
                 }
                 mainArea_RecentPage.mainListViewModel=sortList(mainArea_RecentPage.mainListViewModel);
+            }
+            /* 曲名与歌手合并按钮: 0 歌名升, 1 歌名降, 2 歌手升, 3 歌手降, 每次点击进入下一态 */
+            function sortByName() {
+                nameSortStep=(nameSortStep+1)%4;
+                sortKey=(nameSortStep<2? "songname":"singer");
+                sortAsc=(nameSortStep===0 || nameSortStep===2);
+                mainArea_RecentPage.mainListViewModel=sortList(mainArea_RecentPage.mainListViewModel);
+            }
+            /* 合并按钮当前态对应的键名 */
+            function nameSortLabel() {
+                return (nameSortStep<2? "歌名":"歌手");
+            }
+            /* 合并按钮的排序指示图标: 键与方向都正是当前排序时才显示方向 */
+            function nameSortIcon() {
+                var key=(nameSortStep<2? "songname":"singer");
+                var asc=(nameSortStep===0 || nameSortStep===2);
+                if(sortKey===key && sortAsc===asc) {
+                    return (asc? "qrc:/assets/iconfont/listview/upsort.svg":"qrc:/assets/iconfont/listview/downsort.svg");
+                }
+                return "qrc:/assets/iconfont/listview/justsort.svg";
             }
             /* 排序指示图标 */
             function sortIconOf(key) {
@@ -672,6 +684,13 @@ MainAreaFatherPage {
         }
         return thePlayer.playAll(v,one);
     }
+    /* 播放某一行: 播放队列为空时以整个列表构造队列, 否则插到当前播放项之后 */
+    function playRow(one) {
+        if(thePlayer.sortlist.length<=0) {
+            return thePlayer.playAll(mainArea_RecentPage.mainListViewModel,one);
+        }
+        return thePlayer.jump2play(one);
+    }
     /* 当前播放项在列表中的下标, 不在列表中返回 -1 */
     function playingRowIndex() {
         if(thePlayer===undefined || thePlayer===null) {
@@ -689,6 +708,16 @@ MainAreaFatherPage {
             }
         }
         return -1;
+    }
+    /* 当前播放项是否落在列表视域之外 */
+    function playingOutOfView() {
+        var idx=mainArea_RecentPage.playingRowIndex();
+        if(idx<0) {
+            return false;
+        }
+        var top=idx*(mainListView.rowHeight+mainListView.spacing);
+        var bottom=top+mainListView.rowHeight;
+        return (bottom<=mainListView.contentY || top>=mainListView.contentY+mainListView.height);
     }
     /* 定位到当前播放的歌曲 */
     function jump2playing() {
