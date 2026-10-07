@@ -1373,6 +1373,10 @@ MainAreaFatherPage {
     property var probeQueue: ([]);
     property string probingPath: "";
     property bool cppProbing: false;
+    /* 本批探测已完成项数, 用于向加载条反馈进度 */
+    property int probeDone: 0;
+    /* 探测进度在加载条上的使用者标识 */
+    property string loadingId: "probeMeta";
     Timer {
         id: probeTimeout;
         interval: Define.probeTimeoutMs;
@@ -1539,7 +1543,7 @@ MainAreaFatherPage {
         mainListView.positionViewAtIndex(idx,ListView.Beginning);
         return true;
     }
-    /* 入队探测元数据 */
+    /* 入队探测元数据: 队列由空转非空时视为新的一批, 占用加载条并重置计数 */
     function probeMeta(absfpath) {
         if(GlobalFileStorage.hasMeta(absfpath) || absfpath===probingPath) {
             return;
@@ -1556,12 +1560,24 @@ MainAreaFatherPage {
             var v=probeQueue.slice();
             v.push(absfpath);
             probeQueue=v;
+            if(probingPath==="" && probeQueue.length===1) {
+                probeDone=0;
+                GlobalFileStorage.startLoading("元数据探测完成",mainArea_LocalPage.loadingId);
+            }
         }
         startProbe();
     }
-    /* 启动队列中的下一项探测; 队列排空后统一回填列表 */
+    /* 把本批探测进度推到加载条: 已完成项数占本批总数的比例 */
+    function pushProbeRate() {
+        var remaining=probeQueue.length+(probingPath!==""? 1:0);
+        var total=probeDone+remaining;
+        var rate=(total<=0? 100:Math.floor(probeDone*100/total));
+        GlobalFileStorage.updateLoading(rate,mainArea_LocalPage.loadingId);
+    }
+    /* 启动队列中的下一项探测; 队列排空后推进度到满并统一回填列表 */
     function startProbe() {
         if(probeQueue.length<=0) {
+            mainArea_LocalPage.pushProbeRate();
             mainListView.applyMetaAll();
             return;
         }
@@ -1642,6 +1658,8 @@ MainAreaFatherPage {
         GlobalFileStorage.setMeta(done,{"duration":(meta.duration>0? meta.duration:-1),
                                         "title":(meta.title===undefined? "":meta.title),
                                         "artist":(meta.artist===undefined? "":meta.artist)});
+        probeDone=probeDone+1;
+        mainArea_LocalPage.pushProbeRate();
         startProbe();
     }
     function subsHide(scenePos) {

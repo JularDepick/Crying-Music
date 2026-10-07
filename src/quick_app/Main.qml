@@ -1528,6 +1528,75 @@ ApplicationWindow {
             visible=!visible;
         }
     }
+    /* 加载进度条: 状态由存储枢纽的加载状态驱动 */
+    Rectangle {
+        id: loadingRate;
+        anchors {bottom:parent.bottom; left:parent.left; right:parent.right;}
+        height: 5;
+        color: Define.subGrey;
+        bottomLeftRadius: Define.windowRadius;
+        bottomRightRadius: Define.windowRadius;
+        visible: GlobalFileStorage.loadingState.using;
+        /* 本次加载是否已提示过完成, 避免重复弹出 */
+        property bool tipShown: false;
+        /* 进度填充: 宽度按枢纽里的百分比换算 */
+        Rectangle {
+            anchors {left:parent.left; top:parent.top; bottom:parent.bottom;}
+            width: parent.width*GlobalFileStorage.loadingState.value/100;
+            color: Define.choseCyanColor;
+            bottomLeftRadius: parent.bottomLeftRadius;
+            bottomRightRadius: parent.bottomRightRadius;
+        }
+        /* 进度满时弹一次完成提示, 并让枢纽结束本次加载 */
+        Connections {
+            target: GlobalFileStorage;
+            function onLoadingStateChanged() {
+                var st=GlobalFileStorage.loadingState;
+                if(st.using===false) {
+                    loadingRate.tipShown=false;
+                    return;
+                }
+                if(st.value>=100 && loadingRate.tipShown===false) {
+                    loadingRate.tipShown=true;
+                    loadingTip.showTip(st.finishedTip);
+                    GlobalFileStorage.stopLoading(st.usedByWho);
+                }
+            }
+        }
+    }
+    /* 完成提示浮层: 独立于进度条, 因此进度条收起后仍短暂可见 */
+    Rectangle {
+        id: loadingTip;
+        anchors {bottom:loadingRate.top; bottomMargin:10; horizontalCenter:parent.horizontalCenter;}
+        width: loadingTipText.width+24;
+        height: 26;
+        radius: 5;
+        color: Define.mainAreaColor;
+        border.color: Define.subGrey;
+        border.width: 1;
+        visible: false;
+        property string tipText: "";
+        function showTip(t) {
+            tipText=t;
+            visible=true;
+            loadingTipTimer.restart();
+        }
+        Text {
+            id: loadingTipText;
+            anchors.centerIn: parent;
+            text: loadingTip.tipText;
+            font.pixelSize: 13;
+            font.weight: 400;
+        }
+        Timer {
+            id: loadingTipTimer;
+            interval: 2000;
+            onTriggered: {
+                loadingTip.visible=false;
+                loadingTip.tipText="";
+            }
+        }
+    }
     function subsHide(scenePos) {
         if(!Assist.hitItem(playerSort, scenePos) && !Assist.hitItem(sortSubTab, scenePos)) {
             playerSort.sub_hide();

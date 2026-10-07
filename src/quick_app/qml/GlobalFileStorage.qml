@@ -25,6 +25,14 @@ Item {
         playingIndex: -1,
         playMode: 1
     });
+    /* 加载进度枢纽: 供各模块共用的加载反馈, 同一时刻只服务一个使用者 */
+    property var loadingState:
+    ({
+        using: false,
+        value: 0,
+        finishedTip: "",
+        usedByWho: ""
+    });
     function load() {
     }
     function save() {
@@ -149,5 +157,35 @@ Item {
     /* 写入播放状态: 整体替换对象, 使各模块都能收到变更通知 */
     function setPlayState(list,which,index,mode) {
         playState=({"sortlist":list,"playingWhich":which,"playingIndex":index,"playMode":mode});
+    }
+    /* 开始加载: 已在加载中时不打断当前使用者, 返回是否成功占用 */
+    function startLoading(finishedTip,usedByWho) {
+        if(loadingState.using) {
+            return false;
+        }
+        loadingState=({"using":true,"value":0,"finishedTip":finishedTip,"usedByWho":usedByWho});
+        return true;
+    }
+    /* 更新加载进度: 只接受当前使用者的更新, 返回是否被采纳 */
+    function updateLoading(value,usedByWho) {
+        if(loadingState.using===false || loadingState.usedByWho!==usedByWho) {
+            return false;
+        }
+        loadingState=({"using":true,
+                       "value":value,
+                       "finishedTip":loadingState.finishedTip,
+                       "usedByWho":usedByWho});
+        return true;
+    }
+    /* 结束加载: 传使用者标识时只有匹配才结束 */
+    function stopLoading(usedByWho) {
+        if(loadingState.using===false) {
+            return false;
+        }
+        if(usedByWho!==undefined && usedByWho!==loadingState.usedByWho) {
+            return false;
+        }
+        loadingState=({"using":false,"value":0,"finishedTip":"","usedByWho":""});
+        return true;
     }
 }
