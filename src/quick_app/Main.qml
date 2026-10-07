@@ -600,6 +600,7 @@ ApplicationWindow {
                 anchors.fill: parent;
             }
         }
+        /* 播放栏 */
         Rectangle {
             id: playerBar;
             anchors {left:leftSidebar.right; right:parent.right; bottom:parent.bottom;}
@@ -633,8 +634,9 @@ ApplicationWindow {
                 }
                 property var id2obj: new Map();
                 property var songobjs: ([]);
+                /* 播放状态: 本模块自己持有, 每次改动后同步到存储枢纽 */
                 property string playingWhich: "";
-                property int playingIndex: 0;
+                property int playingIndex: -1;
                 property var sortlist: ([]);
                 /* 播放顺序: 0 随机播放, 1 顺序播放, 2 单曲循环, 3 列表循环 */
                 property int playMode: 1;
@@ -649,6 +651,7 @@ ApplicationWindow {
                     sortlist=insertAfterPlaying(which);
                     playingWhich=which.absfpath;
                     syncPlayingIndex();
+                    syncPlayState();
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
@@ -662,6 +665,7 @@ ApplicationWindow {
                     }
                     sortlist=insertAfterPlaying(which);
                     syncPlayingIndex();
+                    syncPlayState();
                     console.log("插入下一首: ",which);
                     return true;
                 }
@@ -707,6 +711,7 @@ ApplicationWindow {
                     }
                     playingWhich=one.absfpath;
                     syncPlayingIndex();
+                    syncPlayState();
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
@@ -721,6 +726,7 @@ ApplicationWindow {
                     }
                     playingWhich=which.absfpath;
                     syncPlayingIndex();
+                    syncPlayState();
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
@@ -734,6 +740,7 @@ ApplicationWindow {
                     }
                     playingIndex=idx;
                     playingWhich=sortlist[idx].absfpath;
+                    syncPlayState();
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
@@ -791,6 +798,7 @@ ApplicationWindow {
                         sortlist=shuffleList(sortlist);
                         syncPlayingIndex();
                     }
+                    syncPlayState();
                     console.log("播放顺序: ",mode);
                 }
                 /* 打乱列表顺序 */
@@ -830,6 +838,7 @@ ApplicationWindow {
                     }
                     sortlist=asl;
                     syncPlayingIndex();
+                    syncPlayState();
                 }
                 /* 清空播放队列, 保留当前正在播放的项 */
                 function clearList() {
@@ -842,6 +851,34 @@ ApplicationWindow {
                     }
                     sortlist=keep;
                     syncPlayingIndex();
+                    syncPlayState();
+                }
+                /* 把本模块的播放状态推到枢纽, 供其它模块读取 */
+                function syncPlayState() {
+                    GlobalFileStorage.setPlayState(sortlist,playingWhich,playingIndex,playMode);
+                }
+                /* 从枢纽取回播放状态: 值不同才覆盖, 避免与推送动作形成回环 */
+                function updateFromPlayState() {
+                    var st=GlobalFileStorage.playState;
+                    if(st.sortlist!==sortlist) {
+                        sortlist=st.sortlist;
+                    }
+                    if(st.playingWhich!==playingWhich) {
+                        playingWhich=st.playingWhich;
+                    }
+                    if(st.playingIndex!==playingIndex) {
+                        playingIndex=st.playingIndex;
+                    }
+                    if(st.playMode!==playMode) {
+                        playMode=st.playMode;
+                    }
+                }
+            }
+            /* 枢纽上的播放状态被其它模块改写时取回 */
+            Connections {
+                target: GlobalFileStorage;
+                function onPlayStateChanged() {
+                    player.updateFromPlayState();
                 }
             }
             Row {
@@ -1240,6 +1277,7 @@ ApplicationWindow {
                 }
             }
         }
+        /* 播放列表面板: 由播放栏的播放列表按钮呼出 */
         Rectangle {
             id: playingListArea;
             anchors {top:canvas.top; bottom:mainArea.bottom; right: canvas.right;}

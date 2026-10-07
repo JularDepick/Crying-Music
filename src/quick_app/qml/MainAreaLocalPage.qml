@@ -12,8 +12,9 @@ import "./"
 MainAreaFatherPage {
     id: mainArea_LocalPage;
     visible: false;
-    /* 探测音频时长用的播放器, 由 Main.qml 注入 */
+    /* 探测元数据用的播放器, 由 Main.qml 注入 */
     property var theProber;
+    /* 标题与功能行: 列表滚动时标题吸顶 */
     Column {
         id: headColum;
         z: mainViewArea.z+1;
@@ -265,6 +266,7 @@ MainAreaFatherPage {
             }
         }
     }
+    /* 添加按钮弹出的子菜单: 手动添加歌曲与自动扫描歌曲 */
     Rectangle {
         id: addSongSubTab;
         z: mainViewArea.z+2;
@@ -379,6 +381,7 @@ MainAreaFatherPage {
             }
         }
     }
+    /* 排序表头: 曲名与歌手为四态循环按钮, 大小与时长各自 toggle */
     Row {
         id: sortHead;
         anchors {left:parent.left; right:parent.right; top:headColum.bottom;}
@@ -455,7 +458,9 @@ MainAreaFatherPage {
             }
         }
     }
+    /* 列表条目数组: 只由构建函数与排序函数整体替换 */
     property var mainListViewModel: ([]);
+    /* 列表区: 委托行, 回到顶部与定位当前播放两个悬浮按钮 */
     Rectangle {
         id: mainViewArea;
         anchors {left:parent.left; right:parent.right; top:sortHead.bottom; bottom:parent.bottom}
@@ -510,7 +515,7 @@ MainAreaFatherPage {
                                 return;
                             }
                             console.log("双击: ",modelData["absfpath"]);
-                            if(thePlayer.playingWhich===modelData["absfpath"]) {
+                            if(GlobalFileStorage.playState.playingWhich===modelData["absfpath"]) {
                                 return;
                             }
                             mainArea_LocalPage.playRow(modelData);
@@ -561,7 +566,7 @@ MainAreaFatherPage {
                                     mainListView.toggleChecked(index);
                                     return;
                                 }
-                                if(thePlayer.playingWhich===modelData["absfpath"]) {
+                                if(GlobalFileStorage.playState.playingWhich===modelData["absfpath"]) {
                                     return;
                                 }
                                 mainArea_LocalPage.playRow(modelData);
@@ -793,6 +798,15 @@ MainAreaFatherPage {
                 }
                 mainArea_LocalPage.mainListViewModel=sortList(nv);
             }
+            /* 喜欢状态轻量同步: 只刷新红心, 不重建列表, 因此滚动位置不跳 */
+            function syncLiked() {
+                var v=mainArea_LocalPage.mainListViewModel;
+                var l=v.length;
+                for(var i=0;i<l;i++) {
+                    v[i]["liked"]=GlobalFileStorage.isLiked(v[i]["absfpath"]);
+                }
+                mainArea_LocalPage.mainListViewModel=v.slice();
+            }
             /* 进入或退出批量多选 */
             function setBatchMode(on) {
                 if(batchMode===on) {
@@ -865,6 +879,7 @@ MainAreaFatherPage {
             }
         }
     }
+    /* 列表滚动条: 与其它列表共用同一个组件 */
     CustomSliderC {
         id: mainListViewScrollBar;
         anchors {top:parent.top; bottom:parent.bottom; right:parent.right;}
@@ -883,6 +898,7 @@ MainAreaFatherPage {
     property var addSongDirViewModel: ([]);
     property var addSongDirFmts: formatCheckRoot1.fmts;
     property var addSongDirRadioMin: (durationGroup1.checkedButton? durationGroup1.checkedButton.radioMin:0);
+    /* 自动扫描歌曲弹窗: 文件夹清单与扫描规则 */
     Popup {
         id: addSongDirSubTab;
         parent: Overlay.overlay;
@@ -1479,7 +1495,7 @@ MainAreaFatherPage {
     }
     /* 播放某一行: 播放队列为空时以整个列表构造队列, 否则插到当前播放项之后 */
     function playRow(one) {
-        if(thePlayer.sortlist.length<=0) {
+        if(GlobalFileStorage.playState.sortlist.length<=0) {
             return thePlayer.playAll(mainArea_LocalPage.mainListViewModel,one);
         }
         return thePlayer.jump2play(one);
@@ -1489,7 +1505,7 @@ MainAreaFatherPage {
         if(thePlayer===undefined || thePlayer===null) {
             return -1;
         }
-        var which=thePlayer.playingWhich;
+        var which=GlobalFileStorage.playState.playingWhich;
         if(which===undefined || which==="") {
             return -1;
         }
@@ -1519,7 +1535,7 @@ MainAreaFatherPage {
             console.log("定位失败: 当前播放的歌曲不在列表中");
             return false;
         }
-        mainListView.selectedWhich=thePlayer.playingWhich;
+        mainListView.selectedWhich=GlobalFileStorage.playState.playingWhich;
         mainListView.positionViewAtIndex(idx,ListView.Beginning);
         return true;
     }
@@ -1639,6 +1655,12 @@ MainAreaFatherPage {
     }
     function jump2list() {
         ;
+    }
+    /* 红心状态会被其它页面改写, 显示时轻量同步一次 */
+    onVisibleChanged: {
+        if(visible) {
+            mainListView.syncLiked();
+        }
     }
     Component.onCompleted: {
         refresh();

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import "./"
 
+/* 竖向细滚动条: from/to 取 100 -> 0 使滑块随数值增大而向下, 使用方按内容比例换算 value */
 Slider {
     id: root;
     orientation: Qt.Vertical;
@@ -11,7 +12,9 @@ Slider {
     stepSize: 1;
     value: 0;
     padding: 0;
+    /* 滑块高度占控件高度的比例, 由使用方按可视比例设置 */
     property real handleRatio: 0.15;
+    /* 是否启用指针手型光标 */
     property bool hoverHandlerEnabled: true;
     background: Rectangle {
         x: 0;

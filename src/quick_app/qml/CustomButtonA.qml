@@ -15,13 +15,16 @@ Button {
     icon.width: width;
     icon.height: height;
     background: Item {}
+    /* 悬停是否变色: 关闭后由使用方自定义颜色策略 */
     property bool hoverColorEnabled: true;
     icon.color: (hovered&&hoverColorEnabled? Define.btnHoverColor:Define.btnIconColor);
+    /* 按下是否产生位移动效 */
     property bool transEnabled: true;
     transform: Translate {
         x: ((pressed&&transEnabled)? 0.5:0);
         y: ((pressed&&transEnabled)? 0.5:0);
     }
+    /* 是否启用指针手型光标 */
     property bool hoverHandlerEnabled: true;
     HoverHandler {
         enabled: (parent.enabled && hoverHandlerEnabled);

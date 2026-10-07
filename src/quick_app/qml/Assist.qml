@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 
 Item {
+    /* 秒数转 mm:ss 文本, 非正数按 00:00 处理 */
     function int2mmss(num) {
         num=Math.floor(num);
         if(num<=0) {
@@ -23,6 +24,7 @@ Item {
         }
         return res;
     }
+    /* 命中判定: 场景坐标是否落在该可见项的矩形内 */
     function hitItem(item, scenePos) {
         if(item===null || !item.visible || scenePos===undefined) {
             return false;

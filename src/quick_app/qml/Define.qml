@@ -3,6 +3,7 @@ import QtQuick
 
 Item {
     visible: false;
+    /* 全局设计常量: 窗口与布局尺寸, 主题色, 列表上限与探测阈值 */
     property int windowPadding: 10;
     property int windowRadius: 7;
     property int mainAreaRaduis: 7;

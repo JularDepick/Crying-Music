@@ -10,6 +10,7 @@ import "./"
 MainAreaFatherPage {
     id: mainArea_RecentPage;
     visible: false;
+    /* 标题与功能行: 列表滚动时标题吸顶 */
     Column {
         id: headColum;
         z: mainViewArea.z+1;
@@ -150,6 +151,7 @@ MainAreaFatherPage {
             }
         }
     }
+    /* 排序表头: 曲名与歌手为四态循环按钮, 大小与时长各自 toggle */
     Row {
         id: sortHead;
         anchors {left:parent.left; right:parent.right; top:headColum.bottom;}
@@ -226,7 +228,9 @@ MainAreaFatherPage {
             }
         }
     }
+    /* 列表条目数组: 只由构建函数与排序函数整体替换 */
     property var mainListViewModel: ([]);
+    /* 列表区: 委托行, 回到顶部与定位当前播放两个悬浮按钮 */
     Rectangle {
         id: mainViewArea;
         anchors {left:parent.left; right:parent.right; top:sortHead.bottom; bottom:parent.bottom}
@@ -281,7 +285,7 @@ MainAreaFatherPage {
                                 return;
                             }
                             console.log("双击: ",modelData["absfpath"]);
-                            if(thePlayer.playingWhich===modelData["absfpath"]) {
+                            if(GlobalFileStorage.playState.playingWhich===modelData["absfpath"]) {
                                 return;
                             }
                             mainArea_RecentPage.playRow(modelData);
@@ -332,7 +336,7 @@ MainAreaFatherPage {
                                     mainListView.toggleChecked(index);
                                     return;
                                 }
-                                if(thePlayer.playingWhich===modelData["absfpath"]) {
+                                if(GlobalFileStorage.playState.playingWhich===modelData["absfpath"]) {
                                     return;
                                 }
                                 mainArea_RecentPage.playRow(modelData);
@@ -604,6 +608,7 @@ MainAreaFatherPage {
             }
         }
     }
+    /* 列表滚动条: 与其它列表共用同一个组件 */
     CustomSliderC {
         id: mainListViewScrollBar;
         anchors {top:parent.top; bottom:parent.bottom; right:parent.right;}
@@ -686,7 +691,7 @@ MainAreaFatherPage {
     }
     /* 播放某一行: 播放队列为空时以整个列表构造队列, 否则插到当前播放项之后 */
     function playRow(one) {
-        if(thePlayer.sortlist.length<=0) {
+        if(GlobalFileStorage.playState.sortlist.length<=0) {
             return thePlayer.playAll(mainArea_RecentPage.mainListViewModel,one);
         }
         return thePlayer.jump2play(one);
@@ -696,7 +701,7 @@ MainAreaFatherPage {
         if(thePlayer===undefined || thePlayer===null) {
             return -1;
         }
-        var which=thePlayer.playingWhich;
+        var which=GlobalFileStorage.playState.playingWhich;
         if(which===undefined || which==="") {
             return -1;
         }
@@ -726,7 +731,7 @@ MainAreaFatherPage {
             console.log("定位失败: 当前播放的歌曲不在列表中");
             return false;
         }
-        mainListView.selectedWhich=thePlayer.playingWhich;
+        mainListView.selectedWhich=GlobalFileStorage.playState.playingWhich;
         mainListView.positionViewAtIndex(idx,ListView.Beginning);
         return true;
     }

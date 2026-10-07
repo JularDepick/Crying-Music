@@ -17,6 +17,14 @@ Item {
     property var recentFiles: [];
     /* 音频元数据缓存: 标准化路径 -> {duration:秒, title:曲名, artist:歌手}, 只存内存 */
     property var metaCache: ({});
+    /* 播放状态枢纽: 播放队列, 当前播放项路径与下标, 播放顺序; 跨模块只经此处交换 */
+    property var playState:
+    ({
+        sortlist: [],
+        playingWhich: "",
+        playingIndex: -1,
+        playMode: 1
+    });
     function load() {
     }
     function save() {
@@ -137,5 +145,9 @@ Item {
     /* 判断路径是否已探测过元数据 */
     function hasMeta(absfpath) {
         return (metaCache[absfpath]!==undefined);
+    }
+    /* 写入播放状态: 整体替换对象, 使各模块都能收到变更通知 */
+    function setPlayState(list,which,index,mode) {
+        playState=({"sortlist":list,"playingWhich":which,"playingIndex":index,"playMode":mode});
     }
 }
