@@ -35,7 +35,7 @@ MainAreaFatherPage {
             spacing: 0;
             property string curr: "localSongs";
             function jump2(which) {
-                console.log("curr=",curr," jump2->",which);
+                Assist.dlog("列表","切换标签: ",curr," -> ",which);
                 if(which!==curr) {
                     curr=which;
                     mainListView.setBatchMode(false);
@@ -184,7 +184,7 @@ MainAreaFatherPage {
                     width: 80;
                     height: 30;
                     onClicked: {
-                        mainListView.setAllChecked(true);
+                        mainListView.toggleAllChecked();
                     }
                     transEnabled: false;
                     background: Rectangle {
@@ -202,7 +202,7 @@ MainAreaFatherPage {
                                 color: Define.btnIconColor;
                             }
                             Text {
-                                text: "全选";
+                                text: (mainListView.allChecked? "取消全选":"全选");
                             }
                         }
                     }
@@ -346,7 +346,7 @@ MainAreaFatherPage {
                         }
                         GlobalFileStorage.addSingleFiles(nv);
                         mainArea_LocalPage.refresh();
-                        console.log(nv);
+                        Assist.dlog("列表",nv);
                     }
                 }
             }
@@ -391,7 +391,7 @@ MainAreaFatherPage {
         height: 20;
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.7;
+            width: parent.width*Define.listColumnRatios[0];
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
@@ -414,7 +414,7 @@ MainAreaFatherPage {
         }
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.15;
+            width: parent.width*Define.listColumnRatios[1];
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
@@ -437,7 +437,7 @@ MainAreaFatherPage {
         }
         Rectangle {
             anchors {top:parent.top; bottom:parent.bottom;}
-            width: parent.width*0.15;
+            width: parent.width*Define.listColumnRatios[2];
             color: Define.nocolor;
             Button {
                 anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
@@ -470,7 +470,7 @@ MainAreaFatherPage {
             id: mainListView;
             anchors.fill: parent;
             anchors.topMargin: 5;
-            spacing: 1;
+            spacing: 0;
             clip: true;
             DragHandler {
                 acceptedDevices: PointerDevice.Mouse;
@@ -479,6 +479,9 @@ MainAreaFatherPage {
             boundsBehavior: Flickable.StopAtBounds;
             property string selectedWhich: "";
             property bool batchMode: false;
+            /* 列表是否已全部勾选: 供全选按钮在"全选"与"取消全选"之间自动切换 */
+            property bool allChecked: (mainArea_LocalPage.mainListViewModel.length>0
+                                       && mainArea_LocalPage.mainListViewModel.every(function(one) { return one["checked"]===true; }));
             property string sortKey: "";
             property bool sortAsc: true;
             /* 曲名与歌手合并按钮的四态下标, -1 表示尚未点过该按钮 */
@@ -498,10 +501,18 @@ MainAreaFatherPage {
                     property bool checkedRow: (modelData["checked"]===true);
                     property bool selectedRow: (mainListView.selectedWhich===modelData["absfpath"]);
                     property bool playingRow: (GlobalFileStorage.playState.playingWhich===modelData["absfpath"]);
+                    /* 行内可用内容宽度: 与排序表头的左右边距一致, 三列列宽由它乘列宽比例算出,
+                     * 因此左侧栏收起或展开时表头与行内列同步重算 */
+                    property real rowContentW: (mainListView.width-anchors.leftMargin-anchors.rightMargin);
                     /* 悬停高亮: 除整行区域外还要或上内部各组件自己的悬停态,
                      * 因为子组件会接收悬停事件, 此时整行区域的 containsMouse 会变成 false */
                     property bool hoveredRow: (boxClick.containsMouse||songCheckBtn.hovered||songAvatarBtn.hovered||songLikeBtn.hovered||songAddIntoBtn.hovered||songnameHh.hovered||singerHh.hovered);
                     color: ((checkedRow||selectedRow)? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
+                    /* 歌名歌手列的起点偏移: 勾选框, 封面与它们两侧的间距占掉的横向距离,
+                     * 该列左边缘因此与排序表头的歌名文字左侧对齐 */
+                    property real songColOffset: 10+16+10+40+10;
+                    /* 大小与时长两列相对算出的位置再左移的距离: 取 Row 间距的 1.5 倍 */
+                    property real metaColLeftShift: 15;
                     MouseArea {
                         id: boxClick;
                         anchors.fill: parent;
@@ -512,13 +523,13 @@ MainAreaFatherPage {
                                 return;
                             }
                             mainListView.selectedWhich=modelData["absfpath"];
-                            console.log("单击: ",mainListView.selectedWhich);
+                            Assist.dlog("列表","单击: ",mainListView.selectedWhich);
                         }
                         onDoubleClicked: {
                             if(mainListView.batchMode) {
                                 return;
                             }
-                            console.log("双击: ",modelData["absfpath"]);
+                            Assist.dlog("列表","双击: ",modelData["absfpath"]);
                             if(GlobalFileStorage.playState.playingWhich===modelData["absfpath"]) {
                                 return;
                             }
@@ -527,6 +538,7 @@ MainAreaFatherPage {
                     }
                     Row {
                         anchors.fill: parent;
+                        topPadding: 8;
                         leftPadding: 10;
                         rightPadding: 10;
                         spacing: 10;
@@ -603,14 +615,17 @@ MainAreaFatherPage {
                                 Rectangle {
                                     anchors.fill: parent;
                                     radius: 10;
-                                    color: (songAvatarBtn.hovered||boxClick.containsMouse? Qt.rgba(0,0,0,0.3):Define.nocolor);
+                                    /* 批量操作时临时禁用暗色遮罩, 避免勾选时封面变暗 */
+                                    color: ((!mainListView.batchMode&&(songAvatarBtn.hovered||boxClick.containsMouse))? Qt.rgba(0,0,0,0.3):Define.nocolor);
                                 }
                             }
                         }
+                        /* 歌名与歌手列: 起点被勾选框与封面推到 songColOffset, 因此左边缘与排序表头的
+                         * 歌名文字左侧对齐; 宽度固定, 超出时省略号截断, 点赞与下一首播放紧随其后 */
                         Column {
                             anchors.verticalCenter: parent.verticalCenter;
                             spacing: 5;
-                            width: 240;
+                            width: Define.songColWidth;
                             /* 正在播放的行把曲名与歌手改成选中青, 与选中背景并存 */
                             Text {
                                 width: parent.width;
@@ -643,36 +658,72 @@ MainAreaFatherPage {
                                 ToolTip.delay: 500;
                             }
                         }
-                        CustomButtonA {
-                            id: songLikeBtn;
-                            visible: !mainListView.batchMode;
+                        /* 点赞与下一首播放: 单独用一层容器内嵌 Row, 便于给这两个按钮设置独立的间距 */
+                        Rectangle {
+                            id: songActionBox;
                             anchors.verticalCenter: parent.verticalCenter;
-                            height: 20;
-                            width: 20;
-                            icon.source: (liked? "qrc:/assets/iconfont/function/liked.svg":"qrc:/assets/iconfont/function/like.svg");
-                            icon.color: ((liked||hovered)? Define.btnIconRed:Define.btnIconColor);
-                            transEnabled: false;
-                            property bool liked: (modelData["liked"]===true);
-                            onClicked: {
-                                var next=!liked;
-                                GlobalFileStorage.setLiked(modelData["absfpath"],next);
-                                var v=mainArea_LocalPage.mainListViewModel.slice();
-                                v[index]["liked"]=next;
-                                mainArea_LocalPage.mainListViewModel=v;
+                            color: Define.nocolor;
+                            width: songActionRow.width;
+                            height: songActionRow.height;
+                            Row {
+                                id: songActionRow;
+                                spacing: 25;
+                                CustomButtonA {
+                                    id: songLikeBtn;
+                                    visible: !mainListView.batchMode;
+                                    height: 20;
+                                    width: 20;
+                                    icon.source: (liked? "qrc:/assets/iconfont/function/liked.svg":"qrc:/assets/iconfont/function/like.svg");
+                                    icon.color: ((liked||hovered)? Define.btnIconRed:Define.btnIconColor);
+                                    transEnabled: false;
+                                    property bool liked: (modelData["liked"]===true);
+                                    onClicked: {
+                                        var next=!liked;
+                                        GlobalFileStorage.setLiked(modelData["absfpath"],next);
+                                        var v=mainArea_LocalPage.mainListViewModel.slice();
+                                        v[index]["liked"]=next;
+                                        mainArea_LocalPage.mainListViewModel=v;
+                                    }
+                                }
+                                CustomButtonA {
+                                    id: songAddIntoBtn;
+                                    visible: !mainListView.batchMode;
+                                    height: 20;
+                                    width: 20;
+                                    icon.source: "qrc:/assets/iconfont/function/addinto.svg";
+                                    transEnabled: false;
+                                    onClicked: {
+                                        thePlayer.insertNext(modelData);
+                                    }
+                                }
                             }
                         }
-                        CustomButtonA {
-                            id: songAddIntoBtn;
-                            visible: !mainListView.batchMode;
-                            anchors.verticalCenter: parent.verticalCenter;
-                            height: 20;
-                            width: 20;
-                            icon.source: "qrc:/assets/iconfont/function/addinto.svg";
-                            transEnabled: false;
-                            onClicked: {
-                                thePlayer.insertNext(modelData);
-                            }
-                        }
+                    }
+                    /* 大小与时长两列: 脱离 Row, 直接按列宽比例算出左侧与宽度,
+                     * 使 Text 左侧分别对齐排序表头的大小与时长文字左侧 */
+                    Text {
+                        anchors.top: parent.top;
+                        anchors.topMargin: 8;
+                        x: (box.songColOffset+box.rowContentW*Define.listColumnRatios[0]-box.metaColLeftShift);
+                        width: (box.rowContentW*Define.listColumnRatios[1]);
+                        text: Assist.fileSize2text(modelData["size"]);
+                        font.pixelSize: 13;
+                        font.weight: 400;
+                        color: (box.playingRow? Define.choseCyanColor:"black");
+                        elide: Text.ElideRight;
+                        wrapMode: Text.NoWrap;
+                    }
+                    Text {
+                        anchors.top: parent.top;
+                        anchors.topMargin: 8;
+                        x: (box.songColOffset+box.rowContentW*(Define.listColumnRatios[0]+Define.listColumnRatios[1])-box.metaColLeftShift);
+                        width: (box.rowContentW*Define.listColumnRatios[2]);
+                        text: Assist.int2mmss(modelData["duration"]);
+                        font.pixelSize: 13;
+                        font.weight: 400;
+                        color: (box.playingRow? Define.choseCyanColor:"black");
+                        elide: Text.ElideRight;
+                        wrapMode: Text.NoWrap;
                     }
                 }
             }
@@ -732,6 +783,7 @@ MainAreaFatherPage {
                 mainArea_LocalPage.mainListViewModel=sortList(v);
                 selectedWhich="";
                 contentY=0;
+                Assist.dlog("列表","重建列表: 标签 ",headRow.curr,", 共 ",v.length," 项");
             }
             /* 按当前排序键返回重排副本 */
             function sortList(v) {
@@ -758,6 +810,7 @@ MainAreaFatherPage {
                     sortAsc=true;
                 }
                 mainArea_LocalPage.mainListViewModel=sortList(mainArea_LocalPage.mainListViewModel);
+                Assist.dlog("列表","排序: 键 ",sortKey,", 升序 ",sortAsc);
             }
             /* 曲名与歌手合并按钮: 0 歌名升, 1 歌名降, 2 歌手升, 3 歌手降, 每次点击进入下一态 */
             function sortByName() {
@@ -765,6 +818,7 @@ MainAreaFatherPage {
                 sortKey=(nameSortStep<2? "songname":"singer");
                 sortAsc=(nameSortStep===0 || nameSortStep===2);
                 mainArea_LocalPage.mainListViewModel=sortList(mainArea_LocalPage.mainListViewModel);
+                Assist.dlog("列表","排序(合并按钮): 键 ",sortKey,", 升序 ",sortAsc,", 四态下标 ",nameSortStep);
             }
             /* 合并按钮当前态对应的键名 */
             function nameSortLabel() {
@@ -810,6 +864,7 @@ MainAreaFatherPage {
                     nv.push(v[i]);
                 }
                 mainArea_LocalPage.mainListViewModel=sortList(nv);
+                Assist.dlog("元数据","回填列表: 应用 ",nv.length," 项");
                 /* 队列与列表共享条目对象, 回填后通知播放模块刷新播放栏显示的曲名与歌手 */
                 if(thePlayer!==undefined && thePlayer!==null) {
                     thePlayer.syncPlayingInfo();
@@ -831,6 +886,7 @@ MainAreaFatherPage {
                 }
                 batchMode=on;
                 selectedWhich="";
+                Assist.dlog("列表","批量多选态: ",on);
                 if(!batchMode) {
                     setAllChecked(false);
                 }
@@ -843,12 +899,17 @@ MainAreaFatherPage {
             }
             /* 全选或取消全选 */
             function setAllChecked(what) {
+                Assist.dlog("列表","全选状态改为: ",what,", 共 ",mainArea_LocalPage.mainListViewModel.length," 项");
                 var v=mainArea_LocalPage.mainListViewModel;
                 var l=v.length;
                 for(var i=0;i<l;i++) {
                     v[i]["checked"]=what;
                 }
                 mainArea_LocalPage.mainListViewModel=v.slice();
+            }
+            /* 全选按钮: 已全部勾选时改为取消全选 */
+            function toggleAllChecked() {
+                setAllChecked(!allChecked);
             }
             /* 已勾选的条目 */
             function checkedItems() {
@@ -867,14 +928,14 @@ MainAreaFatherPage {
                 var items=checkedItems();
                 var l=items.length;
                 if(l<=0) {
-                    console.log("批量加入失败: 未勾选任何歌曲");
+                    Assist.dlog("列表","批量加入失败: 未勾选任何歌曲");
                     return false;
                 }
                 for(var i=0;i<l;i++) {
                     thePlayer.insertNext(items[i]);
                 }
                 setAllChecked(false);
-                console.log("批量加入播放列表: ",l);
+                Assist.dlog("列表","批量加入播放列表: ",l);
                 return true;
             }
             /* 批量移除: 交由 GlobalFileStorage 处理, 外部不直接改写其数据 */
@@ -882,7 +943,7 @@ MainAreaFatherPage {
                 var items=checkedItems();
                 var l=items.length;
                 if(l<=0) {
-                    console.log("批量移除失败: 未勾选任何歌曲");
+                    Assist.dlog("列表","批量移除失败: 未勾选任何歌曲");
                     return false;
                 }
                 var paths=[];
@@ -890,7 +951,7 @@ MainAreaFatherPage {
                     paths.push(items[i]["absfpath"]);
                 }
                 GlobalFileStorage.removeSongs(paths);
-                console.log("批量移除: ",l);
+                Assist.dlog("列表","批量移除: ",l);
                 rebuild();
                 return true;
             }
@@ -1369,12 +1430,12 @@ MainAreaFatherPage {
             currentFolder: AppFileHelper.getAppPath();
             options: FolderDialog.ReadOnly;
             onAccepted: {
-                console.log(selectedFolder);
+                Assist.dlog("列表",selectedFolder);
                 var mlvm=mainArea_LocalPage.addSongDirViewModel;
                 var l=mlvm.length;
                 for(var i=0;i<l;i++) {
                     if(mlvm[i]["absdpath"]===selectedFolder) {
-                        console.log("repeat dir: ",selectedFolder);
+                        Assist.dlog("列表","repeat dir: ",selectedFolder);
                         return;
                     }
                 }
@@ -1499,7 +1560,7 @@ MainAreaFatherPage {
         var v=mainArea_LocalPage.mainListViewModel;
         var l=v.length;
         if(l<=0) {
-            console.log("播放失败: 列表为空");
+            Assist.dlog("列表","播放失败: 列表为空");
             return false;
         }
         var which=mainListView.selectedWhich;
@@ -1510,10 +1571,12 @@ MainAreaFatherPage {
                 break;
             }
         }
+        Assist.dlog("列表","播放整个列表: ",l," 项, 起点 ",one["absfpath"]);
         return thePlayer.playAll(v,one);
     }
     /* 播放某一行: 播放队列为空时以整个列表构造队列, 否则插到当前播放项之后 */
     function playRow(one) {
+        Assist.dlog("列表","播放某一行: ",one["absfpath"]);
         if(GlobalFileStorage.playState.sortlist.length<=0) {
             return thePlayer.playAll(mainArea_LocalPage.mainListViewModel,one);
         }
@@ -1551,11 +1614,12 @@ MainAreaFatherPage {
     function jump2playing() {
         var idx=mainArea_LocalPage.playingRowIndex();
         if(idx<0) {
-            console.log("定位失败: 当前播放的歌曲不在列表中");
+            Assist.dlog("列表","定位失败: 当前播放的歌曲不在列表中");
             return false;
         }
         mainListView.selectedWhich=GlobalFileStorage.playState.playingWhich;
         mainListView.positionViewAtIndex(idx,ListView.Beginning);
+        Assist.dlog("列表","定位到当前播放行: 下标 ",idx);
         return true;
     }
     /* 入队探测元数据: 队列由空转非空时视为新的一批, 占用加载条并重置计数 */
@@ -1606,6 +1670,7 @@ MainAreaFatherPage {
         cppProbing=false;
         fallbackTimeout.stop();
         probeTimeout.restart();
+        Assist.dlog("元数据","开始探测: ",one,", 队列剩余 ",probeQueue.length);
         theProber.source=one;
     }
     /* FakePlayer 探测状态回调 */
@@ -1651,6 +1716,7 @@ MainAreaFatherPage {
         }
         probeTimeout.stop();
         cppProbing=true;
+        Assist.dlog("元数据","探测超时, 转文件辅助类兜底: ",probingPath);
         /* 取消 FakePlayer 上未完成的加载 */
         theProber.source="";
         fallbackTimeout.restart();

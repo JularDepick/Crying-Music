@@ -7,6 +7,10 @@
 
 配置路径以脚本所在目录为基准解析，可在任意工作目录下运行。
 复制结束后会自检构建产物中未纳入清单的 DLL 与插件目录，提示可能漏带的依赖。
+
+本脚本同时被 GitHub Actions 工作流 .github/workflows/release-quick_app.yml 调用，
+发布 release 时由它产出上传到 assets 的便携版；因此 SOURCE_DIR 指向的构建输出目录名
+必须与工作流里的构建目录名保持一致，新增依赖时需要同步补充 COPY_TARGETS。
 """
 
 import shutil

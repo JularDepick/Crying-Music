@@ -39,4 +39,24 @@ Item {
     property var audioFormats: [".mp3",".m4a",".wav",".flac",".ogg"];
     /* 播放栏曲名与歌手的最大显示宽度: 未超出时宽度贴合文本, 超出该宽度时循环滚动轮播 */
     property int playerTitleMaxWidth: 180;
+    /* 歌曲列表三列占列表内容宽度的比例: 曲名与歌手 / 大小 / 时长, 比例和为 1,
+     * 排序表头与委托行内两处共用, 保证表头列与行内容列对齐 */
+    property var listColumnRatios: [0.7,0.15,0.15];
+    /* 歌曲列表行内曲名与歌手列的固定宽度: 不随列宽比例撑开, 超出时省略号截断 */
+    property int songColWidth: 240;
+    /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;
+     * 输出的统一格式为 [分类标签]<具体信息>, 由 Assist 的输出函数拼装 */
+    property var debugCategoryOn:
+    ({
+        "存储目录": true,
+        "落盘": true,
+        "列表": true,
+        "元数据": true,
+        "进度条": true,
+        "播放": true,
+        "队列": true,
+        "面板": true,
+        "界面": true,
+        "点击收起": true
+    });
 }

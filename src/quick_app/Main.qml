@@ -214,6 +214,7 @@ ApplicationWindow {
                 if(b===spreaded) {
                     return;
                 }
+                Assist.dlog("界面","左侧栏展开状态: ",b);
                 GlobalFileStorage.setLeftSidebarSpreaded(b);
             }
             /* 左侧栏的右边框拖拽 */
@@ -586,6 +587,7 @@ ApplicationWindow {
                 if(curr===which) {
                     return;
                 }
+                Assist.dlog("界面","换页: ",routeKeyOf(which));
                 curr.visible=false;
                 curr=which;
                 curr.visible=true;
@@ -596,6 +598,7 @@ ApplicationWindow {
             function applyStoredPage() {
                 var obj=leftSidebar.svg2obj[GlobalFileStorage.uiState.mainAreaPage];
                 if(obj===undefined || obj===null) {
+                    Assist.dwarn("界面","恢复页面失败: 存储里的页面键无效: ",GlobalFileStorage.uiState.mainAreaPage);
                     return false;
                 }
                 _show(obj);
@@ -605,6 +608,7 @@ ApplicationWindow {
                 if(uhis.length<=0) {
                     return;
                 }
+                Assist.dlog("界面","后退");
                 var utop=uhis[uhis.length-1];
                 var uarr=uhis.slice();
                 uarr.pop();
@@ -618,6 +622,7 @@ ApplicationWindow {
                 if(rhis.length<=0) {
                     return;
                 }
+                Assist.dlog("界面","前进");
                 var rtop=rhis[rhis.length-1];
                 var rarr=rhis.slice();
                 rarr.pop();
@@ -631,6 +636,7 @@ ApplicationWindow {
                 if(curr===which) {
                     return;
                 }
+                Assist.dlog("界面","页面跳转: ",routeKeyOf(which));
                 var uarr=uhis.slice();
                 uarr.push(curr);
                 uhis=uarr;
@@ -709,17 +715,17 @@ ApplicationWindow {
                 }
                 source: "";
                 onErrorOccurred: (error, errorString)=>{
-                    console.error("音频播放错误:",error,errorString);
+                    Assist.derror("播放","音频播放错误:",error,errorString);
                 }
                 onMediaStatusChanged: {
                     if(mediaStatus===MediaPlayer.LoadedMedia && pendingRestore===true) {
                         /* 断点恢复: 音频加载完成后回到上次的播放进度, 但不自动播放 */
                         pendingRestore=false;
                         position=(GlobalFileStorage.playState.playingPosition===undefined? 0:GlobalFileStorage.playState.playingPosition);
-                        console.log("断点恢复: ",source," 进度 ",position);
+                        Assist.dlog("播放","断点恢复: ",source," 进度 ",position);
                     }
                     if(mediaStatus===MediaPlayer.EndOfMedia) {
-                        console.log("播放结束: ",source);
+                        Assist.dlog("播放","播放结束: ",source);
                         player.playNext(true);
                     }
                 }
@@ -741,7 +747,7 @@ ApplicationWindow {
                 ];*/
                 function jump2play(which) {
                     if(AppFileHelper.existsFile(which.absfpath)===false) {
-                        console.error("跳转错误: ",which);
+                        Assist.derror("播放","跳转错误: ",which);
                         return false;
                     }
                     sortlist=insertAfterPlaying(which);
@@ -753,18 +759,18 @@ ApplicationWindow {
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
-                    console.log("跳转成功: ",which);
+                    Assist.dlog("播放","跳转成功: ",which);
                     return true;
                 }
                 function insertNext(which) {
                     if(which===undefined || which.absfpath===undefined) {
-                        console.error("插入错误: ",which);
+                        Assist.derror("播放","插入错误: ",which);
                         return false;
                     }
                     sortlist=insertAfterPlaying(which);
                     syncPlayingIndex();
                     syncPlayState();
-                    console.log("插入下一首: ",which);
+                    Assist.dlog("播放","插入下一首: ",which);
                     return true;
                 }
                 /* 去重后插到当前播放项之后, 当前无播放项时追加到末尾 */
@@ -794,12 +800,12 @@ ApplicationWindow {
                 /* 以整份列表构造播放队列并开始播放 */
                 function playAll(list,which) {
                     if(list===undefined || list.length<=0) {
-                        console.error("播放失败: 列表为空");
+                        Assist.derror("播放","播放失败: 列表为空");
                         return false;
                     }
                     var one=(which===undefined? list[0]:which);
                     if(AppFileHelper.existsFile(one.absfpath)===false) {
-                        console.error("播放错误: ",one);
+                        Assist.derror("播放","播放错误: ",one);
                         return false;
                     }
                     sortlist=list.slice();
@@ -815,13 +821,13 @@ ApplicationWindow {
                     source=playingWhich;
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
-                    console.log("播放列表: ",sortlist.length);
+                    Assist.dlog("播放","播放列表: ",sortlist.length);
                     return true;
                 }
                 /* 直接切到队列中的某一项播放, 不改动队列顺序 */
                 function playItem(which) {
                     if(AppFileHelper.existsFile(which.absfpath)===false) {
-                        console.error("跳转错误: ",which);
+                        Assist.derror("播放","跳转错误: ",which);
                         return false;
                     }
                     playingWhich=which.absfpath;
@@ -870,7 +876,7 @@ ApplicationWindow {
                         /* 顺序播放: 自动切换时停止 */
                         if(auto===true) {
                             stop();
-                            console.log("顺序播放结束");
+                            Assist.dlog("播放","顺序播放结束");
                         }
                         return false;
                     }
@@ -897,13 +903,14 @@ ApplicationWindow {
                 }
                 /* 切换播放顺序: 切到随机时立即打乱当前队列 */
                 function setPlayMode(mode) {
+                    Assist.dlog("播放","切换播放顺序: ",mode);
                     playMode=mode;
                     if(mode===0) {
                         sortlist=shuffleList(sortlist);
                         syncPlayingIndex();
                     }
                     syncPlayState();
-                    console.log("播放顺序: ",mode);
+                    Assist.dlog("播放","播放顺序: ",mode);
                 }
                 /* 打乱列表顺序 */
                 function shuffleList(v) {
@@ -933,6 +940,7 @@ ApplicationWindow {
                 }
                 /* 从播放队列中移除单项 */
                 function removeItem(which) {
+                    Assist.dlog("队列","从队列移除: ",which.absfpath);
                     var asl=[];
                     var l=sortlist.length;
                     for(var i=0;i<l;i++) {
@@ -946,6 +954,7 @@ ApplicationWindow {
                 }
                 /* 清空播放队列, 保留当前正在播放的项 */
                 function clearList() {
+                    Assist.dlog("队列","清空队列: 清空 ",sortlist.length," 项, 保留当前播放项");
                     var keep=[];
                     var l=sortlist.length;
                     for(var i=0;i<l;i++) {
@@ -988,11 +997,13 @@ ApplicationWindow {
                     playMode=st.playMode;
                     if(playingWhich==="" || AppFileHelper.existsFile(playingWhich)===false) {
                         /* 上次的音频已不存在: 清掉当前播放项, 队列保留 */
+                        Assist.dwarn("播放","断点恢复失败: 上次的音频文件不存在, 已清掉当前播放项, 队列保留");
                         playingWhich="";
                         playingIndex=-1;
                         syncPlayState();
                         return false;
                     }
+                    Assist.dlog("播放","断点恢复: 队列 ",sortlist.length," 项, 当前 ",playingWhich);
                     pendingRestore=true;
                     syncPlayingInfo();
                     source=playingWhich;
@@ -1068,7 +1079,7 @@ ApplicationWindow {
                         icon.height: parent.width-5;
                         onClicked: {
                             lyricsSubTab.tshow();
-                            console.log("clicked lyricsOpenerBtn");
+                            Assist.dlog("播放","clicked lyricsOpenerBtn");
                         }
                         background: Rectangle {
                             id: lyricsOpenerBg;
@@ -1112,6 +1123,13 @@ ApplicationWindow {
                             width: Math.min(playingTitleText.implicitWidth,Define.playerTitleMaxWidth);
                             height: playingTitleText.height;
                             clip: true;
+                            /* 超出上限时确实看不到全文, 悬停浮出完整文本 */
+                            HoverHandler {
+                                id: playingTitleHh;
+                            }
+                            ToolTip.visible: playingTitleHh.hovered&&(playingTitleText.implicitWidth>Define.playerTitleMaxWidth);
+                            ToolTip.text: playingTitleText.text;
+                            ToolTip.delay: 500;
                             Text {
                                 id: playingTitleText;
                                 text: `${song} - ${singer}`;
@@ -1124,12 +1142,12 @@ ApplicationWindow {
                                 onTextChanged: {
                                     x=0;
                                 }
-                                /* 轮播: 先停一下, 再滚到文本末尾, 再停一下, 然后回到开头重新开始 */
+                                /* 轮播: 开头停 1s, 滚到文本末尾, 末尾停 1s, 再滚回开头, 如此往复 */
                                 SequentialAnimation {
                                     running: (playingTitleText.implicitWidth>Define.playerTitleMaxWidth);
                                     loops: Animation.Infinite;
                                     PauseAnimation {
-                                        duration: 1200;
+                                        duration: 1000;
                                     }
                                     NumberAnimation {
                                         target: playingTitleText;
@@ -1139,7 +1157,17 @@ ApplicationWindow {
                                         duration: Math.max(1200,(playingTitleText.implicitWidth-Define.playerTitleMaxWidth)*30);
                                     }
                                     PauseAnimation {
-                                        duration: 800;
+                                        duration: 1000;
+                                    }
+                                    NumberAnimation {
+                                        target: playingTitleText;
+                                        property: "x";
+                                        from: (Define.playerTitleMaxWidth-playingTitleText.implicitWidth);
+                                        to: 0;
+                                        duration: Math.max(1200,(playingTitleText.implicitWidth-Define.playerTitleMaxWidth)*30);
+                                    }
+                                    PauseAnimation {
+                                        duration: 1000;
                                     }
                                 }
                             }
@@ -1319,7 +1347,7 @@ ApplicationWindow {
                                 player.play();
                             }
                             stampSlider.value=Math.floor(player.position/1000);
-                            console.log("click play_pause, playing=",playing);
+                            Assist.dlog("播放","click play_pause, playing=",playing);
                         }
                         transEnabled: false;
                         background: Rectangle {
@@ -1387,7 +1415,7 @@ ApplicationWindow {
                                     onPressedChanged: {
                                         if(!pressed) {
                                             GlobalFileStorage.setVolume(value);
-                                            console.log("音量: ",value);
+                                            Assist.dlog("播放","音量: ",value);
                                         }
                                     }
                                 }
@@ -1403,7 +1431,7 @@ ApplicationWindow {
                                             soundSlider.value=0;
                                         }
                                         GlobalFileStorage.setVolume(soundSlider.value);
-                                        console.log("音量: ",soundSlider.value);
+                                        Assist.dlog("播放","音量: ",soundSlider.value);
                                     }
                                 }
                             }
@@ -1431,7 +1459,7 @@ ApplicationWindow {
                         onPressedChanged: {
                             if(!pressed) {
                                 player.position=value*1000;
-                                console.log("音频进度：",value);
+                                Assist.dlog("播放","音频进度：",value);
                                 if(!player.playing) {
                                     player.play();
                                 }
@@ -1469,14 +1497,27 @@ ApplicationWindow {
                     }
                     function sub_show() {
                         subVisible=true;
+                        Assist.dlog("面板","显示播放列表面板");
                     }
                     function sub_hide() {
+                        if(subVisible===true) {
+                            Assist.dlog("面板","收起播放列表面板");
+                        }
                         subVisible=false;
                     }
                     function sub_tshow() {
                         subVisible=!subVisible;
+                        Assist.dlog("面板","播放列表面板可见: ",subVisible);
                     }
                 }
+            }
+        }
+        /* 播放状态变化时面板自动定位一次: 因此从歌曲列表点行播放或点"播放"按钮后,
+         * 面板已经停在当前播放项上 */
+        Connections {
+            target: GlobalFileStorage;
+            function onPlayStateChanged() {
+                playingListView.jump2playing();
             }
         }
         /* 播放列表面板: 由播放栏的播放列表按钮呼出 */
@@ -1562,7 +1603,7 @@ ApplicationWindow {
                     id: playingListView;
                     anchors.fill: parent;
                     anchors.topMargin: 5;
-                    spacing: 1;
+                    spacing: 0;
                     clip: true;
                     DragHandler {
                         acceptedDevices: PointerDevice.Mouse;
@@ -1595,10 +1636,10 @@ ApplicationWindow {
                                 hoverEnabled: true;
                                 onClicked: {
                                     playingListView.selectedWhich=modelData["absfpath"];
-                                    console.log("单击: ",playingListView.selectedWhich);
+                                    Assist.dlog("播放","单击: ",playingListView.selectedWhich);
                                 }
                                 onDoubleClicked: {
-                                    console.log("双击: ",modelData["absfpath"]);
+                                    Assist.dlog("播放","双击: ",modelData["absfpath"]);
                                     if(player.playingWhich===modelData["absfpath"]) {
                                         return;
                                     }
@@ -1733,8 +1774,7 @@ ApplicationWindow {
                                 border.color: (playingJump2PlayingBtn.hovered? Define.btnHoverColor:Define.subGrey);
                             }
                             onClicked: {
-                                playingListView.selectedWhich=player.playingWhich;
-                                playingListView.positionViewAtIndex(player.playingIndex,ListView.Beginning);
+                                playingListView.jump2playing();
                             }
                         }
                         CustomButtonA {
@@ -1757,6 +1797,16 @@ ApplicationWindow {
                                 playingListView.contentY=0;
                             }
                         }
+                    }
+                    /* 定位到当前播放行: 选中它并滚到列表开头位置, 按钮与自动跟随共用 */
+                    function jump2playing() {
+                        if(player.playingIndex<0) {
+                            return false;
+                        }
+                        selectedWhich=player.playingWhich;
+                        positionViewAtIndex(player.playingIndex,ListView.Beginning);
+                        Assist.dlog("面板","定位到当前播放行: 下标 ",player.playingIndex);
+                        return true;
                     }
                     /* 当前播放行是否落在视域之外 */
                     function playingOutOfView() {
@@ -1828,8 +1878,10 @@ ApplicationWindow {
                     loadingRate.tipShown=false;
                     return;
                 }
+                Assist.dlog("进度条","加载进度: ",st.value,"% (",st.usedByWho,")");
                 if(st.value>=100 && loadingRate.tipShown===false) {
                     loadingRate.tipShown=true;
+                    Assist.dlog("进度条","加载完成: ",st.finishedTip);
                     loadingTip.showTip(st.finishedTip);
                     memStorage.stopLoading(st.usedByWho);
                 }
@@ -1891,17 +1943,19 @@ ApplicationWindow {
         }
     }
     Component.onCompleted: {
-        console.log("UI加载成功,开始读取程序储存");
+        Assist.dlog("界面","UI 加载成功, 开始读取程序储存");
         /* 先确定存储目录, 再读取落盘数据; 子项先于本处理器完成构建, 因此列表需在读盘后重建一次 */
         GlobalFileStorage.verifyStorageDir();
         GlobalFileStorage.load();
-        mainArea.applyStoredPage();
+        Assist.dlog("界面","恢复上次停留的页面: ",mainArea.applyStoredPage());
         mainArea_LocalPage.refresh();
-        player.restoreFromState();
+        Assist.dlog("播放","恢复上次的播放状态: ",player.restoreFromState());
         window.visible=true;
+        Assist.dlog("界面","窗口已显示");
     }
     Component.onDestruction: {
         /* 退出前把当前播放进度与全部数据落盘 */
+        Assist.dlog("界面","窗口销毁, 退出前保存进度与全部数据");
         player.syncPlayPosition(Math.floor(player.position));
         GlobalFileStorage.save();
     }

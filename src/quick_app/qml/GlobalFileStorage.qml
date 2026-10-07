@@ -66,46 +66,46 @@ Item {
     /* 目录决策: 指针优先, 其次 A, 再 B, 最后兜底 C; 三个候选都不可用时退出应用。
      * 全过程输出 [存储目录] 前缀的日志, 便于在运行控制台里追决策路径 */
     function verifyStorageDir() {
-        console.log("[存储目录] 决策开始");
-        console.log("[存储目录] 候选 A(应用数据目录): ",dirLabel(storageDirPathA));
-        console.log("[存储目录] 候选 B(用户目录): ",dirLabel(storageDirPathB));
-        console.log("[存储目录] 候选 C(二进制运行目录): ",dirLabel(storageDirPathC));
+        Assist.dlog("存储目录","决策开始");
+        Assist.dlog("存储目录","候选 A(应用数据目录): ",dirLabel(storageDirPathA));
+        Assist.dlog("存储目录","候选 B(用户目录): ",dirLabel(storageDirPathB));
+        Assist.dlog("存储目录","候选 C(二进制运行目录): ",dirLabel(storageDirPathC));
         /* 1. 指针文件指向的目录仍存在且可写时直接沿用, 本次启动不做数据迁移;
          * 目录已消失时不沿用, 走完整决策, 避免用新建的空目录盖掉其它目录里的数据 */
         var remembered=readStoragePointer();
         if(remembered==="") {
-            console.log("[存储目录] 指针: 没有可用指向, 走完整决策");
+            Assist.dlog("存储目录","指针: 没有可用指向, 走完整决策");
         } else {
-            console.log("[存储目录] 指针: 指向 ",dirLabel(remembered));
+            Assist.dlog("存储目录","指针: 指向 ",dirLabel(remembered));
         }
         if(remembered!=="" && AppFileHelper.existsDir(remembered)===true
            && writableDir(remembered)===true) {
             storageDirPath=remembered;
             ensureLicenses(remembered);
-            console.log("[存储目录] 决策: 沿用指针指向的目录");
-            console.log("[存储目录] 最终采用: ",dirLabel(storageDirPath));
+            Assist.dlog("存储目录","决策: 沿用指针指向的目录");
+            Assist.dlog("存储目录","最终采用: ",dirLabel(storageDirPath));
             return true;
         }
         if(remembered!=="") {
-            console.log("[存储目录] 指针指向的目录不可用, 继续按候选顺序判断");
+            Assist.dlog("存储目录","指针指向的目录不可用, 继续按候选顺序判断");
         }
         var aReady=writableDir(storageDirPathA);
         var bReadable=readableDir(storageDirPathB);
         /* B 只在已存在且可读时才参与判定, 避免无谓地在用户目录下新建空目录 */
         var bReady=(bReadable===true && writableDir(storageDirPathB)===true);
-        console.log("[存储目录] 判定结果: A 可写=",aReady,", B 可读=",bReadable,", B 可写=",bReady);
+        Assist.dlog("存储目录","判定结果: A 可写=",aReady,", B 可读=",bReadable,", B 可写=",bReady);
         /* 2. A 可用: 优先 A; 仅当 A 的许可文本不齐而 B 齐全时才改用 B */
         if(aReady===true) {
             if(hasLicenses(storageDirPathA)===false && hasLicenses(storageDirPathB)===true) {
-                console.log("[存储目录] 决策: A 可写但许可文本不齐, B 齐全, 改用 B");
+                Assist.dlog("存储目录","决策: A 可写但许可文本不齐, B 齐全, 改用 B");
                 return adoptStorageDir(storageDirPathB,[storageDirPathA]);
             }
-            console.log("[存储目录] 决策: 优先采用 A");
+            Assist.dlog("存储目录","决策: 优先采用 A");
             return adoptStorageDir(storageDirPathA,(bReadable===true? [storageDirPathB]:[]));
         }
         /* 3. A 不可用而 B 可用: 改用 B, A 可读时把数据并进 B */
         if(bReady===true) {
-            console.log("[存储目录] 决策: A 不可写而 B 可用, 改用 B");
+            Assist.dlog("存储目录","决策: A 不可写而 B 可用, 改用 B");
             return adoptStorageDir(storageDirPathB,(readableDir(storageDirPathA)===true? [storageDirPathA]:[]));
         }
         /* 4. A 与 B 都不可用: 兜底到 C, 并把 A 与 B 中可读的数据并进来 */
@@ -117,14 +117,14 @@ Item {
             if(bReadable===true) {
                 srcs.push(storageDirPathB);
             }
-            console.log("[存储目录] 决策: A 与 B 都不可用, 兜底到 C");
+            Assist.dlog("存储目录","决策: A 与 B 都不可用, 兜底到 C");
             return adoptStorageDir(storageDirPathC,srcs);
         }
         /* 5. 三个候选都不可用: 报错并退出应用 */
-        console.error("[存储目录] 错误: 三个候选都不可写, 程序退出");
-        console.error("[存储目录]   A: ",dirLabel(storageDirPathA));
-        console.error("[存储目录]   B: ",dirLabel(storageDirPathB));
-        console.error("[存储目录]   C: ",dirLabel(storageDirPathC));
+        Assist.derror("存储目录","错误: 三个候选都不可写, 程序退出");
+        Assist.derror("存储目录","  A: ",dirLabel(storageDirPathA));
+        Assist.derror("存储目录","  B: ",dirLabel(storageDirPathB));
+        Assist.derror("存储目录","  C: ",dirLabel(storageDirPathC));
         Qt.exit(1);
         return false;
     }
@@ -139,34 +139,34 @@ Item {
     /* 候选目录是否可读: 空路径视为不可用 */
     function readableDir(dir) {
         if(dir==="") {
-            console.log("[存储目录]   可读判定: (空路径) -> 否");
+            Assist.dlog("存储目录","  可读判定: (空路径) -> 否");
             return false;
         }
         var ok=(AppFileHelper.canReadDir(dir)===true);
-        console.log("[存储目录]   可读判定: ",dirLabel(dir)," -> ",ok);
+        Assist.dlog("存储目录","  可读判定: ",dirLabel(dir)," -> ",ok);
         return ok;
     }
     /* 候选目录是否可写: 不存在时先尝试递归创建; 空路径视为不可用 */
     function writableDir(dir) {
         if(dir==="") {
-            console.log("[存储目录]   可写判定: (空路径) -> 否");
+            Assist.dlog("存储目录","  可写判定: (空路径) -> 否");
             return false;
         }
         if(AppFileHelper.existsDir(dir)===false) {
-            console.log("[存储目录]   可写判定: ",dirLabel(dir)," 不存在, 尝试创建");
+            Assist.dlog("存储目录","  可写判定: ",dirLabel(dir)," 不存在, 尝试创建");
             if(AppFileHelper.makeDir(dir,true)===false) {
-                console.warn("[存储目录]   可写判定: 目录创建失败: ",dirLabel(dir));
+                Assist.dwarn("存储目录","  可写判定: 目录创建失败: ",dirLabel(dir));
                 return false;
             }
-            console.log("[存储目录]   可写判定: 目录已创建");
+            Assist.dlog("存储目录","  可写判定: 目录已创建");
         }
         var ok=(AppFileHelper.canWriteDir(dir)===true);
-        console.log("[存储目录]   可写判定: ",dirLabel(dir)," -> ",ok);
+        Assist.dlog("存储目录","  可写判定: ",dirLabel(dir)," -> ",ok);
         return ok;
     }
     /* 采用某个目录作为存储目录: 合并来源目录的数据, 补齐许可文本, 写入指针 */
     function adoptStorageDir(dir,sources) {
-        console.log("[存储目录] 采用: ",dirLabel(dir),", 来源目录 ",sources.length," 个");
+        Assist.dlog("存储目录","采用: ",dirLabel(dir),", 来源目录 ",sources.length," 个");
         storageDirPath=dir;
         var l=sources.length;
         for(var i=0;i<l;i++) {
@@ -174,7 +174,7 @@ Item {
         }
         ensureLicenses(dir);
         writeStoragePointer(dir);
-        console.log("[存储目录] 最终采用: ",dirLabel(storageDirPath));
+        Assist.dlog("存储目录","最终采用: ",dirLabel(storageDirPath));
         return true;
     }
     /* 许可文本是否齐全: 只验证存在性, 不验证内容 */
@@ -191,10 +191,10 @@ Item {
             }
         }
         if(missing.length>0) {
-            console.log("[存储目录]   许可文本不全: ",dirLabel(dir),", 缺少 ",missing.join(", "));
+            Assist.dlog("存储目录","  许可文本不全: ",dirLabel(dir),", 缺少 ",missing.join(", "));
             return false;
         }
-        console.log("[存储目录]   许可文本齐全: ",dirLabel(dir));
+        Assist.dlog("存储目录","  许可文本齐全: ",dirLabel(dir));
         return true;
     }
     /* 补全许可文本: 只补缺失项, 不覆盖已存在的文件 */
@@ -208,41 +208,41 @@ Item {
             var dst=dir+"/"+licensesDirName+"/"+licenseFileNames[i];
             if(AppFileHelper.existsFile(dst)===false) {
                 if(AppFileHelper.copyFile(licenseResDir+licenseFileNames[i],dst)===false) {
-                    console.error("[存储目录] 许可文本补全失败: ",dirLabel(dst));
+                    Assist.derror("存储目录","许可文本补全失败: ",dirLabel(dst));
                 } else {
-                    console.log("[存储目录] 许可文本已补全: ",licenseFileNames[i]);
+                    Assist.dlog("存储目录","许可文本已补全: ",licenseFileNames[i]);
                     copied=copied+1;
                 }
             }
         }
-        console.log("[存储目录] 许可文本检查完成, 本次补全 ",copied," 个");
+        Assist.dlog("存储目录","许可文本检查完成, 本次补全 ",copied," 个");
         return true;
     }
     /* 读取存储目录指针: 文件缺失或内容损坏时返回空字符串 */
     function readStoragePointer() {
         var f=storageDirPathC+"/"+storagePointerFileName;
         if(storageDirPathC==="") {
-            console.log("[存储目录] 指针: 候选 C 为空, 无法定位指针文件");
+            Assist.dlog("存储目录","指针: 候选 C 为空, 无法定位指针文件");
             return "";
         }
         if(AppFileHelper.existsFile(f)===false) {
-            console.log("[存储目录] 指针: 文件不存在 ",dirLabel(f));
+            Assist.dlog("存储目录","指针: 文件不存在 ",dirLabel(f));
             return "";
         }
         var txt=AppFileHelper.readFile(f,"UTF-8");
         if(txt==="") {
-            console.log("[存储目录] 指针: 文件为空 ",dirLabel(f));
+            Assist.dlog("存储目录","指针: 文件为空 ",dirLabel(f));
             return "";
         }
         var obj=null;
         try {
             obj=JSON.parse(txt);
         } catch(e) {
-            console.warn("[存储目录] 指针解析失败: ",e);
+            Assist.dwarn("存储目录","指针解析失败: ",e);
             return "";
         }
         if(obj===null || obj===undefined || typeof obj.storageDirPath!=="string") {
-            console.log("[存储目录] 指针: 内容缺少 storageDirPath 字段");
+            Assist.dlog("存储目录","指针: 内容缺少 storageDirPath 字段");
             return "";
         }
         return obj.storageDirPath;
@@ -250,16 +250,16 @@ Item {
     /* 写入存储目录指针: 写入失败不影响本次运行 */
     function writeStoragePointer(dir) {
         if(storageDirPathC==="" || dir==="") {
-            console.log("[存储目录] 指针: 候选 C 或目标为空, 跳过写入");
+            Assist.dlog("存储目录","指针: 候选 C 或目标为空, 跳过写入");
             return false;
         }
         var f=storageDirPathC+"/"+storagePointerFileName;
         var txt=JSON.stringify({"version":dataVersion,"storageDirPath":dir});
         if(AppFileHelper.writeFile(f,txt,"UTF-8")===false) {
-            console.warn("[存储目录] 指针写入失败: ",dirLabel(f));
+            Assist.dwarn("存储目录","指针写入失败: ",dirLabel(f));
             return false;
         }
-        console.log("[存储目录] 指针已写入: ",dirLabel(f));
+        Assist.dlog("存储目录","指针已写入: ",dirLabel(f));
         return true;
     }
     /* 读取某目录下某个数据文件的有效载荷: 文件缺失或内容损坏时返回 null */
@@ -279,7 +279,7 @@ Item {
         try {
             obj=JSON.parse(txt);
         } catch(e) {
-            console.warn("数据文件解析失败: ",f,e);
+            Assist.dwarn("落盘","数据文件解析失败: ",f,e);
             return null;
         }
         if(obj===null || obj===undefined || obj.payload===undefined) {
@@ -290,25 +290,31 @@ Item {
     /* 写入某目录下某个数据文件: 统一带上结构版本号; 存储目录未确定时拒绝写入 */
     function writePayload(dir,fileName,payload) {
         if(dir==="") {
-            console.warn("保存失败: 存储目录未确定");
+            Assist.dwarn("落盘","保存失败: 存储目录未确定");
             return false;
         }
         var f=dir+"/"+dataDirName+"/"+fileName;
         var txt=JSON.stringify({"version":dataVersion,"payload":payload});
-        return AppFileHelper.writeFile(f,txt,"UTF-8");
+        var ok=AppFileHelper.writeFile(f,txt,"UTF-8");
+        if(ok===true) {
+            Assist.dlog("落盘","写入数据文件: ",fileName);
+        } else {
+            Assist.dwarn("落盘","写入数据文件失败: ",f);
+        }
+        return ok;
     }
     /* 数据迁移: 目标目录数据为主, 来源目录做并集补齐; 结果直接写回目标目录 */
     function mergeDataFrom(srcDir,dstDir) {
         if(srcDir==="" || dstDir==="" || srcDir===dstDir) {
             return false;
         }
-        console.log("[存储目录] 迁移数据: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
+        Assist.dlog("存储目录","迁移数据: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
         mergeLocalScan(srcDir,dstDir);
         mergePathList(srcDir,dstDir,likedFilesFileName);
         mergePathList(srcDir,dstDir,recentFilesFileName);
         mergeWholePayload(srcDir,dstDir,playStateFileName);
         mergeWholePayload(srcDir,dstDir,uiStateFileName);
-        console.log("[存储目录] 迁移完成: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
+        Assist.dlog("存储目录","迁移完成: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
         return true;
     }
     /* 路径列表合并: 目标在前, 来源独有的项按原顺序追加 */
@@ -329,16 +335,16 @@ Item {
     function mergePathList(srcDir,dstDir,fileName) {
         var src=readPayload(srcDir,fileName);
         if(src===null) {
-            console.log("[存储目录]   合并 ",fileName,": 来源目录没有该文件, 跳过");
+            Assist.dlog("存储目录","  合并 ",fileName,": 来源目录没有该文件, 跳过");
             return false;
         }
         var dst=readPayload(dstDir,fileName);
         if(dst===null) {
-            console.log("[存储目录]   合并 ",fileName,": 目标目录没有该文件, 直接采用来源的 ",src.length," 项");
+            Assist.dlog("存储目录","  合并 ",fileName,": 目标目录没有该文件, 直接采用来源的 ",src.length," 项");
             return writePayload(dstDir,fileName,src);
         }
         var merged=unionPaths(dst,src);
-        console.log("[存储目录]   合并 ",fileName,": 目标 ",dst.length," 项, 来源 ",src.length," 项, 结果 ",merged.length," 项");
+        Assist.dlog("存储目录","  合并 ",fileName,": 目标 ",dst.length," 项, 来源 ",src.length," 项, 结果 ",merged.length," 项");
         return writePayload(dstDir,fileName,merged);
     }
     /* 扫描文件夹清单合并: 以文件夹路径为唯一标识, 目标目录的勾选状态优先 */
@@ -372,12 +378,12 @@ Item {
     function mergeLocalScan(srcDir,dstDir) {
         var src=readPayload(srcDir,localScanFileName);
         if(src===null) {
-            console.log("[存储目录]   合并 ",localScanFileName,": 来源目录没有该文件, 跳过");
+            Assist.dlog("存储目录","  合并 ",localScanFileName,": 来源目录没有该文件, 跳过");
             return false;
         }
         var dst=readPayload(dstDir,localScanFileName);
         if(dst===null) {
-            console.log("[存储目录]   合并 ",localScanFileName,": 目标目录没有该文件, 直接采用来源的");
+            Assist.dlog("存储目录","  合并 ",localScanFileName,": 目标目录没有该文件, 直接采用来源的");
             return writePayload(dstDir,localScanFileName,src);
         }
         var res=({});
@@ -386,7 +392,7 @@ Item {
         res.scanFmts=unionPaths(dst.scanFmts,src.scanFmts);
         res.scanDirs=unionScanDirs(dst.scanDirs,src.scanDirs);
         res.scanRadio=(dst.scanRadio===undefined? src.scanRadio:dst.scanRadio);
-        console.log("[存储目录]   合并 ",localScanFileName,": 手动歌曲 ",res.singleFiles.length,
+        Assist.dlog("存储目录","  合并 ",localScanFileName,": 手动歌曲 ",res.singleFiles.length,
                     " 项, 扫描文件夹 ",res.scanDirs.length," 个, 格式 ",res.scanFmts.length,
                     " 个, 移除项 ",res.excludedFiles.length," 项, 时长下限 ",res.scanRadio);
         return writePayload(dstDir,localScanFileName,res);
@@ -395,23 +401,24 @@ Item {
      * 播放状态与界面状态都走这条规则 */
     function mergeWholePayload(srcDir,dstDir,fileName) {
         if(readPayload(dstDir,fileName)!==null) {
-            console.log("[存储目录]   合并 ",fileName,": 目标目录已有该文件, 以目标为准");
+            Assist.dlog("存储目录","  合并 ",fileName,": 目标目录已有该文件, 以目标为准");
             return false;
         }
         var src=readPayload(srcDir,fileName);
         if(src===null) {
-            console.log("[存储目录]   合并 ",fileName,": 来源目录没有该文件, 跳过");
+            Assist.dlog("存储目录","  合并 ",fileName,": 来源目录没有该文件, 跳过");
             return false;
         }
-        console.log("[存储目录]   合并 ",fileName,": 采用来源目录的整份内容");
+        Assist.dlog("存储目录","  合并 ",fileName,": 采用来源目录的整份内容");
         return writePayload(dstDir,fileName,src);
     }
     /* 读取落盘数据: 存储目录未确定或数据文件缺失时保持默认值 */
     function load() {
         if(storageDirPath==="") {
-            console.warn("加载失败: 存储目录未确定");
+            Assist.dwarn("落盘","加载失败: 存储目录未确定");
             return false;
         }
+        Assist.dlog("落盘","读取落盘数据: ",storageDirPath);
         var ls=readPayload(storageDirPath,localScanFileName);
         if(ls!==null) {
             localScan=({"singleFiles":(ls.singleFiles===undefined? []:ls.singleFiles),
@@ -443,15 +450,23 @@ Item {
             uiState=({"leftSidebarSpreaded":(us.leftSidebarSpreaded!==false),
                        "mainAreaPage":(typeof us.mainAreaPage==="string" && us.mainAreaPage!==""? us.mainAreaPage:"home")});
         }
-        console.log("读取落盘数据完成: ",storageDirPath);
+        Assist.dlog("落盘","读取完成: 手动歌曲 ",localScan.singleFiles.length,
+                    " 项, 扫描文件夹 ",localScan.scanDirs.length,
+                    " 个, 喜欢 ",likedFiles.length,
+                    " 项, 最近播放 ",recentFiles.length,
+                    " 项, 队列 ",playState.sortlist.length,
+                    " 项, 音量 ",playState.volume,
+                    ", 页面 ",uiState.mainAreaPage,
+                    ", 左侧栏展开 ",uiState.leftSidebarSpreaded);
         return true;
     }
     /* 写入全部落盘数据: 退出与数据迁移时使用 */
     function save() {
         if(storageDirPath==="") {
-            console.warn("保存失败: 存储目录未确定");
+            Assist.dwarn("落盘","保存失败: 存储目录未确定");
             return false;
         }
+        Assist.dlog("落盘","保存全部落盘数据: ",storageDirPath);
         writePayload(storageDirPath,localScanFileName,localScan);
         writePayload(storageDirPath,likedFilesFileName,likedFiles);
         writePayload(storageDirPath,recentFilesFileName,recentFiles);
@@ -481,6 +496,7 @@ Item {
     }
     /* 整体写回扫描规则 */
     function setMALocalP(a,b,c) {
+        Assist.dlog("落盘","写回扫描规则: 文件夹 ",a.length," 个, 格式 ",b.length," 种, 时长下限 ",c);
         localScan.scanDirs=a;
         localScan.scanFmts=b;
         localScan.scanRadio=c;
@@ -517,6 +533,7 @@ Item {
     }
     /* 添加手动歌曲: 去重写入, 并解除这些路径的移除标记, 收尾统一保存一次 */
     function addSingleFiles(files) {
+        Assist.dlog("落盘","添加手动歌曲: ",files.length," 项");
         var vg=localScan.singleFiles;
         var ls=files.length;
         var newvg=vg.slice();
@@ -537,6 +554,7 @@ Item {
     }
     /* 移除歌曲: 手动添加项直接移除, 扫描得到的项记为移除项 */
     function removeSongs(absfpaths) {
+        Assist.dlog("落盘","移除歌曲: ",absfpaths.length," 项");
         localScan.singleFiles=removePaths(localScan.singleFiles,absfpaths);
         var newe=localScan.excludedFiles.slice();
         var ls=absfpaths.length;
@@ -559,6 +577,7 @@ Item {
     }
     /* 设置喜欢状态 */
     function setLiked(absfpath,on) {
+        Assist.dlog("落盘","喜欢状态: ",absfpath," -> ",on);
         likedFiles=setPath(likedFiles,absfpath,on);
         saveLiked();
     }
@@ -568,6 +587,7 @@ Item {
     }
     /* 批量取消喜欢 */
     function removeLiked(absfpaths) {
+        Assist.dlog("落盘","批量取消喜欢: ",absfpaths.length," 项");
         likedFiles=removePaths(likedFiles,absfpaths);
         saveLiked();
     }
@@ -591,6 +611,7 @@ Item {
     }
     /* 批量移除最近播放记录 */
     function removeRecent(absfpaths) {
+        Assist.dlog("落盘","批量移除最近播放记录: ",absfpaths.length," 项");
         recentFiles=removePaths(recentFiles,absfpaths);
         saveRecent();
     }
@@ -610,6 +631,7 @@ Item {
     }
     /* 写入播放状态: 队列, 当前播放项与播放顺序一起写, 播放进度与音量沿用枢纽当前值 */
     function setPlayState(list,which,index,mode) {
+        Assist.dlog("落盘","写入播放状态: 队列 ",list.length," 项, 当前 ",which,", 下标 ",index,", 顺序 ",mode);
         playState=_playStateWith({"sortlist":list,
                                   "playingWhich":which,
                                   "playingIndex":index,
@@ -634,6 +656,7 @@ Item {
         if(vol>100) {
             vol=100;
         }
+        Assist.dlog("落盘","写入音量: ",vol);
         playState=_playStateWith({"volume":vol});
         savePlayState();
     }
@@ -649,6 +672,7 @@ Item {
     }
     /* 写入左侧栏展开状态: 只改这一项, 其余界面状态保持不变 */
     function setLeftSidebarSpreaded(on) {
+        Assist.dlog("落盘","写入左侧栏展开状态: ",(on===true));
         uiState=_uiStateWith({"leftSidebarSpreaded":(on===true)});
         saveUIState();
     }
@@ -657,6 +681,7 @@ Item {
         if(route===undefined || route==="") {
             return false;
         }
+        Assist.dlog("落盘","写入主内容区当前页面: ",route);
         uiState=_uiStateWith({"mainAreaPage":route});
         return saveUIState();
     }
