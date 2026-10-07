@@ -1,0 +1,116 @@
+# 新建 release 时构建 Quick App 便携版, 并把压缩包上传到该 release 的 assets
+# 发布包由 src/quick_app/scripts/copy_release.py 复制而成, 该脚本的构建输出目录名与复制清单
+# 必须与构建流程保持一致, 变更构建目录名或新增依赖时同步维护该脚本
+name: 发布QuickApp便携版
+
+on:
+  release:
+    types: ["published"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要上传的 release tag,如 v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      # release 事件取 release 的 tag, 手动触发取输入; 版本号去掉前缀 v
+      TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+      VER: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: 拉取仓库
+        uses: actions/checkout@v4
+
+      - name: 配置Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.11.1"
+          arch: "win64_mingw"
+          tools: "tools_mingw1310"
+          cache: true
+
+      - name: 校验版本号
+        shell: pwsh
+        run: |
+          $ver = $env:VER -replace '^v', ''
+          $line = Select-String -Path "src/quick_app/CMakeLists.txt" -Pattern '^project\(CryingMusic VERSION' | Select-Object -First 1
+          if (-not $line) {
+            Write-Error "未能从 src/quick_app/CMakeLists.txt 读到 project VERSION"
+            exit 1
+          }
+          $cmakeVer = ($line.Line -split '\s+')[2]
+          Write-Host "CMakeLists.txt 版本号: $cmakeVer"
+          Write-Host "release 版本号:      $ver"
+          if ($cmakeVer -ne $ver) {
+            Write-Error "版本号不一致: CMakeLists.txt 为 $cmakeVer, release tag 为 $ver"
+            exit 1
+          }
+          "VER=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: 配置CMake
+        shell: cmd
+        run: cmake -S src/quick_app -B src/quick_app/build/Desktop_Qt_6_11_1_MinGW_64_bit_Release -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH=%Qt6_DIR%\.. -DCMAKE_BUILD_TYPE=Release
+
+      - name: 构建Release
+        shell: cmd
+        run: cmake --build src/quick_app/build/Desktop_Qt_6_11_1_MinGW_64_bit_Release
+
+      - name: 复制纯净发布包
+        shell: cmd
+        run: python src/quick_app/scripts/copy_release.py
+
+      - name: 补齐MinGW运行时
+        shell: pwsh
+        run: |
+          $pkg = "src/quick_app/release/Crying-Music"
+          $build = "src/quick_app/build/Desktop_Qt_6_11_1_MinGW_64_bit_Release"
+          foreach ($dll in @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")) {
+            if (-not (Test-Path (Join-Path $pkg $dll))) {
+              Copy-Item (Join-Path $build $dll) $pkg -Force
+              Write-Host "已补入 $dll"
+            }
+          }
+
+      - name: 校验发布包
+        shell: pwsh
+        run: |
+          $pkg = "src/quick_app/release/Crying-Music"
+          $missing = @()
+          foreach ($name in @("CryingMusic.exe", "Qt6Core.dll", "Qt6Quick.dll", "Qt6Multimedia.dll")) {
+            if (-not (Test-Path (Join-Path $pkg $name))) {
+              $missing += $name
+            }
+          }
+          if ($missing.Count -gt 0) {
+            Write-Error ("发布包缺少: " + ($missing -join ", "))
+            exit 1
+          }
+
+      - name: 归位并压缩
+        shell: pwsh
+        run: |
+          $pkg = "src/quick_app/release/Crying-Music"
+          $stage = "pkg/CryingMusic"
+          New-Item -ItemType Directory -Path "pkg" -Force | Out-Null
+          Move-Item $pkg $stage
+          $zip = "Crying-Music-Quick-App-v" + $env:VER + "Windows_x64-Portable .zip"
+          Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
+          Write-Host "已生成 $zip"
+
+      - name: 上传到release
+        shell: cmd
+        run: gh release upload %TAG% "Crying-Music-Quick-App-v%VER%Windows_x64-Portable .zip" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
