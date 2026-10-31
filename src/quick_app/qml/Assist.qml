@@ -64,6 +64,36 @@ Item {
         }
         return (i===0? String(bytes)+" B":v.toFixed(2)+" "+units[i]);
     }
+    /* 文件名安全化: 替换 Windows 非法字符与路径分隔符, 合并连续空白, 并限制长度 */
+    function safeFileName(text) {
+        var s=String(text===undefined || text===null? "":text);
+        s=s.replace(/[\\/:*?"<>|]/g,"_");
+        s=s.replace(/\s+/g," ");
+        s=s.trim();
+        if(s.length>80) {
+            s=s.substring(0,80);
+        }
+        return s;
+    }
+    /* 按命名模板拼下载文件名: 扩展名沿用在线文件名, 去掉首尾的分隔符,
+     * 结果为空时回退到在线文件名本身, 再空则用 online */
+    function composeDownloadName(template,songname,singer,onlineId) {
+        var id=String(onlineId===undefined? "":onlineId);
+        var dot=id.lastIndexOf(".");
+        var ext=(dot>0? id.substring(dot):"");
+        var tpl=(typeof template==="string" && template!==""? template:Define.downloadNameTemplate);
+        var base=tpl.replace(/\{songname\}/g,safeFileName(songname))
+                    .replace(/\{singer\}/g,safeFileName(singer));
+        base=safeFileName(base);
+        base=base.replace(/^[\s_.\-]+/,"").replace(/[\s_.\-]+$/,"");
+        if(base==="") {
+            base=safeFileName(dot>0? id.substring(0,dot):id);
+        }
+        if(base==="") {
+            base="online";
+        }
+        return base+ext;
+    }
     /* 命中判定: 场景坐标是否落在该可见项的矩形内 */
     function hitItem(item, scenePos) {
         if(item===null || !item.visible || scenePos===undefined) {

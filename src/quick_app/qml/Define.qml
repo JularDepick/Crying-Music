@@ -44,6 +44,11 @@ Item {
     property var listColumnRatios: [0.7,0.15,0.15];
     /* 歌曲列表行内曲名与歌手列的固定宽度: 不随列宽比例撑开, 超出时省略号截断 */
     property int songColWidth: 240;
+    /* 在线音乐的下载文件命名模板: {songname} 与 {singer} 为占位符,
+     * 默认取"歌曲名-歌手", 可在设置页修改, 修改结果落盘为界面偏好 */
+    property string downloadNameTemplate: "{songname}-{singer}";
+    /* 在线曲库单个候选地址的请求超时(毫秒): 超时即换下一个备用地址 */
+    property int onlineRequestTimeoutMs: 8000;
     /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;
      * 输出的统一格式为 [分类标签]<具体信息>, 由 Assist 的输出函数拼装 */
     property var debugCategoryOn:
@@ -57,6 +62,8 @@ Item {
         "队列": true,
         "面板": true,
         "界面": true,
-        "点击收起": true
+        "点击收起": true,
+        "在线": true,
+        "下载": true
     });
 }
