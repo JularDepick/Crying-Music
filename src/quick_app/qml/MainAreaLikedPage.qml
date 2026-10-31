@@ -361,7 +361,15 @@ MainAreaFatherPage {
                                 Image {
                                     id: songAvatarImage;
                                     anchors.fill: parent;
-                                    source: (modelData["absipath"]&&modelData["absipath"]!==""? modelData["absipath"]:"qrc:/favicon.jpg");
+                                    /* 封面: 本地路径优先, 在线条目取 Server 里的图标缓存, 都没有时回退应用图标;
+                                     * 在线封面在行可见时按需请求, 避免整表一次性发起下载 */
+                                    property string iconKey: (modelData["icon"]===undefined? "":modelData["icon"]);
+                                    onIconKeyChanged: {
+                                        Server.requestIcon(iconKey);
+                                    }
+                                    source: (modelData["absipath"]&&modelData["absipath"]!==""? modelData["absipath"]
+                                             :(modelData["icon"]&&modelData["icon"]!==""&&Server.iconCache[modelData["icon"]]!==undefined
+                                               ? Server.iconCache[modelData["icon"]]:"qrc:/favicon.jpg"));
                                     fillMode: Image.PreserveAspectCrop;
                                     layer.enabled: true;
                                     layer.effect: MultiEffect {
@@ -550,6 +558,10 @@ MainAreaFatherPage {
             function sortList(v) {
                 var l=v.length;
                 for(var i=0;i<l;i++) {
+                    /* 在线条目没有本地元数据, 曲名与歌手直接取清单值 */
+                    if(v[i]["online"]===true) {
+                        continue;
+                    }
                     var m=theMemStorage.metaOf(v[i]["absfpath"]);
                     if(m) {
                         if(m.title!=="") {
@@ -726,6 +738,16 @@ MainAreaFatherPage {
                 return;
             }
         }
+        /* 在线歌曲的标识是它的播放地址: 由在线清单还原曲名, 歌手与封面 */
+        if(Server.isOnlineKey(absfpath)===true) {
+            var online=Server.onlineEntryOfKey(absfpath);
+            if(online!==null) {
+                online["liked"]=true;
+                v.push(online);
+                Server.ensureLoaded();
+            }
+            return;
+        }
         var m=theMemStorage.metaOf(absfpath);
         var sz=AppFileHelper.fileSize(absfpath);
         v.push({
@@ -821,6 +843,15 @@ MainAreaFatherPage {
     }
     function refresh() {
         mainListView.rebuild();
+    }
+    /* 在线清单就绪后重建一次, 让在线条目取回真实曲名与歌手 */
+    Connections {
+        target: Server;
+        function onLoadStateChanged() {
+            if(Server.loadState===2 && mainArea_LikedPage.visible) {
+                mainListView.rebuild();
+            }
+        }
     }
     /* 喜欢列表由其他页面写入, 显示时重新加载 */
     onVisibleChanged: {
