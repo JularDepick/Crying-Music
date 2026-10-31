@@ -64,15 +64,6 @@ MainAreaFatherPage {
                     }
                 }
             }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter;
-                text: (mainArea_ResultPage.keyword===""? ""
-                       :("关键字: "+mainArea_ResultPage.keyword+" · 共 "+mainArea_ResultPage.resultModel.length+" 首"));
-                font.pixelSize: 13;
-                color: Define.btnIconColor;
-                elide: Text.ElideRight;
-                width: Math.min(implicitWidth,functionBox.width-playAllBtn.width-40);
-            }
         }
     }
     /* 列表区: 命中条目, 行内可播放, 喜欢与加入播放列表 */
@@ -94,6 +85,17 @@ MainAreaFatherPage {
             property string selectedWhich: "";
             property int rowHeight: 60;
             model: mainArea_ResultPage.resultModel;
+            /* 命中数量放在列表内容末尾: 跟着内容一起滚动, 不在标题行占位; 空结果时不占高度 */
+            footer: Item {
+                width: mainListView.width;
+                height: (mainArea_ResultPage.resultModel.length>0? 56:0);
+                Text {
+                    anchors.centerIn: parent;
+                    text: ("共 "+mainArea_ResultPage.resultModel.length+" 首");
+                    font.pixelSize: 13;
+                    color: Define.btnIconColor;
+                }
+            }
             delegate: Item {
                 width: ListView.view.width;
                 height: mainListView.rowHeight;
