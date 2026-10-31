@@ -277,11 +277,6 @@ MainAreaFatherPage {
                      * 因为子组件会接收悬停事件, 此时整行区域的 containsMouse 会变成 false */
                     property bool hoveredRow: (boxClick.containsMouse||songCheckBtn.hovered||songAvatarBtn.hovered||songLikeBtn.hovered||songAddIntoBtn.hovered||songnameHh.hovered||singerHh.hovered);
                     color: ((checkedRow||selectedRow)? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
-                    /* 歌名歌手列的起点偏移: 勾选框, 封面与它们两侧的间距占掉的横向距离,
-                     * 该列左边缘因此与排序表头的歌名文字左侧对齐 */
-                    property real songColOffset: 10+16+10+40+10;
-                    /* 大小与时长两列相对算出的位置再左移的距离: 取 Row 间距的 1.5 倍 */
-                    property real metaColLeftShift: 15;
                     MouseArea {
                         id: boxClick;
                         anchors.fill: parent;
@@ -397,8 +392,8 @@ MainAreaFatherPage {
                                 }
                             }
                         }
-                        /* 歌名与歌手列: 起点被勾选框与封面推到 songColOffset, 因此左边缘与排序表头的
-                         * 歌名文字左侧对齐; 宽度固定, 超出时省略号截断, 点赞与下一首播放紧随其后 */
+                        /* 歌名与歌手列: 起点由行内左内边距与封面决定(批量多选态还要算上勾选框);
+                         * 宽度固定, 超出时省略号截断, 点赞与加入播放列表紧随其后 */
                         Column {
                             anchors.verticalCenter: parent.verticalCenter;
                             spacing: 5;
@@ -476,9 +471,8 @@ MainAreaFatherPage {
                     /* 大小与时长两列: 脱离 Row, 直接按列宽比例算出左侧与宽度,
                      * 使 Text 左侧分别对齐排序表头的大小与时长文字左侧 */
                     Text {
-                        anchors.top: parent.top;
-                        anchors.topMargin: 8;
-                        x: (box.songColOffset+box.rowContentW*Define.listColumnRatios[0]-box.metaColLeftShift);
+                        anchors.verticalCenter: parent.verticalCenter;
+                        x: (box.rowContentW*Define.listColumnRatios[0]);
                         width: (box.rowContentW*Define.listColumnRatios[1]);
                         text: Assist.fileSize2text(modelData["size"]);
                         font.pixelSize: 13;
@@ -488,9 +482,8 @@ MainAreaFatherPage {
                         wrapMode: Text.NoWrap;
                     }
                     Text {
-                        anchors.top: parent.top;
-                        anchors.topMargin: 8;
-                        x: (box.songColOffset+box.rowContentW*(Define.listColumnRatios[0]+Define.listColumnRatios[1])-box.metaColLeftShift);
+                        anchors.verticalCenter: parent.verticalCenter;
+                        x: (box.rowContentW*(Define.listColumnRatios[0]+Define.listColumnRatios[1]));
                         width: (box.rowContentW*Define.listColumnRatios[2]);
                         text: Assist.int2mmss(modelData["duration"]);
                         font.pixelSize: 13;

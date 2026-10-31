@@ -109,10 +109,6 @@ MainAreaFatherPage {
                     property real rowContentW: (mainListView.width-anchors.leftMargin-anchors.rightMargin);
                     property bool hoveredRow: (boxClick.containsMouse||songAvatarBtn.hovered||songLikeBtn.hovered||songAddIntoBtn.hovered||songnameHh.hovered||singerHh.hovered);
                     color: (selectedRow? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
-                    /* 歌名歌手列的起点偏移: 封面与两侧间距占掉的横向距离 */
-                    property real songColOffset: 10+40+10;
-                    /* 大小与时长两列相对算出的位置再左移的距离: 取 Row 间距的 1.5 倍 */
-                    property real metaColLeftShift: 15;
                     MouseArea {
                         id: boxClick;
                         anchors.fill: parent;
@@ -264,9 +260,8 @@ MainAreaFatherPage {
                     }
                     /* 大小与时长两列: 按列宽比例算出左侧与宽度, 与其它列表页一致 */
                     Text {
-                        anchors.top: parent.top;
-                        anchors.topMargin: 8;
-                        x: (box.songColOffset+box.rowContentW*Define.listColumnRatios[0]-box.metaColLeftShift);
+                        anchors.verticalCenter: parent.verticalCenter;
+                        x: (box.rowContentW*Define.listColumnRatios[0]);
                         width: (box.rowContentW*Define.listColumnRatios[1]);
                         text: Assist.fileSize2text(modelData["size"]);
                         font.pixelSize: 13;
@@ -276,9 +271,8 @@ MainAreaFatherPage {
                         wrapMode: Text.NoWrap;
                     }
                     Text {
-                        anchors.top: parent.top;
-                        anchors.topMargin: 8;
-                        x: (box.songColOffset+box.rowContentW*(Define.listColumnRatios[0]+Define.listColumnRatios[1])-box.metaColLeftShift);
+                        anchors.verticalCenter: parent.verticalCenter;
+                        x: (box.rowContentW*(Define.listColumnRatios[0]+Define.listColumnRatios[1]));
                         width: (box.rowContentW*Define.listColumnRatios[2]);
                         text: Assist.int2mmss(modelData["duration"]);
                         font.pixelSize: 13;
