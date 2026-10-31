@@ -773,12 +773,18 @@ ApplicationWindow {
                     GlobalFileStorage.setMainAreaPage(key);
                 }
             }
-            /* 按存储里的界面状态恢复上次停留的页面: 只换页, 不进历史栈 */
+            /* 按存储里的界面状态恢复上次停留的页面: 只换页, 不进历史栈;
+             * 启动时不恢复到设置页, 统一回到首页并把存储同步为首页, 避免下次启动又停在设置页 */
             function applyStoredPage() {
                 var obj=leftSidebar.svg2obj[GlobalFileStorage.uiState.mainAreaPage];
                 if(obj===undefined || obj===null) {
                     Assist.dwarn("界面","恢复页面失败: 存储里的页面键无效: ",GlobalFileStorage.uiState.mainAreaPage);
                     return false;
+                }
+                if(obj===mainArea_SettingsPage) {
+                    Assist.dlog("界面","启动时的页面为设置页, 改为停留首页");
+                    GlobalFileStorage.setMainAreaPage("home");
+                    obj=mainArea_HomePage;
                 }
                 _show(obj);
                 return true;
@@ -904,6 +910,12 @@ ApplicationWindow {
                 onErrorOccurred: (error, errorString)=>{
                     Assist.derror("播放","音频播放错误:",error,errorString);
                 }
+                /* 在线音频开始加载时探测一次字节数: 作为元数据就绪前的临时显示数据 */
+                onSourceChanged: {
+                    if(Server.isOnlineKey(source)===true) {
+                        Server.ensureSize(source);
+                    }
+                }
                 onMediaStatusChanged: {
                     if(mediaStatus===MediaPlayer.LoadedMedia && pendingRestore===true) {
                         /* 断点恢复: 音频加载完成后回到上次的播放进度, 但不自动播放 */
@@ -948,6 +960,13 @@ ApplicationWindow {
                         }
                     }
                     return null;
+                }
+                /* 在线歌曲的时长缓存: 播放器拿到时长后记进在线曲库, 供列表在元数据就绪前显示 */
+                function rememberOnlineDuration() {
+                    if(Server.isOnlineKey(playingWhich)===false) {
+                        return false;
+                    }
+                    return Server.rememberDuration(playingWhich,Math.floor(duration/1000));
                 }
                 /* 播放状态: 本模块自己持有, 每次改动后同步到存储枢纽 */
                 property string playingWhich: "";
@@ -1327,6 +1346,7 @@ ApplicationWindow {
                 }
                 function onDurationChanged() {
                     playerBar.syncStampDisplay();
+                    player.rememberOnlineDuration();
                 }
             }
             Row {
@@ -2267,6 +2287,10 @@ ApplicationWindow {
         /* 先确定存储目录, 再读取落盘数据; 子项先于本处理器完成构建, 因此列表需在读盘后重建一次 */
         GlobalFileStorage.verifyStorageDir();
         GlobalFileStorage.load();
+        /* 按界面偏好恢复预设主题: 只把选定主题的配色写进设计常量的内存值, 主题数据本身不改;
+         * 必须在窗口显示前完成, 避免先按默认配色闪一帧 */
+        Assist.dlog("界面","恢复预设主题: ",GlobalFileStorage.themeId(),", 结果 ",
+                   Define.applyTheme(GlobalFileStorage.themeId()));
         /* 在线曲库先用磁盘缓存立即可用, 再在后台静默刷新, 这一过程不改界面加载状态 */
         Assist.dlog("在线","启动时恢复在线曲库缓存: ",Server.bootstrap());
         Assist.dlog("界面","恢复上次停留的页面: ",mainArea.applyStoredPage());
