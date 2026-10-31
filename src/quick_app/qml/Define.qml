@@ -57,6 +57,12 @@ Item {
     property string playStrategyDownloadWhilePlaying: "downloadwhileplaying";
     /* 在线曲库单个候选地址的请求超时(毫秒): 超时即换下一个备用地址 */
     property int onlineRequestTimeoutMs: 8000;
+    /* 封面(与在线歌曲的图标等价)缓存生命周期: 默认天数与设置页可选档位;
+     * 生命周期在缓存写入那一刻定下, 之后改档位不影响已经缓存的封面 */
+    property int iconCacheTtlDefaultDays: 7;
+    property var iconCacheTtlDayOptions: [1,7,15,30];
+    /* 后台全量补全封面时的并发上限 */
+    property int iconFillLimit: 4;
     /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;
      * 输出的统一格式为 [分类标签]<具体信息>, 由 Assist 的输出函数拼装 */
     property var debugCategoryOn:
@@ -74,4 +80,36 @@ Item {
         "在线": true,
         "下载": true
     });
+    /* 换肤: 把选定主题的配色写进本单例的同名颜色属性, 这是修改主题与颜色的唯一形式;
+     * 主题数据只从 Theme 只读, 本函数不修改 Theme; 入参为主题 id, 未知时回退到默认主题 */
+    function applyTheme(themeId) {
+        var t=Theme.presetById(themeId);
+        var id=(t===null? Theme.defaultId:String(themeId));
+        if(t===null) {
+            Assist.dwarn("界面","换肤: 未知主题, 改用默认主题 ",Theme.defaultId);
+            t=Theme.presetById(Theme.defaultId);
+        }
+        if(t===null) {
+            Assist.derror("界面","换肤失败: 默认主题缺失");
+            return false;
+        }
+        var keys=Theme.colorKeys;
+        var miss=[];
+        var n=0;
+        for(var i=0;i<keys.length;i++) {
+            var k=keys[i];
+            var c=Theme.colorOf(t["colors"],k);
+            if(c==="") {
+                miss.push(k);
+                continue;
+            }
+            this[k]=c;
+            n=n+1;
+        }
+        if(miss.length>0) {
+            Assist.dwarn("界面","换肤: 主题缺少颜色键 ",miss.join(","));
+        }
+        Assist.dlog("界面","换肤完成: ",id,", 写入颜色 ",n," 项");
+        return (n>0);
+    }
 }

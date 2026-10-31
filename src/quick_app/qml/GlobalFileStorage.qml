@@ -28,11 +28,15 @@ Item {
     property string downloadsDirName: "downloads";
     property string cacheDirName: "cache";
     property string iconCacheDirName: "icons";
+    /* 封面缓存索引: 记录每个封面的缓存时刻与该条目自己的生命周期 */
+    property string iconCacheIndexFileName: "index.json";
     /* 在线曲库的元信息与清单缓存放在 <storageDirPath>/cache/online 下:
      * 启动时先读缓存让曲库立即可用, 再在后台静默刷新并覆写缓存 */
     property string onlineCacheDirName: "online";
     property string onlineMetaFileName: "meta.json";
     property string onlineManifestFileName: "manifest.json";
+    /* 已播放在线歌曲的时长与大小缓存: 只是元数据就绪前的临时显示数据 */
+    property string onlinePlayedMetaFileName: "played.json";
     /* 存储目录下必须齐全的许可文本, 缺失时从程序资源中补全 */
     property var licenseFileNames: ["COPYRIGHT","LICENSE","LICENSE.FDL","LICENSE.Qt"];
     /* 许可文本在程序资源中的目录, 与 licensesDirName 对应 */
@@ -70,7 +74,8 @@ Item {
         playingPosition: 0,
         volume: 100
     });
-    /* 界面状态: 需要落盘的界面偏好, 目前是左侧栏展开状态与主内容区当前页面; 跨模块只经此处交换 */
+    /* 界面状态: 需要落盘的界面偏好(左侧栏展开, 当前页面, 下载命名与播放策略, 下载目录, 预设主题);
+     * 跨模块只经此处交换 */
     /* 存到 #/data/UI_State.json */
     property var uiState:
     ({
@@ -78,7 +83,9 @@ Item {
         mainAreaPage: "home",
         downloadNameTemplate: "",
         onlinePlayStrategy: "nodownload",
-        downloadsDir: ""
+        downloadsDir: "",
+        themeId: "",
+        iconCacheTtlDays: 0
     });
     /* 目录决策: 指针优先, 其次 A, 再 B, 最后兜底 C; 三个候选都不可用时退出应用。
      * 全过程输出 [存储目录] 前缀的日志, 便于在运行控制台里追决策路径 */
@@ -504,7 +511,9 @@ Item {
                        "downloadNameTemplate":(typeof us.downloadNameTemplate==="string"? us.downloadNameTemplate:""),
                        "onlinePlayStrategy":(us.onlinePlayStrategy===Define.playStrategyDownloadWhilePlaying
                                              ? Define.playStrategyDownloadWhilePlaying:Define.playStrategyNoDownload),
-                       "downloadsDir":(typeof us.downloadsDir==="string"? us.downloadsDir:"")});
+                       "downloadsDir":(typeof us.downloadsDir==="string"? us.downloadsDir:""),
+                       "themeId":(typeof us.themeId==="string"? us.themeId:""),
+                       "iconCacheTtlDays":(typeof us.iconCacheTtlDays==="number"? us.iconCacheTtlDays:0)});
         }
         Assist.dlog("落盘","读取完成: 手动歌曲 ",localScan.singleFiles.length,
                     " 项, 扫描文件夹 ",localScan.scanDirs.length,
@@ -726,7 +735,9 @@ Item {
                  "downloadNameTemplate":(uiState.downloadNameTemplate===undefined? "":uiState.downloadNameTemplate),
                  "onlinePlayStrategy":(uiState.onlinePlayStrategy===Define.playStrategyDownloadWhilePlaying
                                        ? Define.playStrategyDownloadWhilePlaying:Define.playStrategyNoDownload),
-                 "downloadsDir":(uiState.downloadsDir===undefined? "":uiState.downloadsDir)});
+                 "downloadsDir":(uiState.downloadsDir===undefined? "":uiState.downloadsDir),
+                 "themeId":(uiState.themeId===undefined? "":String(uiState.themeId)),
+                 "iconCacheTtlDays":(typeof uiState.iconCacheTtlDays!=="number"? 0:uiState.iconCacheTtlDays)});
         for(var k in overrides) {
             st[k]=overrides[k];
         }
@@ -745,6 +756,44 @@ Item {
         }
         Assist.dlog("落盘","写入主内容区当前页面: ",route);
         uiState=_uiStateWith({"mainAreaPage":route});
+        return saveUIState();
+    }
+    /* 预设主题偏好: 未设置或不是 Theme 里的预设时回退到默认主题 */
+    function themeId() {
+        var t=Theme.presetById(uiState.themeId);
+        if(t===null) {
+            return Theme.defaultId;
+        }
+        return String(t["id"]);
+    }
+    /* 写入预设主题偏好: 只改这一项, 其余界面状态保持不变; 未知主题不写入 */
+    function setThemeId(id) {
+        var t=Theme.presetById(id);
+        if(t===null) {
+            Assist.dwarn("落盘","写入预设主题失败: 未知主题 ",id);
+            return false;
+        }
+        Assist.dlog("落盘","写入预设主题: ",t["id"]);
+        uiState=_uiStateWith({"themeId":String(t["id"])});
+        return saveUIState();
+    }
+    /* 封面缓存生命周期(天): 未设置或超出 1 到 365 时取设计常量里的默认值 */
+    function iconCacheTtlDays() {
+        var d=uiState.iconCacheTtlDays;
+        if(typeof d!=="number" || d<1 || d>365) {
+            return Define.iconCacheTtlDefaultDays;
+        }
+        return Math.floor(d);
+    }
+    /* 写入封面缓存生命周期: 只改这一项; 已经缓存下来的封面按各自记录的时长到期, 不受影响 */
+    function setIconCacheTtlDays(days) {
+        var n=Math.floor(Number(days));
+        if(!(n>=1 && n<=365)) {
+            Assist.dwarn("落盘","写入封面缓存生命周期失败: 非法天数 ",days);
+            return false;
+        }
+        Assist.dlog("落盘","写入封面缓存生命周期: ",n," 天");
+        uiState=_uiStateWith({"iconCacheTtlDays":n});
         return saveUIState();
     }
     /* 下载目录: 用户指定过目录时用指定的, 否则用存储目录下的默认目录;

@@ -26,7 +26,8 @@ public:
 
     /* 拉取图标到缓存目录: url 为完整地址, cacheKey 为缓存文件名,
      * cacheDir 为缓存目录的标准化绝对路径; 命中缓存时同样以信号回调, 调用方无需分支。 */
-    Q_INVOKABLE void fetchIcon(const QString &url, const QString &cacheKey, const QUrl &cacheDir) {
+    Q_INVOKABLE void fetchIcon(const QString &url, const QString &cacheKey, const QUrl &cacheDir,
+                               bool force = false) {
         if (url.isEmpty() || cacheKey.isEmpty() || cacheDir.isEmpty()) {
             emit iconFailed(cacheKey, QStringLiteral("参数不完整"));
             return;
@@ -37,7 +38,8 @@ public:
             return;
         }
         const QString targetPath = QDir(dirPath).absoluteFilePath(cacheKey);
-        if (QFileInfo(targetPath).isFile() && QFileInfo(targetPath).size() > 0) {
+        /* 命中缓存直接回调; 过期刷新时由调用方要求忽略缓存, 重新下载并覆盖同一文件 */
+        if (!force && QFileInfo(targetPath).isFile() && QFileInfo(targetPath).size() > 0) {
             const QString localUrl = QUrl::fromLocalFile(targetPath).toString();
             QTimer::singleShot(0, this, [this, cacheKey, localUrl]() {
                 emit iconReady(cacheKey, localUrl);
@@ -117,6 +119,35 @@ public:
         emit downloadStarted(taskKey);
     }
 
+    /* 探测远端音频的字节数: 先发 HEAD 读 Content-Length, 服务器不支持时改发只取首字节的范围请求;
+     * taskKey 由调用方给出, 结果以 sizeReady 或 sizeFailed 回调, 同一 taskKey 只保留一个在途请求。 */
+    Q_INVOKABLE void probeAudioSize(const QString &url, const QString &taskKey) {
+        if (url.isEmpty() || taskKey.isEmpty()) {
+            emit sizeFailed(taskKey, QStringLiteral("参数不完整"));
+            return;
+        }
+        if (m_sizeReplies.contains(taskKey)) {
+            return;
+        }
+        QNetworkReply *reply = m_nam.head(buildRequest(url));
+        m_sizeReplies.insert(taskKey, reply);
+        connect(reply, &QNetworkReply::finished, this, [this, reply, taskKey, url]() {
+            m_sizeReplies.remove(taskKey);
+            if (reply->error()==QNetworkReply::NoError) {
+                const qint64 len = reply->header(QNetworkRequest::ContentLengthHeader).toLongLong();
+                reply->deleteLater();
+                if (len>0) {
+                    emit sizeReady(taskKey, len);
+                    return;
+                }
+                probeAudioSizeByRange(url, taskKey);
+                return;
+            }
+            reply->deleteLater();
+            probeAudioSizeByRange(url, taskKey);
+        });
+    }
+
     /* 取消下载: 中止请求并删除未完成的文件, 随后以 downloadFailed 回调 */
     Q_INVOKABLE void cancelDownload(const QString &taskKey) {
         if (!m_downloads.contains(taskKey)) {
@@ -138,6 +169,9 @@ signals:
     /* 下载进度: total 为 -1 表示总长度未知 */
     void downloadProgress(const QString &taskKey, qint64 received, qint64 total);
     void downloadFinished(const QString &taskKey, const QString &localPath);
+    /* 远端音频的字节数就绪与探测失败 */
+    void sizeReady(const QString &taskKey, qint64 bytes);
+    void sizeFailed(const QString &taskKey, const QString &reason);
     void downloadFailed(const QString &taskKey, const QString &reason);
 
 private:
@@ -161,6 +195,50 @@ private:
                              QNetworkRequest::NoLessSafeRedirectPolicy);
         request.setTransferTimeout(30000);
         return request;
+    }
+
+    /* 兜底探测: 发只取首字节的范围请求, 从 Content-Range 里读出总长度 */
+    void probeAudioSizeByRange(const QString &url, const QString &taskKey) {
+        if (m_sizeReplies.contains(taskKey)) {
+            return;
+        }
+        QNetworkRequest request = buildRequest(url);
+        request.setRawHeader("Range", "bytes=0-0");
+        QNetworkReply *reply = m_nam.get(request);
+        m_sizeReplies.insert(taskKey, reply);
+        connect(reply, &QNetworkReply::finished, this, [this, reply, taskKey]() {
+            m_sizeReplies.remove(taskKey);
+            const bool netOk = (reply->error()==QNetworkReply::NoError);
+            const QString errText = reply->errorString();
+            const qint64 total = totalFromContentRange(reply->rawHeader("Content-Range"));
+            const qint64 declared = reply->header(QNetworkRequest::ContentLengthHeader).toLongLong();
+            reply->readAll();
+            reply->deleteLater();
+            if (total>0) {
+                emit sizeReady(taskKey, total);
+                return;
+            }
+            if (netOk && declared>0) {
+                emit sizeReady(taskKey, declared);
+                return;
+            }
+            emit sizeFailed(taskKey, (netOk? QStringLiteral("服务器未给出总长度"):errText));
+        });
+    }
+
+    /* 从 Content-Range 头解析总长度: 形如 bytes 0-0/5242880 */
+    static qint64 totalFromContentRange(const QByteArray &value) {
+        const int slash = value.indexOf('/');
+        if (slash<0) {
+            return -1;
+        }
+        const QByteArray tail = value.mid(slash+1).trimmed();
+        if (tail.isEmpty() || tail=="*") {
+            return -1;
+        }
+        bool ok = false;
+        const qint64 total = tail.toLongLong(&ok);
+        return (ok? total:-1);
     }
 
     /* 把已到达的数据写入目标文件 */
@@ -241,6 +319,7 @@ private:
 
     QNetworkAccessManager m_nam;
     QHash<QString, QNetworkReply *> m_iconReplies;
+    QHash<QString, QNetworkReply *> m_sizeReplies;
     QHash<QString, DownloadTask> m_downloads;
 };
 
