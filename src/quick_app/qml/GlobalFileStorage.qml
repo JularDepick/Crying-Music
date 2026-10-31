@@ -22,6 +22,12 @@ Item {
     property string recentFilesFileName: "recentFiles.json";
     property string playStateFileName: "playState.json";
     property string uiStateFileName: "UI_State.json";
+    property string downloadsFileName: "downloads.json";
+    /* 存储布局: 在线音乐的下载文件放在 <storageDirPath>/downloads 下,
+     * 在线图标缓存放在 <storageDirPath>/cache/icons 下 */
+    property string downloadsDirName: "downloads";
+    property string cacheDirName: "cache";
+    property string iconCacheDirName: "icons";
     /* 存储目录下必须齐全的许可文本, 缺失时从程序资源中补全 */
     property var licenseFileNames: ["COPYRIGHT","LICENSE","LICENSE.FDL","LICENSE.Qt"];
     /* 许可文本在程序资源中的目录, 与 licensesDirName 对应 */
@@ -45,6 +51,9 @@ Item {
     property var likedFiles: [];
     /* 存到 #/data/recentFiles.json */
     property var recentFiles: [];
+    /* 在线音乐的下载记录: 每项含在线标识与下载后的本地路径, 同时充当本地与在线的映射表 */
+    /* 存到 #/data/downloads.json */
+    property var downloads: [];
     /* 播放状态枢纽: 播放队列, 当前播放项路径与下标, 播放顺序与播放进度; 跨模块只经此处交换 */
     /* 存到 #/data/playState.json */
     property var playState:
@@ -61,7 +70,8 @@ Item {
     property var uiState:
     ({
         leftSidebarSpreaded: true,
-        mainAreaPage: "home"
+        mainAreaPage: "home",
+        downloadNameTemplate: ""
     });
     /* 目录决策: 指针优先, 其次 A, 再 B, 最后兜底 C; 三个候选都不可用时退出应用。
      * 全过程输出 [存储目录] 前缀的日志, 便于在运行控制台里追决策路径 */
@@ -312,6 +322,7 @@ Item {
         mergeLocalScan(srcDir,dstDir);
         mergePathList(srcDir,dstDir,likedFilesFileName);
         mergePathList(srcDir,dstDir,recentFilesFileName);
+        mergeDownloadList(srcDir,dstDir);
         mergeWholePayload(srcDir,dstDir,playStateFileName);
         mergeWholePayload(srcDir,dstDir,uiStateFileName);
         Assist.dlog("存储目录","迁移完成: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
@@ -346,6 +357,36 @@ Item {
         var merged=unionPaths(dst,src);
         Assist.dlog("存储目录","  合并 ",fileName,": 目标 ",dst.length," 项, 来源 ",src.length," 项, 结果 ",merged.length," 项");
         return writePayload(dstDir,fileName,merged);
+    }
+    /* 下载记录合并: 以在线标识取并集, 目标目录的记录在前 */
+    function mergeDownloadList(srcDir,dstDir) {
+        var src=readPayload(srcDir,downloadsFileName);
+        if(Array.isArray(src)===false) {
+            Assist.dlog("存储目录","  合并 ",downloadsFileName,": 来源目录没有该文件, 跳过");
+            return false;
+        }
+        var dst=readPayload(dstDir,downloadsFileName);
+        if(Array.isArray(dst)===false) {
+            Assist.dlog("存储目录","  合并 ",downloadsFileName,": 目标目录没有该文件, 直接采用来源的 ",src.length," 项");
+            return writePayload(dstDir,downloadsFileName,src);
+        }
+        var res=dst.slice();
+        var ls=src.length;
+        for(var i=0;i<ls;i++) {
+            var had=false;
+            var lr=res.length;
+            for(var j=0;j<lr;j++) {
+                if(res[j]["onlineId"]===src[i]["onlineId"]) {
+                    had=true;
+                    break;
+                }
+            }
+            if(had===false) {
+                res.push(src[i]);
+            }
+        }
+        Assist.dlog("存储目录","  合并 ",downloadsFileName,": 目标 ",dst.length," 项, 来源 ",src.length," 项, 结果 ",res.length," 项");
+        return writePayload(dstDir,downloadsFileName,res);
     }
     /* 扫描文件夹清单合并: 以文件夹路径为唯一标识, 目标目录的勾选状态优先 */
     function unionScanDirs(main,other) {
@@ -435,6 +476,10 @@ Item {
         if(Array.isArray(rc)===true) {
             recentFiles=rc;
         }
+        var dl=readPayload(storageDirPath,downloadsFileName);
+        if(Array.isArray(dl)===true) {
+            downloads=dl;
+        }
         var ps=readPayload(storageDirPath,playStateFileName);
         if(ps!==null) {
             playState=({"sortlist":(Array.isArray(ps.sortlist)===true? ps.sortlist:[]),
@@ -448,12 +493,14 @@ Item {
         if(us!==null) {
             /* 只有明确写成 false 才算折叠, 其余情况按展开处理; 页面键缺失或非法时回到首页 */
             uiState=({"leftSidebarSpreaded":(us.leftSidebarSpreaded!==false),
-                       "mainAreaPage":(typeof us.mainAreaPage==="string" && us.mainAreaPage!==""? us.mainAreaPage:"home")});
+                       "mainAreaPage":(typeof us.mainAreaPage==="string" && us.mainAreaPage!==""? us.mainAreaPage:"home"),
+                       "downloadNameTemplate":(typeof us.downloadNameTemplate==="string"? us.downloadNameTemplate:"")});
         }
         Assist.dlog("落盘","读取完成: 手动歌曲 ",localScan.singleFiles.length,
                     " 项, 扫描文件夹 ",localScan.scanDirs.length,
                     " 个, 喜欢 ",likedFiles.length,
                     " 项, 最近播放 ",recentFiles.length,
+                    " 项, 下载 ",downloads.length,
                     " 项, 队列 ",playState.sortlist.length,
                     " 项, 音量 ",playState.volume,
                     ", 页面 ",uiState.mainAreaPage,
@@ -470,6 +517,7 @@ Item {
         writePayload(storageDirPath,localScanFileName,localScan);
         writePayload(storageDirPath,likedFilesFileName,likedFiles);
         writePayload(storageDirPath,recentFilesFileName,recentFiles);
+        writePayload(storageDirPath,downloadsFileName,downloads);
         writePayload(storageDirPath,playStateFileName,playState);
         writePayload(storageDirPath,uiStateFileName,uiState);
         return true;
@@ -664,7 +712,8 @@ Item {
      * 一律整体替换, 使外部能收到变更通知 */
     function _uiStateWith(overrides) {
         var st=({"leftSidebarSpreaded":(uiState.leftSidebarSpreaded!==false),
-                 "mainAreaPage":(uiState.mainAreaPage===undefined? "home":uiState.mainAreaPage)});
+                 "mainAreaPage":(uiState.mainAreaPage===undefined? "home":uiState.mainAreaPage),
+                 "downloadNameTemplate":(uiState.downloadNameTemplate===undefined? "":uiState.downloadNameTemplate)});
         for(var k in overrides) {
             st[k]=overrides[k];
         }
@@ -684,5 +733,98 @@ Item {
         Assist.dlog("落盘","写入主内容区当前页面: ",route);
         uiState=_uiStateWith({"mainAreaPage":route});
         return saveUIState();
+    }
+    /* 下载目录: 存储目录未确定时返回空字符串 */
+    function downloadsDir() {
+        if(storageDirPath==="") {
+            return "";
+        }
+        return storageDirPath+"/"+downloadsDirName;
+    }
+    /* 在线图标缓存目录: 存储目录未确定时返回空字符串 */
+    function iconCacheDir() {
+        if(storageDirPath==="") {
+            return "";
+        }
+        return storageDirPath+"/"+cacheDirName+"/"+iconCacheDirName;
+    }
+    /* 下载文件命名模板: 界面偏好未设置时取设计常量里的默认值 */
+    function downloadNameTemplate() {
+        var t=uiState.downloadNameTemplate;
+        return (typeof t==="string" && t!==""? t:Define.downloadNameTemplate);
+    }
+    /* 写入下载文件命名模板: 空值回到默认值 */
+    function setDownloadNameTemplate(t) {
+        var v=(typeof t==="string"? t.trim():"");
+        if(v==="") {
+            v=Define.downloadNameTemplate;
+        }
+        Assist.dlog("落盘","写入下载命名模板: ",v);
+        uiState=_uiStateWith({"downloadNameTemplate":v});
+        return saveUIState();
+    }
+    /* 按在线标识取下载记录, 没有该项时返回 null */
+    function downloadOf(onlineId) {
+        var l=downloads.length;
+        for(var i=0;i<l;i++) {
+            if(downloads[i]["onlineId"]===onlineId) {
+                return downloads[i];
+            }
+        }
+        return null;
+    }
+    /* 判断某个在线标识是否已下载 */
+    function isDownloaded(onlineId) {
+        return (downloadOf(onlineId)!==null);
+    }
+    /* 已下载且文件仍在的本地路径: 缺失时返回空字符串, 调用方据此退回在线播放 */
+    function downloadedPathOf(onlineId) {
+        var one=downloadOf(onlineId);
+        if(one===null) {
+            return "";
+        }
+        var p=one["absfpath"];
+        if(typeof p!=="string" || p==="") {
+            return "";
+        }
+        if(AppFileHelper.existsFile(p)===false) {
+            return "";
+        }
+        return p;
+    }
+    /* 写入一条下载记录: 按在线标识去重后整体替换该条, 收尾写盘 */
+    function addDownloaded(one) {
+        if(one===undefined || one===null || one["onlineId"]===undefined || one["onlineId"]==="") {
+            return false;
+        }
+        Assist.dlog("下载","记录下载完成: ",one["onlineId"]," -> ",one["absfpath"]);
+        var res=[];
+        var l=downloads.length;
+        for(var i=0;i<l;i++) {
+            if(downloads[i]["onlineId"]!==one["onlineId"]) {
+                res.push(downloads[i]);
+            }
+        }
+        res.push(one);
+        downloads=res;
+        saveDownloads();
+        return true;
+    }
+    /* 移除一条下载记录: 只改记录, 不删除已下载的文件 */
+    function removeDownloaded(onlineId) {
+        Assist.dlog("下载","移除下载记录: ",onlineId);
+        var res=[];
+        var l=downloads.length;
+        for(var i=0;i<l;i++) {
+            if(downloads[i]["onlineId"]!==onlineId) {
+                res.push(downloads[i]);
+            }
+        }
+        downloads=res;
+        return saveDownloads();
+    }
+    /* 只写下载记录 */
+    function saveDownloads() {
+        return writePayload(storageDirPath,downloadsFileName,downloads);
     }
 }
