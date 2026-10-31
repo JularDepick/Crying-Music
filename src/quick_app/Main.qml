@@ -227,6 +227,17 @@ ApplicationWindow {
                 memStorage.showDownloadTip("下载失败: "+t["songname"]);
             }
         }
+        /* 播放策略: 边播放边下载时, 把正在播放且尚未下载的在线曲目顺带入队;
+         * 不下载策略与本地曲目都直接跳过 */
+        function followPlayStrategy(one) {
+            if(one===undefined || one===null || one["online"]!==true) {
+                return false;
+            }
+            if(GlobalFileStorage.onlinePlayStrategy()!=="downloadwhileplaying") {
+                return false;
+            }
+            return memStorage.startDownload(one);
+        }
         /* 下载结果的浮窗提示: 复用底部加载进度条 */
         function showDownloadTip(text) {
             if(memStorage.startLoading(text,"download")===false) {
@@ -966,6 +977,8 @@ ApplicationWindow {
                     source=playbackTarget(which);
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
+                    /* 播放策略: 边播放边下载时顺带把该曲加入下载队列 */
+                    memStorage.followPlayStrategy(which);
                     Assist.dlog("播放","跳转成功: ",which);
                     return true;
                 }
@@ -1028,6 +1041,7 @@ ApplicationWindow {
                     source=playbackTarget(one);
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
+                    memStorage.followPlayStrategy(one);
                     Assist.dlog("播放","播放列表: ",sortlist.length);
                     return true;
                 }
@@ -1045,6 +1059,7 @@ ApplicationWindow {
                     source=playbackTarget(which);
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
+                    memStorage.followPlayStrategy(which);
                     return true;
                 }
                 /* 播放队列中指定下标的项 */
@@ -1061,6 +1076,7 @@ ApplicationWindow {
                     source=playbackTarget(sortlist[idx]);
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
+                    memStorage.followPlayStrategy(sortlist[idx]);
                     return true;
                 }
                 /* 下一曲: auto 为 true 表示播放结束后的自动切换 */
@@ -2251,8 +2267,11 @@ ApplicationWindow {
         /* 先确定存储目录, 再读取落盘数据; 子项先于本处理器完成构建, 因此列表需在读盘后重建一次 */
         GlobalFileStorage.verifyStorageDir();
         GlobalFileStorage.load();
+        /* 在线曲库先用磁盘缓存立即可用, 再在后台静默刷新, 这一过程不改界面加载状态 */
+        Assist.dlog("在线","启动时恢复在线曲库缓存: ",Server.bootstrap());
         Assist.dlog("界面","恢复上次停留的页面: ",mainArea.applyStoredPage());
         mainArea_LocalPage.refresh();
+        mainArea_HomePage.refresh();
         Assist.dlog("播放","恢复上次的播放状态: ",player.restoreFromState());
         window.visible=true;
         Assist.dlog("界面","窗口已显示");

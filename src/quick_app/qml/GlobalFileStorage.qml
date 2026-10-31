@@ -28,6 +28,11 @@ Item {
     property string downloadsDirName: "downloads";
     property string cacheDirName: "cache";
     property string iconCacheDirName: "icons";
+    /* 在线曲库的元信息与清单缓存放在 <storageDirPath>/cache/online 下:
+     * 启动时先读缓存让曲库立即可用, 再在后台静默刷新并覆写缓存 */
+    property string onlineCacheDirName: "online";
+    property string onlineMetaFileName: "meta.json";
+    property string onlineManifestFileName: "manifest.json";
     /* 存储目录下必须齐全的许可文本, 缺失时从程序资源中补全 */
     property var licenseFileNames: ["COPYRIGHT","LICENSE","LICENSE.FDL","LICENSE.Qt"];
     /* 许可文本在程序资源中的目录, 与 licensesDirName 对应 */
@@ -71,7 +76,9 @@ Item {
     ({
         leftSidebarSpreaded: true,
         mainAreaPage: "home",
-        downloadNameTemplate: ""
+        downloadNameTemplate: "",
+        onlinePlayStrategy: "nodownload",
+        downloadsDir: ""
     });
     /* 目录决策: 指针优先, 其次 A, 再 B, 最后兜底 C; 三个候选都不可用时退出应用。
      * 全过程输出 [存储目录] 前缀的日志, 便于在运行控制台里追决策路径 */
@@ -494,7 +501,10 @@ Item {
             /* 只有明确写成 false 才算折叠, 其余情况按展开处理; 页面键缺失或非法时回到首页 */
             uiState=({"leftSidebarSpreaded":(us.leftSidebarSpreaded!==false),
                        "mainAreaPage":(typeof us.mainAreaPage==="string" && us.mainAreaPage!==""? us.mainAreaPage:"home"),
-                       "downloadNameTemplate":(typeof us.downloadNameTemplate==="string"? us.downloadNameTemplate:"")});
+                       "downloadNameTemplate":(typeof us.downloadNameTemplate==="string"? us.downloadNameTemplate:""),
+                       "onlinePlayStrategy":(us.onlinePlayStrategy===Define.playStrategyDownloadWhilePlaying
+                                             ? Define.playStrategyDownloadWhilePlaying:Define.playStrategyNoDownload),
+                       "downloadsDir":(typeof us.downloadsDir==="string"? us.downloadsDir:"")});
         }
         Assist.dlog("落盘","读取完成: 手动歌曲 ",localScan.singleFiles.length,
                     " 项, 扫描文件夹 ",localScan.scanDirs.length,
@@ -713,7 +723,10 @@ Item {
     function _uiStateWith(overrides) {
         var st=({"leftSidebarSpreaded":(uiState.leftSidebarSpreaded!==false),
                  "mainAreaPage":(uiState.mainAreaPage===undefined? "home":uiState.mainAreaPage),
-                 "downloadNameTemplate":(uiState.downloadNameTemplate===undefined? "":uiState.downloadNameTemplate)});
+                 "downloadNameTemplate":(uiState.downloadNameTemplate===undefined? "":uiState.downloadNameTemplate),
+                 "onlinePlayStrategy":(uiState.onlinePlayStrategy===Define.playStrategyDownloadWhilePlaying
+                                       ? Define.playStrategyDownloadWhilePlaying:Define.playStrategyNoDownload),
+                 "downloadsDir":(uiState.downloadsDir===undefined? "":uiState.downloadsDir)});
         for(var k in overrides) {
             st[k]=overrides[k];
         }
@@ -734,12 +747,14 @@ Item {
         uiState=_uiStateWith({"mainAreaPage":route});
         return saveUIState();
     }
-    /* 下载目录: 存储目录未确定时返回空字符串 */
+    /* 下载目录: 用户指定过目录时用指定的, 否则用存储目录下的默认目录;
+     * 存储目录未确定时返回空字符串 */
     function downloadsDir() {
         if(storageDirPath==="") {
             return "";
         }
-        return storageDirPath+"/"+downloadsDirName;
+        var o=downloadsDirOverride();
+        return (o!==""? o:storageDirPath+"/"+downloadsDirName);
     }
     /* 在线图标缓存目录: 存储目录未确定时返回空字符串 */
     function iconCacheDir() {
@@ -747,6 +762,13 @@ Item {
             return "";
         }
         return storageDirPath+"/"+cacheDirName+"/"+iconCacheDirName;
+    }
+    /* 在线曲库元信息与清单的缓存目录: 存储目录未确定时返回空字符串 */
+    function onlineCacheDir() {
+        if(storageDirPath==="") {
+            return "";
+        }
+        return storageDirPath+"/"+cacheDirName+"/"+onlineCacheDirName;
     }
     /* 下载文件命名模板: 界面偏好未设置时取设计常量里的默认值 */
     function downloadNameTemplate() {
@@ -762,6 +784,47 @@ Item {
         Assist.dlog("落盘","写入下载命名模板: ",v);
         uiState=_uiStateWith({"downloadNameTemplate":v});
         return saveUIState();
+    }
+    /* 在线歌曲的播放策略: 不下载(纯流式) 或 边播放边下载; 未设置时取不下载 */
+    function onlinePlayStrategy() {
+        return (uiState.onlinePlayStrategy===Define.playStrategyDownloadWhilePlaying
+                ? Define.playStrategyDownloadWhilePlaying:Define.playStrategyNoDownload);
+    }
+    /* 写入在线播放策略: 非法值回到不下载 */
+    function setOnlinePlayStrategy(v) {
+        var n=(v===Define.playStrategyDownloadWhilePlaying? v:Define.playStrategyNoDownload);
+        Assist.dlog("落盘","写入在线播放策略: ",n);
+        uiState=_uiStateWith({"onlinePlayStrategy":n});
+        return saveUIState();
+    }
+    /* 用户指定的下载目录: 未指定时返回空字符串, 表示使用存储目录下的默认目录 */
+    function downloadsDirOverride() {
+        var v=uiState.downloadsDir;
+        return (typeof v==="string"? v:"");
+    }
+    /* 写入用户指定的下载目录: 传空字符串表示恢复默认;
+     * 目录必须可写, 否则拒绝写入并保留原值 */
+    function setDownloadsDir(p) {
+        var raw=String(p===undefined || p===null? "":p).trim();
+        var v="";
+        if(raw!=="") {
+            v=AppFileHelper.formatPath(raw);
+            if(v==="") {
+                Assist.dwarn("落盘","下载目录无效: ",raw);
+                return false;
+            }
+            if(AppFileHelper.canWriteDir(v)===false) {
+                Assist.dwarn("落盘","下载目录不可写: ",v);
+                return false;
+            }
+        }
+        Assist.dlog("落盘","写入下载目录: ",(v===""? "(默认)":v));
+        uiState=_uiStateWith({"downloadsDir":v});
+        return saveUIState();
+    }
+    /* 恢复默认下载目录 */
+    function resetDownloadsDir() {
+        return setDownloadsDir("");
     }
     /* 按在线标识取下载记录, 没有该项时返回 null */
     function downloadOf(onlineId) {

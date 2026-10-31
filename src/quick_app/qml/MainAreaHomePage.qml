@@ -314,6 +314,18 @@ MainAreaFatherPage {
         Assist.dlog("在线","首页推荐重建: 共 ",v.length," 首");
         return true;
     }
+    /* 数据有变化才重建: 后台静默刷新时尽量不打扰用户, 重建时保留滚动位置 */
+    function rebuildIfChanged() {
+        var v=collectOnlineSongs();
+        if(JSON.stringify(v)===JSON.stringify(mainArea_HomePage.recommendModel)) {
+            return false;
+        }
+        var keptY=recommendView.contentY;
+        mainArea_HomePage.recommendModel=v;
+        recommendView.contentY=keptY;
+        Assist.dlog("在线","首页推荐已更新: 共 ",v.length," 首");
+        return true;
+    }
     /* 请求在线曲库: 未就绪时拉取一次, 进度走底部加载进度条 */
     function requestOnline() {
         if(Server.loadState===1) {
@@ -392,13 +404,17 @@ MainAreaFatherPage {
                 if(mainArea_HomePage.theMemStorage!==undefined && mainArea_HomePage.theMemStorage!==null) {
                     mainArea_HomePage.theMemStorage.updateLoading(100,mainArea_HomePage.onlineLoadingId);
                 }
-                mainArea_HomePage.rebuild();
+                mainArea_HomePage.rebuildIfChanged();
             } else if(Server.loadState===3) {
                 if(mainArea_HomePage.theMemStorage!==undefined && mainArea_HomePage.theMemStorage!==null) {
                     mainArea_HomePage.theMemStorage.stopLoading(mainArea_HomePage.onlineLoadingId);
                 }
-                mainArea_HomePage.rebuild();
+                mainArea_HomePage.rebuildIfChanged();
             }
+        }
+        /* 后台静默刷新成功: 数据变了才重建, 让刷新对用户无感 */
+        function onManifestUpdated() {
+            mainArea_HomePage.rebuildIfChanged();
         }
     }
     /* 封面来源: 优先取在线图标缓存, 未命中或尚未缓存时回退应用图标 */
@@ -409,8 +425,5 @@ MainAreaFatherPage {
         }
         var p=Server.iconCache[key];
         return (typeof p==="string" && p!==""? p:"qrc:/favicon.jpg");
-    }
-    Component.onCompleted: {
-        refresh();
     }
 }

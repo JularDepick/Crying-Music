@@ -47,6 +47,12 @@ Item {
     /* 正在拉取的图标与已试过的候选下标 */
     property var _iconPending: ({});
     property var _iconTries: ({});
+    /* 是否有一次拉取在途: 并发保护, 静默刷新与普通拉取互斥 */
+    property bool _fetching: false;
+    /* 本次拉取是否静默: 静默刷新只更新数据与缓存, 不改界面可见的加载状态 */
+    property bool _silent: false;
+    /* 曲库数据发生变化(拉取成功或后台刷新成功), 供界面按需重建 */
+    signal manifestUpdated();
     /* 单个候选地址的请求超时: 超时即换下一个备用地址 */
     Timer {
         id: reqTimer;
@@ -232,14 +238,109 @@ Item {
         AppNetHelper.fetchIcon(urls[0],iconName,dir);
         return true;
     }
-    /* 拉取在线曲库: 元信息就绪后再拉清单, 两者都成功才算就绪 */
-    function ensureLoaded() {
-        if(loadState===1 || loadState===2) {
+    /* 启动引导: 先读磁盘缓存让曲库立即可用; 有缓存时再后台静默刷新, 失败不影响界面;
+     * 没有缓存时按普通流程拉取, 界面照常显示加载态 */
+    function bootstrap() {
+        var had=loadCache();
+        if(had===true) {
+            refreshSilently();
+        } else {
+            ensureLoaded();
+        }
+        return had;
+    }
+    /* 从缓存文件恢复元信息与清单: 两者都有效时直接进入就绪态 */
+    function loadCache() {
+        var dir=GlobalFileStorage.onlineCacheDir();
+        if(dir==="") {
             return false;
         }
+        var metaTxt=AppFileHelper.readFile(dir+"/"+GlobalFileStorage.onlineMetaFileName,"UTF-8");
+        var manTxt=AppFileHelper.readFile(dir+"/"+GlobalFileStorage.onlineManifestFileName,"UTF-8");
+        if(metaTxt==="" || manTxt==="") {
+            Assist.dlog("在线","没有可用的缓存, 等待在线拉取");
+            return false;
+        }
+        var meta=null;
+        var man=null;
+        try {
+            meta=JSON.parse(metaTxt);
+            man=JSON.parse(manTxt);
+        } catch(e) {
+            Assist.dwarn("在线","缓存解析失败: ",e);
+            return false;
+        }
+        if(meta===null || typeof meta!=="object" || typeof meta.audio_obj_base_url!=="string"
+           || meta.audio_obj_base_url==="") {
+            Assist.dwarn("在线","缓存里的元信息结构不正确");
+            return false;
+        }
+        if(Array.isArray(man)===false) {
+            Assist.dwarn("在线","缓存里的清单结构不正确");
+            return false;
+        }
+        _setData(meta,man);
+        loadState=2;
+        loadError="";
+        Assist.dlog("在线","已从缓存恢复在线曲库: 共 ",man.length," 首");
+        return true;
+    }
+    /* 把当前元信息与清单写回缓存: 存储目录未确定或写入失败时返回 false */
+    function saveCache() {
+        var dir=GlobalFileStorage.onlineCacheDir();
+        if(dir==="") {
+            return false;
+        }
+        var okMeta=AppFileHelper.writeFile(dir+"/"+GlobalFileStorage.onlineMetaFileName,
+                                           JSON.stringify(oss.meta),"UTF-8");
+        var okMan=AppFileHelper.writeFile(dir+"/"+GlobalFileStorage.onlineManifestFileName,
+                                          JSON.stringify(oss.manifest),"UTF-8");
+        if(okMeta===true && okMan===true) {
+            Assist.dlog("在线","在线曲库缓存已更新");
+            return true;
+        }
+        Assist.dwarn("在线","在线曲库缓存写入失败");
+        return false;
+    }
+    /* 用一份新的元信息与清单替换当前数据, 三组候选地址保持不变 */
+    function _setData(meta,manifest) {
+        serverRoot.oss=({"meta_file_url":serverRoot.oss.meta_file_url,
+                         "manifest_file_url":serverRoot.oss.manifest_file_url,
+                         "icon_file_base_url":serverRoot.oss.icon_file_base_url,
+                         "meta":meta,
+                         "manifest":manifest});
+    }
+    /* 拉取在线曲库: 元信息就绪后再拉清单, 两者都成功才算就绪 */
+    function ensureLoaded() {
+        if(_fetching===true || loadState===1 || loadState===2) {
+            return false;
+        }
+        _silent=false;
         loadState=1;
         loadError="";
-        Assist.dlog("在线","开始拉取在线曲库: 元信息与清单");
+        return _startFetch();
+    }
+    /* 后台静默刷新: 不改界面的加载状态, 失败时保留现有数据与缓存 */
+    function refreshSilently() {
+        if(_fetching===true) {
+            return false;
+        }
+        _silent=true;
+        return _startFetch();
+    }
+    /* 重新拉取: 先复位状态再走一次完整流程 */
+    function retry() {
+        if(_fetching===true || loadState===1) {
+            return false;
+        }
+        loadState=0;
+        loadError="";
+        return ensureLoaded();
+    }
+    /* 发起一次拉取: 从元信息开始, 拿到后继续拉清单 */
+    function _startFetch() {
+        _fetching=true;
+        Assist.dlog("在线","开始拉取在线曲库: 元信息与清单",(_silent? "(后台静默)":""));
         _getJson(oss.meta_file_url,function(data) {
             if(data===null || typeof data!=="object" || typeof data.audio_obj_base_url!=="string"
                || data.audio_obj_base_url==="") {
@@ -247,25 +348,12 @@ Item {
                 return;
             }
             Assist.dlog("在线","元信息就绪: 对象存储基址 ",data.audio_obj_base_url);
-            serverRoot.oss=({"meta_file_url":serverRoot.oss.meta_file_url,
-                             "manifest_file_url":serverRoot.oss.manifest_file_url,
-                             "icon_file_base_url":serverRoot.oss.icon_file_base_url,
-                             "meta":data,
-                             "manifest":serverRoot.oss.manifest});
+            serverRoot._setData(data,serverRoot.oss.manifest);
             serverRoot._loadManifest();
         },function(reason) {
             serverRoot._fail(reason);
         });
         return true;
-    }
-    /* 重新拉取: 先复位状态再走一次完整流程 */
-    function retry() {
-        if(loadState===1) {
-            return false;
-        }
-        loadState=0;
-        loadError="";
-        return ensureLoaded();
     }
     /* 拉取清单 */
     function _loadManifest() {
@@ -274,20 +362,30 @@ Item {
                 serverRoot._fail("清单结构不正确");
                 return;
             }
-            serverRoot.oss=({"meta_file_url":serverRoot.oss.meta_file_url,
-                             "manifest_file_url":serverRoot.oss.manifest_file_url,
-                             "icon_file_base_url":serverRoot.oss.icon_file_base_url,
-                             "meta":serverRoot.oss.meta,
-                             "manifest":data});
-            serverRoot.loadState=2;
-            serverRoot.loadError="";
-            Assist.dlog("在线","清单就绪: 共 ",data.length," 首");
+            serverRoot._setData(serverRoot.oss.meta,data);
+            serverRoot._finishOk();
         },function(reason) {
             serverRoot._fail(reason);
         });
     }
-    /* 加载失败: 复位状态并记录原因 */
+    /* 拉取成功: 覆写缓存, 进入就绪态并通知界面 */
+    function _finishOk() {
+        _fetching=false;
+        saveCache();
+        loadState=2;
+        loadError="";
+        Assist.dlog("在线","清单就绪: 共 ",manifestRows().length," 首");
+        serverRoot.manifestUpdated();
+        _silent=false;
+    }
+    /* 加载失败: 静默刷新只记日志并继续用缓存, 其余情况进入失败态 */
     function _fail(reason) {
+        _fetching=false;
+        if(_silent===true) {
+            _silent=false;
+            Assist.dwarn("在线","后台刷新失败, 继续使用缓存: ",reason);
+            return;
+        }
         loadState=3;
         loadError=reason;
         Assist.derror("在线","在线曲库加载失败: ",reason);

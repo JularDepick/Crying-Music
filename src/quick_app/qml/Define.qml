@@ -50,6 +50,11 @@ Item {
     /* 在线音乐的下载文件命名模板: {songname} 与 {singer} 为占位符,
      * 默认取"歌曲名-歌手", 可在设置页修改, 修改结果落盘为界面偏好 */
     property string downloadNameTemplate: "{songname}-{singer}";
+    /* 下载文件命名的三个换挡: 值就是命名模板, 顺序即界面上的顺序 */
+    property var downloadNameTemplates: ["{songname}-{singer}","{singer}-{songname}","{songname}"];
+    /* 在线播放策略的两个取值: 不下载(纯流式) 与 边播放边下载 */
+    property string playStrategyNoDownload: "nodownload";
+    property string playStrategyDownloadWhilePlaying: "downloadwhileplaying";
     /* 在线曲库单个候选地址的请求超时(毫秒): 超时即换下一个备用地址 */
     property int onlineRequestTimeoutMs: 8000;
     /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;
