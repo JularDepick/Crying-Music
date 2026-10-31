@@ -356,15 +356,15 @@ MainAreaFatherPage {
                                 Image {
                                     id: songAvatarImage;
                                     anchors.fill: parent;
-                                    /* 封面: 本地路径优先, 在线条目取 Server 里的图标缓存, 都没有时回退应用图标;
+                                    /* 封面: 本地路径优先, 在线条目取 Server 里的封面缓存, 都没有时回退应用图标;
                                      * 在线封面在行可见时按需请求, 避免整表一次性发起下载 */
-                                    property string iconKey: (modelData["icon"]===undefined? "":modelData["icon"]);
-                                    onIconKeyChanged: {
-                                        Server.requestIcon(iconKey);
+                                    property string coverKey: (modelData["cover"]===undefined? "":modelData["cover"]);
+                                    onCoverKeyChanged: {
+                                        Server.requestCover(coverKey);
                                     }
                                     source: (modelData["absipath"]&&modelData["absipath"]!==""? modelData["absipath"]
-                                             :(modelData["icon"]&&modelData["icon"]!==""&&Server.iconCache[modelData["icon"]]!==undefined
-                                               ? Server.iconCache[modelData["icon"]]:"qrc:/favicon.jpg"));
+                                             :(modelData["cover"]&&modelData["cover"]!==""&&Server.coverCache[modelData["cover"]]!==undefined
+                                               ? Server.coverCache[modelData["cover"]]:"qrc:/favicon.jpg"));
                                     fillMode: Image.PreserveAspectCrop;
                                     layer.enabled: true;
                                     layer.effect: MultiEffect {

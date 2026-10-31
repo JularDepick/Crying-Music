@@ -55,14 +55,17 @@ Item {
     /* 在线播放策略的两个取值: 不下载(纯流式) 与 边播放边下载 */
     property string playStrategyNoDownload: "nodownload";
     property string playStrategyDownloadWhilePlaying: "downloadwhileplaying";
-    /* 在线曲库单个候选地址的请求超时(毫秒): 超时即换下一个备用地址 */
-    property int onlineRequestTimeoutMs: 8000;
-    /* 封面(与在线歌曲的图标等价)缓存生命周期: 默认天数与设置页可选档位;
+    /* 对冲拉取: 某个候选源超过各自的等待时长仍未返回, 就并行拉起下一个备用源;
+     * 从发起时刻起超过 onlineSourceTimeoutMs 仍未返回即判该源失败 */
+    property int onlineMetaHedgeMs: 1000;
+    property int onlineManifestHedgeMs: 1000;
+    property int onlineCoverHedgeMs: 2000;
+    property int onlineLyricsHedgeMs: 1500;
+    property int onlineSourceTimeoutMs: 3000;
+    /* 在线封面缓存的生命周期: 默认天数与设置页可选档位;
      * 生命周期在缓存写入那一刻定下, 之后改档位不影响已经缓存的封面 */
-    property int iconCacheTtlDefaultDays: 7;
-    property var iconCacheTtlDayOptions: [1,7,15,30];
-    /* 后台全量补全封面时的并发上限 */
-    property int iconFillLimit: 4;
+    property int coverCacheTtlDefaultDays: 7;
+    property var coverCacheTtlDayOptions: [1,7,15,30];
     /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;
      * 输出的统一格式为 [分类标签]<具体信息>, 由 Assist 的输出函数拼装 */
     property var debugCategoryOn:

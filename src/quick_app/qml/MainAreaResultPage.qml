@@ -154,10 +154,10 @@ MainAreaFatherPage {
                                 Image {
                                     id: songAvatarImage;
                                     anchors.fill: parent;
-                                    /* 封面: 本地路径优先, 在线条目取在线图标缓存, 都没有时回退应用图标 */
-                                    property string iconKey: (modelData["icon"]===undefined? "":modelData["icon"]);
-                                    onIconKeyChanged: {
-                                        Server.requestIcon(iconKey);
+                                    /* 封面: 本地路径优先, 在线条目取在线封面缓存, 都没有时回退应用图标 */
+                                    property string coverKey: (modelData["cover"]===undefined? "":modelData["cover"]);
+                                    onCoverKeyChanged: {
+                                        Server.requestCover(coverKey);
                                     }
                                     source: mainArea_ResultPage.coverOf(modelData);
                                     fillMode: Image.PreserveAspectCrop;
@@ -335,7 +335,7 @@ MainAreaFatherPage {
         }
         return (typeof originPage.search==="function"? originPage.search(kw):[]);
     }
-    /* 封面来源: 优先取本地封面, 其次在线图标缓存, 都没有时回退应用图标 */
+    /* 封面来源: 优先取本地封面, 其次在线封面缓存, 都没有时回退应用图标 */
     function coverOf(one) {
         if(one===undefined || one===null) {
             return "qrc:/favicon.jpg";
@@ -344,11 +344,11 @@ MainAreaFatherPage {
         if(typeof ip==="string" && ip!=="") {
             return ip;
         }
-        var key=(one["icon"]===undefined? "":one["icon"]);
+        var key=(one["cover"]===undefined? "":one["cover"]);
         if(typeof key!=="string" || key==="") {
             return "qrc:/favicon.jpg";
         }
-        var p=Server.iconCache[key];
+        var p=Server.coverCache[key];
         return (typeof p==="string" && p!==""? p:"qrc:/favicon.jpg");
     }
     /* 喜欢状态会被其它页面改写, 显示时轻量同步一次 */

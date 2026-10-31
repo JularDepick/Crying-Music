@@ -168,13 +168,13 @@ MainAreaFatherPage {
                         Image {
                             id: coverImage;
                             anchors.fill: parent;
-                            /* 封面取在线图标缓存, 未命中或拉取失败时回退应用图标;
-                             * 图标在卡片可见时按需请求, 避免整页一次性发起下载 */
-                            property string iconKey: (modelData["icon"]===undefined? "":modelData["icon"]);
-                            onIconKeyChanged: {
-                                Server.requestIcon(iconKey);
+                            /* 封面取在线封面缓存, 未命中或拉取失败时回退应用图标;
+                             * 封面在卡片可见时按需请求, 避免整页一次性发起下载 */
+                            property string coverKey: (modelData["cover"]===undefined? "":modelData["cover"]);
+                            onCoverKeyChanged: {
+                                Server.requestCover(coverKey);
                             }
-                            source: mainArea_HomePage.iconPathOf(modelData);
+                            source: mainArea_HomePage.coverPathOf(modelData);
                             fillMode: Image.PreserveAspectCrop;
                         }
                         /* 悬停暗层: 让浮出的播放按钮在任何封面上都清晰 */
@@ -444,17 +444,17 @@ MainAreaFatherPage {
         function onManifestUpdated() {
             mainArea_HomePage.rebuildIfChanged();
         }
-        function onIconCacheCleared() {
+        function onCoverCacheCleared() {
             mainArea_HomePage.rebuildIfChanged(true);
         }
     }
-    /* 封面来源: 优先取在线图标缓存, 未命中或尚未缓存时回退应用图标 */
-    function iconPathOf(one) {
-        var key=(one===undefined || one===null? "":one["icon"]);
+    /* 封面来源: 优先取在线封面缓存, 未命中或尚未缓存时回退应用图标 */
+    function coverPathOf(one) {
+        var key=(one===undefined || one===null? "":one["cover"]);
         if(typeof key!=="string" || key==="") {
             return "qrc:/favicon.jpg";
         }
-        var p=Server.iconCache[key];
+        var p=Server.coverCache[key];
         return (typeof p==="string" && p!==""? p:"qrc:/favicon.jpg");
     }
 }

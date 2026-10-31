@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
+#include <QSet>
 #include <QDateTime>
 #include <QTimer>
 #include <QCoreApplication>
@@ -24,54 +25,77 @@ class AppNetHelper : public QObject {
 public:
     explicit AppNetHelper(QObject *parent=nullptr):QObject(parent) {}
 
-    /* 拉取图标到缓存目录: url 为完整地址, cacheKey 为缓存文件名,
-     * cacheDir 为缓存目录的标准化绝对路径; 命中缓存时同样以信号回调, 调用方无需分支。 */
-    Q_INVOKABLE void fetchIcon(const QString &url, const QString &cacheKey, const QUrl &cacheDir,
-                               bool force = false) {
-        if (url.isEmpty() || cacheKey.isEmpty() || cacheDir.isEmpty()) {
-            emit iconFailed(cacheKey, QStringLiteral("参数不完整"));
+    /* 拉取小文件到缓存目录(封面与歌词共用): url 为完整地址, cacheKey 为本次尝试的键,
+     * cacheDir 为缓存目录的标准化绝对路径, dstName 为落盘文件名(缺省与 cacheKey 相同);
+     * 同一个 dstName 只认第一个写成功的响应, 其余响应即使到齐也丢弃, 因此多个备用源
+     * 可以并行拉同一个文件而不会写出交错内容; 命中缓存时同样以信号回调, 调用方无需分支。 */
+    Q_INVOKABLE void fetchCachedFile(const QString &url, const QString &cacheKey, const QUrl &cacheDir,
+                               bool force = false, const QString &dstName = QString()) {
+        const QString targetName = (dstName.isEmpty() ? cacheKey : dstName);
+        if (url.isEmpty() || cacheKey.isEmpty() || cacheDir.isEmpty() || targetName.isEmpty()) {
+            emit cachedFileFailed(cacheKey, QStringLiteral("参数不完整"));
             return;
         }
         const QString dirPath = cacheDir.toLocalFile();
         if (dirPath.isEmpty()) {
-            emit iconFailed(cacheKey, QStringLiteral("缓存目录无效"));
+            emit cachedFileFailed(cacheKey, QStringLiteral("缓存目录无效"));
             return;
         }
-        const QString targetPath = QDir(dirPath).absoluteFilePath(cacheKey);
+        const QString targetPath = QDir(dirPath).absoluteFilePath(targetName);
         /* 命中缓存直接回调; 过期刷新时由调用方要求忽略缓存, 重新下载并覆盖同一文件 */
         if (!force && QFileInfo(targetPath).isFile() && QFileInfo(targetPath).size() > 0) {
             const QString localUrl = QUrl::fromLocalFile(targetPath).toString();
             QTimer::singleShot(0, this, [this, cacheKey, localUrl]() {
-                emit iconReady(cacheKey, localUrl);
+                emit cachedFileReady(cacheKey, localUrl);
             });
             return;
         }
-        if (m_iconReplies.contains(cacheKey)) {
+        if (m_cachedFileReplies.contains(cacheKey)) {
             return;
         }
         QNetworkReply *reply = m_nam.get(buildRequest(url));
-        m_iconReplies.insert(cacheKey, reply);
-        connect(reply, &QNetworkReply::finished, this, [this, reply, cacheKey, targetPath]() {
-            m_iconReplies.remove(cacheKey);
+        m_cachedFileReplies.insert(cacheKey, reply);
+        connect(reply, &QNetworkReply::finished, this, [this, reply, cacheKey, targetPath, targetName]() {
+            m_cachedFileReplies.remove(cacheKey);
             reply->deleteLater();
             if (reply->error()!=QNetworkReply::NoError) {
-                emit iconFailed(cacheKey, reply->errorString());
+                emit cachedFileFailed(cacheKey, reply->errorString());
+                return;
+            }
+            /* 另一个源已经写过同一个文件: 丢弃本次响应, 既不落盘也不通知成功 */
+            if (m_cachedFileWon.contains(targetName)) {
+                emit cachedFileFailed(cacheKey, QStringLiteral("已被其它源抢先"));
                 return;
             }
             const QByteArray data = reply->readAll();
             if (data.isEmpty()) {
-                emit iconFailed(cacheKey, QStringLiteral("空响应"));
+                emit cachedFileFailed(cacheKey, QStringLiteral("空响应"));
                 return;
             }
             QDir().mkpath(QFileInfo(targetPath).absolutePath());
             QFile out(targetPath);
             if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(data)<0) {
-                emit iconFailed(cacheKey, QStringLiteral("缓存写入失败"));
+                emit cachedFileFailed(cacheKey, QStringLiteral("缓存写入失败"));
                 return;
             }
             out.close();
-            emit iconReady(cacheKey, QUrl::fromLocalFile(targetPath).toString());
+            m_cachedFileWon.insert(targetName);
+            emit cachedFileReady(cacheKey, QUrl::fromLocalFile(targetPath).toString());
         });
+    }
+
+    /* 中止一次小文件拉取: 未在途时静默返回; 被中止的请求仍会以 cachedFileFailed 回调,
+     * 调用方按自己是否已关闭该次尝试来决定丢弃即可 */
+    Q_INVOKABLE void cancelCachedFile(const QString &cacheKey) {
+        QNetworkReply *reply = m_cachedFileReplies.value(cacheKey);
+        if (reply!=nullptr) {
+            reply->abort();
+        }
+    }
+
+    /* 清空"该文件已有源写成功"的记录: 清理缓存时调用, 让同名文件可以重新落盘 */
+    Q_INVOKABLE void clearCachedFileWon() {
+        m_cachedFileWon.clear();
     }
 
     /* 下载音频到目标位置: url 为完整地址, dstUrl 为目标文件的标准化绝对路径,
@@ -162,9 +186,9 @@ public:
 
 signals:
     /* 图标已就绪: localPath 为缓存文件的标准化绝对路径 */
-    void iconReady(const QString &cacheKey, const QString &localPath);
+    void cachedFileReady(const QString &cacheKey, const QString &localPath);
     /* 图标拉取失败: reason 为网络错误或落盘错误的说明 */
-    void iconFailed(const QString &cacheKey, const QString &reason);
+    void cachedFileFailed(const QString &cacheKey, const QString &reason);
     void downloadStarted(const QString &taskKey);
     /* 下载进度: total 为 -1 表示总长度未知 */
     void downloadProgress(const QString &taskKey, qint64 received, qint64 total);
@@ -318,7 +342,9 @@ private:
     }
 
     QNetworkAccessManager m_nam;
-    QHash<QString, QNetworkReply *> m_iconReplies;
+    QHash<QString, QNetworkReply *> m_cachedFileReplies;
+    /* 已经写成功的目标文件名: 并行尝试时只认第一个写成功的响应 */
+    QSet<QString> m_cachedFileWon;
     QHash<QString, QNetworkReply *> m_sizeReplies;
     QHash<QString, DownloadTask> m_downloads;
 };

@@ -24,12 +24,14 @@ Item {
     property string uiStateFileName: "UI_State.json";
     property string downloadsFileName: "downloads.json";
     /* 存储布局: 在线音乐的下载文件放在 <storageDirPath>/downloads 下,
-     * 在线图标缓存放在 <storageDirPath>/cache/icons 下 */
+     * 在线封面缓存放在 <storageDirPath>/cache/covers 下,
+     * 在线歌词缓存放在 <storageDirPath>/cache/lyrics 下 */
     property string downloadsDirName: "downloads";
     property string cacheDirName: "cache";
-    property string iconCacheDirName: "icons";
+    property string coverCacheDirName: "covers";
+    property string lyricsCacheDirName: "lyrics";
     /* 封面缓存索引: 记录每个封面的缓存时刻与该条目自己的生命周期 */
-    property string iconCacheIndexFileName: "index.json";
+    property string coverCacheIndexFileName: "index.json";
     /* 在线曲库的元信息与清单缓存放在 <storageDirPath>/cache/online 下:
      * 启动时先读缓存让曲库立即可用, 再在后台静默刷新并覆写缓存 */
     property string onlineCacheDirName: "online";
@@ -85,7 +87,7 @@ Item {
         onlinePlayStrategy: "nodownload",
         downloadsDir: "",
         themeId: "",
-        iconCacheTtlDays: 0
+        coverCacheTtlDays: 0
     });
     /* 目录决策: 指针优先, 其次 A, 再 B, 最后兜底 C; 三个候选都不可用时退出应用。
      * 全过程输出 [存储目录] 前缀的日志, 便于在运行控制台里追决策路径 */
@@ -513,7 +515,7 @@ Item {
                                              ? Define.playStrategyDownloadWhilePlaying:Define.playStrategyNoDownload),
                        "downloadsDir":(typeof us.downloadsDir==="string"? us.downloadsDir:""),
                        "themeId":(typeof us.themeId==="string"? us.themeId:""),
-                       "iconCacheTtlDays":(typeof us.iconCacheTtlDays==="number"? us.iconCacheTtlDays:0)});
+                       "coverCacheTtlDays":(typeof us.coverCacheTtlDays==="number"? us.coverCacheTtlDays:0)});
         }
         Assist.dlog("落盘","读取完成: 手动歌曲 ",localScan.singleFiles.length,
                     " 项, 扫描文件夹 ",localScan.scanDirs.length,
@@ -737,7 +739,7 @@ Item {
                                        ? Define.playStrategyDownloadWhilePlaying:Define.playStrategyNoDownload),
                  "downloadsDir":(uiState.downloadsDir===undefined? "":uiState.downloadsDir),
                  "themeId":(uiState.themeId===undefined? "":String(uiState.themeId)),
-                 "iconCacheTtlDays":(typeof uiState.iconCacheTtlDays!=="number"? 0:uiState.iconCacheTtlDays)});
+                 "coverCacheTtlDays":(typeof uiState.coverCacheTtlDays!=="number"? 0:uiState.coverCacheTtlDays)});
         for(var k in overrides) {
             st[k]=overrides[k];
         }
@@ -778,22 +780,22 @@ Item {
         return saveUIState();
     }
     /* 封面缓存生命周期(天): 未设置或超出 1 到 365 时取设计常量里的默认值 */
-    function iconCacheTtlDays() {
-        var d=uiState.iconCacheTtlDays;
+    function coverCacheTtlDays() {
+        var d=uiState.coverCacheTtlDays;
         if(typeof d!=="number" || d<1 || d>365) {
-            return Define.iconCacheTtlDefaultDays;
+            return Define.coverCacheTtlDefaultDays;
         }
         return Math.floor(d);
     }
     /* 写入封面缓存生命周期: 只改这一项; 已经缓存下来的封面按各自记录的时长到期, 不受影响 */
-    function setIconCacheTtlDays(days) {
+    function setCoverCacheTtlDays(days) {
         var n=Math.floor(Number(days));
         if(!(n>=1 && n<=365)) {
             Assist.dwarn("落盘","写入封面缓存生命周期失败: 非法天数 ",days);
             return false;
         }
         Assist.dlog("落盘","写入封面缓存生命周期: ",n," 天");
-        uiState=_uiStateWith({"iconCacheTtlDays":n});
+        uiState=_uiStateWith({"coverCacheTtlDays":n});
         return saveUIState();
     }
     /* 下载目录: 用户指定过目录时用指定的, 否则用存储目录下的默认目录;
@@ -805,12 +807,19 @@ Item {
         var o=downloadsDirOverride();
         return (o!==""? o:storageDirPath+"/"+downloadsDirName);
     }
-    /* 在线图标缓存目录: 存储目录未确定时返回空字符串 */
-    function iconCacheDir() {
+    /* 在线封面缓存目录: 存储目录未确定时返回空字符串 */
+    function coverCacheDir() {
         if(storageDirPath==="") {
             return "";
         }
-        return storageDirPath+"/"+cacheDirName+"/"+iconCacheDirName;
+        return storageDirPath+"/"+cacheDirName+"/"+coverCacheDirName;
+    }
+    /* 在线歌词缓存目录: 存储目录未确定时返回空字符串 */
+    function lyricsCacheDir() {
+        if(storageDirPath==="") {
+            return "";
+        }
+        return storageDirPath+"/"+cacheDirName+"/"+lyricsCacheDirName;
     }
     /* 在线曲库元信息与清单的缓存目录: 存储目录未确定时返回空字符串 */
     function onlineCacheDir() {

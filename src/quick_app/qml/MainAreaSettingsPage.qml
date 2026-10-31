@@ -21,7 +21,7 @@ MainAreaFatherPage {
     /* 封面缓存生命周期候选: 值即天数, 档位来自设计常量 */
     property var ttlOptions: buildTtlOptions();
     function buildTtlOptions() {
-        var src=Define.iconCacheTtlDayOptions;
+        var src=Define.coverCacheTtlDayOptions;
         var res=[];
         for(var i=0;i<src.length;i++) {
             res.push({"label":String(src[i])+" 天","value":src[i]});
@@ -60,18 +60,19 @@ MainAreaFatherPage {
     function downloadsDirIsCustom() {
         return (GlobalFileStorage.downloadsDirOverride()!=="");
     }
-    /* 封面缓存概况文本 */
+    /* 在线缓存概况文本: 封面与歌词各自的已缓存数量与清单条目数 */
     function cacheStatsText() {
-        var s=Server.iconCacheStats();
-        return ("已缓存 "+s["cached"]+" 个封面, 清单共 "+s["total"]+" 首");
+        var s=Server.coverCacheStats();
+        var l=Server.lyricsCacheStats();
+        return ("已缓存 "+s["cached"]+" 个封面与 "+l["cached"]+" 份歌词, 清单共 "+s["total"]+" 首");
     }
-    /* 立即清理封面缓存: 只删本地缓存文件, 不动任何数据与偏好 */
-    function clearIconCache() {
-        var ok=Server.clearIconCache();
-        mainArea_SettingsPage.cacheTipOk=(ok===true);
-        mainArea_SettingsPage.cacheTip=(ok===true? "已清理封面缓存, 封面会在需要时重新缓存"
-                                               :"清理失败, 请查看控制台日志");
-        Assist.dlog("界面","清理封面缓存: ",ok);
+    /* 立即清理在线缓存: 封面与歌词一并删除, 只删本地缓存文件, 不动任何数据与偏好 */
+    function clearCoverCache() {
+        var ok=(Server.clearCoverCache()===true && Server.clearLyricsCache()===true);
+        mainArea_SettingsPage.cacheTipOk=ok;
+        mainArea_SettingsPage.cacheTip=(ok? "已清理封面与歌词缓存, 会在需要时重新缓存"
+                                          :"清理失败, 请查看控制台日志");
+        Assist.dlog("界面","清理封面与歌词缓存: ",ok);
     }
     /* 选择下载目录: 走系统文件夹选择框, 不允许直接改路径文本 */
     function chooseDownloadsDir() {
@@ -266,9 +267,9 @@ MainAreaFatherPage {
         CustomChoose {
             id: ttlChoose;
             options: mainArea_SettingsPage.ttlOptions;
-            currentValue: GlobalFileStorage.iconCacheTtlDays();
+            currentValue: GlobalFileStorage.coverCacheTtlDays();
             onChosen: (value, index)=> {
-                GlobalFileStorage.setIconCacheTtlDays(value);
+                GlobalFileStorage.setCoverCacheTtlDays(value);
                 Assist.dlog("界面","封面缓存生命周期: ",value," 天");
             }
         }
@@ -290,7 +291,7 @@ MainAreaFatherPage {
                     }
                 }
                 onClicked: {
-                    mainArea_SettingsPage.clearIconCache();
+                    mainArea_SettingsPage.clearCoverCache();
                 }
             }
         }
