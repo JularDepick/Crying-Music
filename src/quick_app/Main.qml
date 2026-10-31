@@ -78,6 +78,163 @@ ApplicationWindow {
             loadingState=({"using":false,"value":0,"finishedTip":"","usedByWho":""});
             return true;
         }
+        /* 在线音乐下载队列: 只存内存, 下载完成后写入存储的下载记录;
+         * 首页推荐与本地和下载页共用同一份队列, 因此由内存枢纽持有 */
+        property var downloadTasks: ([]);
+        /* 按在线标识取下载任务, 没有该项时返回 null */
+        function downloadTaskOf(onlineId) {
+            var l=downloadTasks.length;
+            for(var i=0;i<l;i++) {
+                if(downloadTasks[i]["onlineId"]===onlineId) {
+                    return downloadTasks[i];
+                }
+            }
+            return null;
+        }
+        /* 某个本地路径已被哪个在线标识占用, 未占用返回空字符串 */
+        function downloadedOwnerOf(path) {
+            var v=GlobalFileStorage.downloads;
+            var l=v.length;
+            for(var i=0;i<l;i++) {
+                if(v[i]["absfpath"]===path) {
+                    return v[i]["onlineId"];
+                }
+            }
+            return "";
+        }
+        /* 下载目标路径: 按命名模板拼主文件名, 重名时追加序号;
+         * 扩展名沿用在线文件的扩展名, 保证音频格式不变 */
+        function downloadDstOf(one) {
+            var dir=GlobalFileStorage.downloadsDir();
+            if(dir==="") {
+                return "";
+            }
+            var id=String(one["onlineId"]);
+            var name=Assist.composeDownloadName(GlobalFileStorage.downloadNameTemplate(),
+                                                one["songname"],one["singer"],id);
+            var dot=name.lastIndexOf(".");
+            var base=(dot>0? name.substring(0,dot):name);
+            var ext=(dot>0? name.substring(dot):"");
+            var p=dir+"/"+name;
+            var n=1;
+            while(AppFileHelper.existsFile(p)===true && memStorage.downloadedOwnerOf(p)!==id) {
+                n=n+1;
+                p=dir+"/"+base+" ("+n+")"+ext;
+            }
+            return p;
+        }
+        /* 开始下载: 只接受在线条目, 已下载或已在队列中时直接返回 false */
+        function startDownload(one) {
+            if(one===undefined || one===null || one["online"]!==true) {
+                return false;
+            }
+            var id=one["onlineId"];
+            if(id===undefined || id==="") {
+                Assist.dwarn("下载","缺少在线标识, 无法下载");
+                return false;
+            }
+            if(GlobalFileStorage.downloadedPathOf(id)!=="") {
+                Assist.dlog("下载","已下载, 跳过: ",id);
+                return false;
+            }
+            if(memStorage.downloadTaskOf(id)!==null) {
+                return false;
+            }
+            var dst=memStorage.downloadDstOf(one);
+            if(dst==="") {
+                Assist.derror("下载","下载目录不可用, 无法下载");
+                return false;
+            }
+            var task=({"onlineId":id,
+                       "songname":one["songname"],
+                       "singer":one["singer"],
+                       "icon":(one["icon"]===undefined? "":one["icon"]),
+                       "url":one["absfpath"],
+                       "dst":dst,
+                       "progress":0,
+                       "received":0,
+                       "total":-1});
+            var v=downloadTasks.slice();
+            v.push(task);
+            downloadTasks=v;
+            Assist.dlog("下载","开始下载: ",id," -> ",dst);
+            AppNetHelper.downloadAudio(one["absfpath"],dst,id);
+            return true;
+        }
+        /* 取消下载: 中止请求, 队列的清理由失败回调统一完成 */
+        function cancelDownload(taskKey) {
+            if(taskKey===undefined || taskKey==="") {
+                return false;
+            }
+            Assist.dlog("下载","取消下载: ",taskKey);
+            AppNetHelper.cancelDownload(taskKey);
+            return true;
+        }
+        /* 从下载队列移除一个任务 */
+        function removeDownloadTask(taskKey) {
+            var v=[];
+            var l=downloadTasks.length;
+            for(var i=0;i<l;i++) {
+                if(downloadTasks[i]["onlineId"]!==taskKey) {
+                    v.push(downloadTasks[i]);
+                }
+            }
+            downloadTasks=v;
+        }
+        /* 下载进度: 百分比变化时才整体替换队列, 避免逐块刷新界面 */
+        function onDownloadProgress(taskKey,received,total) {
+            var t=memStorage.downloadTaskOf(taskKey);
+            if(t===null) {
+                return;
+            }
+            var pct=(total>0? Math.floor(received*100/total):0);
+            var changed=(t["progress"]!==pct);
+            t["progress"]=pct;
+            t["received"]=received;
+            t["total"]=total;
+            if(changed===true) {
+                downloadTasks=downloadTasks.slice();
+            }
+        }
+        /* 下载完成: 写入下载记录并提示 */
+        function onDownloadFinished(taskKey,localPath) {
+            var t=memStorage.downloadTaskOf(taskKey);
+            memStorage.removeDownloadTask(taskKey);
+            if(t===null) {
+                return;
+            }
+            GlobalFileStorage.addDownloaded({"onlineId":t["onlineId"],
+                                             "absfpath":localPath,
+                                             "songname":t["songname"],
+                                             "singer":t["singer"],
+                                             "icon":t["icon"],
+                                             "size":AppFileHelper.fileSize(localPath),
+                                             "duration":0});
+            Assist.dlog("下载","下载完成: ",t["onlineId"]);
+            memStorage.showDownloadTip("已下载: "+t["songname"]);
+        }
+        /* 下载失败或取消: 移除任务并提示 */
+        function onDownloadFailed(taskKey,reason) {
+            var t=memStorage.downloadTaskOf(taskKey);
+            memStorage.removeDownloadTask(taskKey);
+            if(t===null) {
+                return;
+            }
+            if(reason==="已取消") {
+                Assist.dlog("下载","已取消: ",t["onlineId"]);
+            } else {
+                Assist.dwarn("下载","下载失败: ",t["songname"],", ",reason);
+                memStorage.showDownloadTip("下载失败: "+t["songname"]);
+            }
+        }
+        /* 下载结果的浮窗提示: 复用底部加载进度条 */
+        function showDownloadTip(text) {
+            if(memStorage.startLoading(text,"download")===false) {
+                return false;
+            }
+            memStorage.updateLoading(100,"download");
+            return true;
+        }
     }
 
     /* 系统托盘 */
@@ -501,12 +658,19 @@ ApplicationWindow {
                         anchors.fill: parent;
                     }
                     placeholderText: "搜索音乐";
+                    /* 回车即搜索当前页面的列表 */
+                    onAccepted: {
+                        window.doSearch();
+                    }
                 }
                 TopNavBarButton {
                     id: searchBtn;
                     icon.source: "qrc:/assets/iconfont/topnavbar/search.svg";
                     anchors.verticalCenter: searchInput.verticalCenter;
                     transEnabled: false;
+                    onClicked: {
+                        window.doSearch();
+                    }
                     background: Rectangle {
                         color: "#d5d5d5";
                         width: 25;
@@ -591,8 +755,12 @@ ApplicationWindow {
                 curr.visible=false;
                 curr=which;
                 curr.visible=true;
-                /* 每次真正换页都把当前页写进界面状态, 供下次启动停在同一页 */
-                GlobalFileStorage.setMainAreaPage(routeKeyOf(which));
+                /* 每次真正换页都把当前页写进界面状态, 供下次启动停在同一页;
+                 * 搜索结果页没有路由键, 不进界面状态, 重启后回到发起搜索前的页面 */
+                var key=routeKeyOf(which);
+                if(key!=="") {
+                    GlobalFileStorage.setMainAreaPage(key);
+                }
             }
             /* 按存储里的界面状态恢复上次停留的页面: 只换页, 不进历史栈 */
             function applyStoredPage() {
@@ -654,6 +822,8 @@ ApplicationWindow {
             }
             MainAreaHomePage {
                 id: mainArea_HomePage;
+                thePlayer: player;
+                theMemStorage: memStorage;
                 anchors.fill: parent;
                 visible: true;
             }
@@ -682,6 +852,12 @@ ApplicationWindow {
             }
             MainAreaThemePage {
                 id: mainArea_ThemePage;
+                anchors.fill: parent;
+            }
+            MainAreaResultPage {
+                id: mainArea_ResultPage;
+                thePlayer: player;
+                theMemStorage: memStorage;
                 anchors.fill: parent;
             }
         }
@@ -2026,6 +2202,43 @@ ApplicationWindow {
             moreFunBtn.subTabVisible=false;
         }
         mainArea.curr.subsHide(scenePos);
+    }
+    /* 搜索: 交给当前页面过滤它自己的列表, 结果送进搜索结果页, 并只由搜索触发换页;
+     * 已经在搜索结果页时向发起搜索的页面重新取结果, 不重复入历史栈 */
+    function doSearch() {
+        var kw=String(searchInput.text).trim();
+        if(kw==="") {
+            Assist.dwarn("界面","搜索关键字为空, 忽略");
+            return false;
+        }
+        var page=mainArea.curr;
+        if(page===undefined || page===null) {
+            Assist.derror("界面","搜索失败: 当前页面不存在");
+            return false;
+        }
+        var origin=(page===mainArea_ResultPage? mainArea_ResultPage.originPage:page);
+        if(origin===null || origin===undefined) {
+            Assist.derror("界面","搜索失败: 找不到发起搜索的页面");
+            return false;
+        }
+        var list=(typeof origin.search==="function"? origin.search(kw):[]);
+        Assist.dlog("界面","搜索: 页面 ",mainArea.routeKeyOf(origin),", 关键字 ",kw,", 命中 ",list.length," 条");
+        mainArea_ResultPage.showResult(kw,list,origin);
+        mainArea.jump2(mainArea_ResultPage);
+        return true;
+    }
+    /* 下载结果: 队列与提示都由内存枢纽统一处理, 供首页推荐与本地和下载页共用 */
+    Connections {
+        target: AppNetHelper;
+        function onDownloadProgress(taskKey,received,total) {
+            memStorage.onDownloadProgress(taskKey,received,total);
+        }
+        function onDownloadFinished(taskKey,localPath) {
+            memStorage.onDownloadFinished(taskKey,localPath);
+        }
+        function onDownloadFailed(taskKey,reason) {
+            memStorage.onDownloadFailed(taskKey,reason);
+        }
     }
     Connections {
         target: AppClickHelper;

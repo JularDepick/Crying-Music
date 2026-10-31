@@ -94,6 +94,16 @@ Item {
         }
         return base+ext;
     }
+    /* 关键字匹配: 曲名或歌手包含关键字时命中, 忽略大小写与首尾空白 */
+    function keywordMatch(songname,singer,keyword) {
+        var kw=String(keyword===undefined || keyword===null? "":keyword).trim().toLowerCase();
+        if(kw==="") {
+            return false;
+        }
+        var n=String(songname===undefined || songname===null? "":songname).toLowerCase();
+        var s=String(singer===undefined || singer===null? "":singer).toLowerCase();
+        return (n.indexOf(kw)>=0 || s.indexOf(kw)>=0);
+    }
     /* 命中判定: 场景坐标是否落在该可见项的矩形内 */
     function hitItem(item, scenePos) {
         if(item===null || !item.visible || scenePos===undefined) {

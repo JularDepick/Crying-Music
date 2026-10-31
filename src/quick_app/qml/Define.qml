@@ -44,6 +44,9 @@ Item {
     property var listColumnRatios: [0.7,0.15,0.15];
     /* 歌曲列表行内曲名与歌手列的固定宽度: 不随列宽比例撑开, 超出时省略号截断 */
     property int songColWidth: 240;
+    /* 首页推荐卡片: 封面边长(卡片宽度同此值)与卡片间距 */
+    property int homeCardWidth: 150;
+    property int homeCardSpacing: 18;
     /* 在线音乐的下载文件命名模板: {songname} 与 {singer} 为占位符,
      * 默认取"歌曲名-歌手", 可在设置页修改, 修改结果落盘为界面偏好 */
     property string downloadNameTemplate: "{songname}-{singer}";

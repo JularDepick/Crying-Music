@@ -39,10 +39,6 @@ MainAreaFatherPage {
                 if(which!==curr) {
                     curr=which;
                     mainListView.setBatchMode(false);
-                    if(which==="downloadedSongs") {
-                        /* 下载歌曲依赖在线清单: 未就绪时先去拉取 */
-                        mainArea_LocalPage.requestOnlineList();
-                    }
                     mainListView.rebuild();
                 }
             }
@@ -516,7 +512,7 @@ MainAreaFatherPage {
                     property real rowContentW: (mainListView.width-anchors.leftMargin-anchors.rightMargin);
                     /* 悬停高亮: 除整行区域外还要或上内部各组件自己的悬停态,
                      * 因为子组件会接收悬停事件, 此时整行区域的 containsMouse 会变成 false */
-                    property bool hoveredRow: (boxClick.containsMouse||songCheckBtn.hovered||songAvatarBtn.hovered||songLikeBtn.hovered||songAddIntoBtn.hovered||songDownloadBtn.hovered||songCancelBtn.hovered||songnameHh.hovered||singerHh.hovered);
+                    property bool hoveredRow: (boxClick.containsMouse||songCheckBtn.hovered||songAvatarBtn.hovered||songLikeBtn.hovered||songAddIntoBtn.hovered||songCancelBtn.hovered||songnameHh.hovered||singerHh.hovered);
                     color: ((checkedRow||selectedRow)? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
                     /* 歌名歌手列的起点偏移: 勾选框, 封面与它们两侧的间距占掉的横向距离,
                      * 该列左边缘因此与排序表头的歌名文字左侧对齐 */
@@ -718,24 +714,6 @@ MainAreaFatherPage {
                                         thePlayer.insertNext(modelData);
                                     }
                                 }
-                                /* 下载按钮: 只在下载歌曲标签出现; 已下载用选中青标示并禁用, 下载中显示为禁用色 */
-                                CustomButtonA {
-                                    id: songDownloadBtn;
-                                    visible: (!mainListView.batchMode && headRow.curr==="downloadedSongs");
-                                    height: 20;
-                                    width: 20;
-                                    property bool downloaded: (modelData["downloaded"]===true);
-                                    property bool downloading: (modelData["downloading"]===true);
-                                    icon.source: "qrc:/assets/iconfont/function/download.svg";
-                                    icon.color: (downloaded? Define.choseCyanColor
-                                                 :(downloading? Define.forbdDarkColor
-                                                   :(hovered? Define.btnHoverColor:Define.btnIconColor)));
-                                    enabled: (!downloaded && !downloading);
-                                    transEnabled: false;
-                                    onClicked: {
-                                        mainArea_LocalPage.startDownload(modelData);
-                                    }
-                                }
                                 /* 取消按钮: 只在正在下载标签出现 */
                                 CustomButtonA {
                                     id: songCancelBtn;
@@ -746,7 +724,7 @@ MainAreaFatherPage {
                                     icon.color: (hovered? Define.btnIconRed:Define.btnIconColor);
                                     transEnabled: false;
                                     onClicked: {
-                                        mainArea_LocalPage.cancelTask(modelData["taskKey"]);
+                                        theMemStorage.cancelDownload(modelData["taskKey"]);
                                     }
                                 }
                             }
@@ -847,7 +825,7 @@ MainAreaFatherPage {
                 if(headRow.curr==="localSongs") {
                     v=mainArea_LocalPage.collectLocalSongs();
                 } else if(headRow.curr==="downloadedSongs") {
-                    v=mainArea_LocalPage.collectOnlineSongs();
+                    v=mainArea_LocalPage.collectDownloadedSongs();
                 } else {
                     v=mainArea_LocalPage.collectDownloadingSongs();
                 }
@@ -1030,33 +1008,6 @@ MainAreaFatherPage {
                 Assist.dlog("列表","批量移除: ",l);
                 rebuild();
                 return true;
-            }
-        }
-        /* 在线曲库的加载态与失败重试: 只在下载歌曲标签且列表为空时出现 */
-        Rectangle {
-            id: onlineTipArea;
-            anchors.centerIn: parent;
-            width: onlineTipText.width+40;
-            height: 40;
-            radius: 8;
-            color: Define.mainAreaColor;
-            border.color: Define.subGrey;
-            border.width: 1;
-            visible: (headRow.curr==="downloadedSongs" && mainArea_LocalPage.mainListViewModel.length<=0);
-            Text {
-                id: onlineTipText;
-                anchors.centerIn: parent;
-                font.pixelSize: 14;
-                color: (Server.loadState===3? Define.btnIconRed:Define.btnIconColor);
-                text: (Server.loadState===2? "在线曲库为空"
-                       :(Server.loadState===3? "在线曲库加载失败, 点击重试":"正在加载在线曲库..."));
-            }
-            MouseArea {
-                anchors.fill: parent;
-                enabled: (Server.loadState===3);
-                onClicked: {
-                    mainArea_LocalPage.retryOnline();
-                }
             }
         }
     }
@@ -1548,35 +1499,47 @@ MainAreaFatherPage {
             }
         }
     }
-    /* 在线音乐的下载队列: 只存内存, 下载完成后写入存储的下载记录 */
-    property var downloadTasks: ([]);
-    /* 在线清单加载在加载进度条上的使用者标识 */
-    property string onlineLoadingId: "onlineManifest";
-    /* 由在线清单构造条目: 已下载与下载中的状态一并带入 */
-    function collectOnlineSongs() {
+    /* 由下载记录构造条目: 下载歌曲标签只展示已经下载到本地且文件仍在的歌曲 */
+    function collectDownloadedSongs() {
         var v=[];
-        if(Server.loadState!==2) {
-            return v;
-        }
-        var rows=Server.manifestRows();
-        var l=rows.length;
+        var src=GlobalFileStorage.downloads;
+        var l=src.length;
         for(var i=0;i<l;i++) {
-            var e=Server.onlineEntryOfRow(rows[i]);
-            if(e===null) {
+            var one=src[i];
+            var p=(one["absfpath"]===undefined? "":one["absfpath"]);
+            if(typeof p!=="string" || p==="") {
                 continue;
             }
-            e["downloaded"]=GlobalFileStorage.isDownloaded(e["onlineId"]);
-            e["downloading"]=(downloadTaskOf(e["onlineId"])!==null);
-            v.push(e);
+            /* 记录还在但文件被外部删除时不列出 */
+            if(AppFileHelper.existsFile(p)===false) {
+                continue;
+            }
+            var name=(typeof one["songname"]==="string" && one["songname"]!==""
+                      ? one["songname"]:mainArea_LocalPage.nameOfFile(p));
+            var singer=(typeof one["singer"]==="string" && one["singer"]!==""? one["singer"]:"未知歌手");
+            var sz=(one["size"]>0? one["size"]:AppFileHelper.fileSize(p));
+            v.push({"songname": name,
+                    "singer": singer,
+                    "absfpath": p,
+                    "absipath": "",
+                    "size": (sz>0? sz:0),
+                    "duration": (one["duration"]>0? one["duration"]:0),
+                    "source": "downloaded",
+                    "online": true,
+                    "onlineId": one["onlineId"],
+                    "icon": (one["icon"]===undefined? "":one["icon"]),
+                    "liked": GlobalFileStorage.isLiked(p),
+                    "checked": false});
         }
         return v;
     }
-    /* 由下载队列构造条目: 供正在下载标签显示进度 */
+    /* 由下载队列构造条目: 供正在下载标签显示进度, 队列由主界面的内存枢纽持有 */
     function collectDownloadingSongs() {
         var v=[];
-        var l=downloadTasks.length;
+        var src=(theMemStorage===undefined || theMemStorage===null? []:theMemStorage.downloadTasks);
+        var l=src.length;
         for(var i=0;i<l;i++) {
-            var t=downloadTasks[i];
+            var t=src[i];
             v.push({"songname":t["songname"],
                     "singer":t["singer"],
                     "absfpath":t["url"],
@@ -1596,207 +1559,9 @@ MainAreaFatherPage {
         }
         return v;
     }
-    /* 按在线标识取下载任务, 没有该项时返回 null */
-    function downloadTaskOf(onlineId) {
-        var l=downloadTasks.length;
-        for(var i=0;i<l;i++) {
-            if(downloadTasks[i]["onlineId"]===onlineId) {
-                return downloadTasks[i];
-            }
-        }
-        return null;
-    }
-    /* 某个本地路径已被哪个在线标识占用, 未占用返回空字符串 */
-    function downloadedOwnerOf(path) {
-        var v=GlobalFileStorage.downloads;
-        var l=v.length;
-        for(var i=0;i<l;i++) {
-            if(v[i]["absfpath"]===path) {
-                return v[i]["onlineId"];
-            }
-        }
-        return "";
-    }
-    /* 下载目标路径: 按命名模板拼主文件名, 重名时追加序号;
-     * 扩展名沿用在线文件的扩展名, 保证音频格式不变 */
-    function downloadDstOf(one) {
-        var dir=GlobalFileStorage.downloadsDir();
-        if(dir==="") {
-            return "";
-        }
-        var id=String(one["onlineId"]);
-        var name=Assist.composeDownloadName(GlobalFileStorage.downloadNameTemplate(),
-                                          one["songname"],one["singer"],id);
-        var dot=name.lastIndexOf(".");
-        var base=(dot>0? name.substring(0,dot):name);
-        var ext=(dot>0? name.substring(dot):"");
-        var p=dir+"/"+name;
-        var n=1;
-        while(AppFileHelper.existsFile(p)===true && downloadedOwnerOf(p)!==id) {
-            n=n+1;
-            p=dir+"/"+base+" ("+n+")"+ext;
-        }
-        return p;
-    }
-    /* 开始下载某一行: 已下载或已在下载队列中时直接返回 */
-    function startDownload(one) {
-        if(one===undefined || one===null || one["online"]!==true) {
-            return false;
-        }
-        var id=one["onlineId"];
-        if(id===undefined || id==="") {
-            Assist.dwarn("下载","缺少在线标识, 无法下载");
-            return false;
-        }
-        if(GlobalFileStorage.downloadedPathOf(id)!=="") {
-            Assist.dlog("下载","已下载, 跳过: ",id);
-            return false;
-        }
-        if(downloadTaskOf(id)!==null) {
-            return false;
-        }
-        var dst=downloadDstOf(one);
-        if(dst==="") {
-            Assist.derror("下载","下载目录不可用, 无法下载");
-            return false;
-        }
-        var task=({"onlineId":id,
-                   "songname":one["songname"],
-                   "singer":one["singer"],
-                   "icon":(one["icon"]===undefined? "":one["icon"]),
-                   "url":one["absfpath"],
-                   "dst":dst,
-                   "progress":0,
-                   "received":0,
-                   "total":-1});
-        var v=downloadTasks.slice();
-        v.push(task);
-        downloadTasks=v;
-        Assist.dlog("下载","开始下载: ",id," -> ",dst);
-        AppNetHelper.downloadAudio(one["absfpath"],dst,id);
-        refreshOnlineRowState();
-        return true;
-    }
-    /* 取消某个下载任务 */
-    function cancelTask(taskKey) {
-        if(taskKey===undefined || taskKey==="") {
-            return false;
-        }
-        Assist.dlog("下载","取消下载: ",taskKey);
-        AppNetHelper.cancelDownload(taskKey);
-        return true;
-    }
-    /* 从下载队列移除一个任务 */
-    function removeTask(taskKey) {
-        var v=[];
-        var l=downloadTasks.length;
-        for(var i=0;i<l;i++) {
-            if(downloadTasks[i]["onlineId"]!==taskKey) {
-                v.push(downloadTasks[i]);
-            }
-        }
-        downloadTasks=v;
-    }
-    /* 下载进度: 百分比变化时才刷新正在下载标签, 避免逐块重建列表 */
-    function onDownloadProgress(taskKey,received,total) {
-        var t=downloadTaskOf(taskKey);
-        if(t===null) {
-            return;
-        }
-        var pct=(total>0? Math.floor(received*100/total):0);
-        var changed=(t["progress"]!==pct);
-        t["progress"]=pct;
-        t["received"]=received;
-        t["total"]=total;
-        if(changed===true && headRow.curr==="downloadingSongs") {
-            mainArea_LocalPage.mainListViewModel=mainListView.sortList(mainArea_LocalPage.collectDownloadingSongs());
-        }
-    }
-    /* 下载完成: 写入下载记录并刷新下载歌曲标签 */
-    function onDownloadFinished(taskKey,localPath) {
-        var t=downloadTaskOf(taskKey);
-        removeTask(taskKey);
-        if(t===null) {
-            return;
-        }
-        GlobalFileStorage.addDownloaded({"onlineId":t["onlineId"],
-                                         "absfpath":localPath,
-                                         "songname":t["songname"],
-                                         "singer":t["singer"],
-                                         "icon":t["icon"],
-                                         "size":AppFileHelper.fileSize(localPath),
-                                         "duration":0});
-        Assist.dlog("下载","下载完成: ",t["onlineId"]);
-        showTip("已下载: "+t["songname"]);
-        refreshOnlineRowState();
-    }
-    /* 下载失败或取消: 移除任务并提示 */
-    function onDownloadFailed(taskKey,reason) {
-        var t=downloadTaskOf(taskKey);
-        removeTask(taskKey);
-        if(t===null) {
-            return;
-        }
-        if(reason==="已取消") {
-            Assist.dlog("下载","已取消: ",t["onlineId"]);
-        } else {
-            Assist.dwarn("下载","下载失败: ",t["songname"],", ",reason);
-            showTip("下载失败: "+t["songname"]);
-        }
-        refreshOnlineRowState();
-    }
-    /* 下载状态变化后刷新当前标签的列表 */
-    function refreshOnlineRowState() {
-        if(headRow.curr==="downloadedSongs") {
-            mainArea_LocalPage.mainListViewModel=mainListView.sortList(mainArea_LocalPage.collectOnlineSongs());
-        } else if(headRow.curr==="downloadingSongs") {
-            mainArea_LocalPage.mainListViewModel=mainListView.sortList(mainArea_LocalPage.collectDownloadingSongs());
-        }
-    }
-    /* 完成与失败的浮窗提示: 复用主界面的加载进度条与完成提示 */
-    function showTip(text) {
-        if(theMemStorage===undefined || theMemStorage===null) {
-            return false;
-        }
-        if(theMemStorage.startLoading(text,"download")===false) {
-            return false;
-        }
-        theMemStorage.updateLoading(100,"download");
-        return true;
-    }
-    /* 请求在线清单: 未就绪时拉取一次, 进度走底部加载进度条 */
-    function requestOnlineList() {
-        if(Server.loadState===1) {
-            return false;
-        }
-        if(Server.loadState===2) {
-            return true;
-        }
-        if(theMemStorage!==undefined && theMemStorage!==null) {
-            theMemStorage.startLoading("在线曲库已更新",onlineLoadingId);
-        }
-        return Server.ensureLoaded();
-    }
-    /* 在线标签的列表刷新: 只在下载歌曲标签生效 */
-    function refreshOnlineModel() {
-        if(headRow.curr!=="downloadedSongs") {
-            return false;
-        }
-        mainListView.rebuild();
-        return true;
-    }
-    /* 在线曲库加载失败后的重试 */
-    function retryOnline() {
-        if(Server.loadState===1) {
-            return false;
-        }
-        Assist.dlog("在线","重试加载在线曲库");
-        Server.retry();
-        if(theMemStorage!==undefined && theMemStorage!==null) {
-            theMemStorage.startLoading("在线曲库已更新",onlineLoadingId);
-        }
-        mainListView.rebuild();
-        return true;
+    /* 正在下载标签的就地刷新: 只换模型, 不重置滚动位置 */
+    function refreshDownloadingModel() {
+        mainArea_LocalPage.mainListViewModel=mainListView.sortList(mainArea_LocalPage.collectDownloadingSongs());
     }
     /* 元数据探测: 先由 FakePlayer 探测, 超时转 AppFileHelper 兜底 */
     property var probeQueue: ([]);
@@ -1836,34 +1601,22 @@ MainAreaFatherPage {
             mainArea_LocalPage.onFallbackMeta(absfpath,duration,title,artist);
         }
     }
-    /* 在线清单就绪或失败: 收尾加载进度条并刷新下载歌曲标签 */
+    /* 下载进度变化: 正在下载标签就地换模型 */
     Connections {
-        target: Server;
-        function onLoadStateChanged() {
-            if(Server.loadState===2) {
-                if(mainArea_LocalPage.theMemStorage!==undefined && mainArea_LocalPage.theMemStorage!==null) {
-                    mainArea_LocalPage.theMemStorage.updateLoading(100,mainArea_LocalPage.onlineLoadingId);
-                }
-                mainArea_LocalPage.refreshOnlineModel();
-            } else if(Server.loadState===3) {
-                if(mainArea_LocalPage.theMemStorage!==undefined && mainArea_LocalPage.theMemStorage!==null) {
-                    mainArea_LocalPage.theMemStorage.stopLoading(mainArea_LocalPage.onlineLoadingId);
-                }
-                mainArea_LocalPage.refreshOnlineModel();
+        target: mainArea_LocalPage.theMemStorage;
+        function onDownloadTasksChanged() {
+            if(headRow.curr==="downloadingSongs") {
+                mainArea_LocalPage.refreshDownloadingModel();
             }
         }
     }
-    /* 下载结果: 交给本页的下载队列处理 */
+    /* 下载记录变化: 下载歌曲标签重建一次 */
     Connections {
-        target: AppNetHelper;
-        function onDownloadProgress(taskKey,received,total) {
-            mainArea_LocalPage.onDownloadProgress(taskKey,received,total);
-        }
-        function onDownloadFinished(taskKey,localPath) {
-            mainArea_LocalPage.onDownloadFinished(taskKey,localPath);
-        }
-        function onDownloadFailed(taskKey,reason) {
-            mainArea_LocalPage.onDownloadFailed(taskKey,reason);
+        target: GlobalFileStorage;
+        function onDownloadsChanged() {
+            if(headRow.curr==="downloadedSongs") {
+                mainListView.rebuild();
+            }
         }
     }
     /* 汇总本地歌曲: 手动添加项在前, 扫描文件夹项在后 */
@@ -2133,19 +1886,32 @@ MainAreaFatherPage {
         addSongSubTab.hide();
     }
     function refresh() {
-        /* 下载歌曲标签的刷新顺带补齐在线清单 */
-        if(headRow.curr==="downloadedSongs" && Server.loadState!==2) {
-            requestOnlineList();
-        }
         mainListView.rebuild();
     }
     function jump2list() {
         ;
     }
-    /* 红心状态会被其它页面改写, 显示时轻量同步一次 */
+    /* 关键字搜索: 过滤当前标签的列表条目 */
+    function search(keyword) {
+        var v=mainArea_LocalPage.mainListViewModel;
+        var l=v.length;
+        var res=[];
+        for(var i=0;i<l;i++) {
+            if(Assist.keywordMatch(v[i]["songname"],v[i]["singer"],keyword)) {
+                res.push(v[i]);
+            }
+        }
+        return res;
+    }
+    /* 红心状态会被其它页面改写, 显示时轻量同步一次;
+     * 下载歌曲标签的数据来自下载记录, 显示时重建一次 */
     onVisibleChanged: {
         if(visible) {
-            mainListView.syncLiked();
+            if(headRow.curr==="downloadedSongs") {
+                mainListView.rebuild();
+            } else {
+                mainListView.syncLiked();
+            }
         }
     }
     Component.onCompleted: {

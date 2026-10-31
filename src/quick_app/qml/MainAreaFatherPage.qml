@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import "./"
 
-/* 主内容区页面基类: 统一底色与圆角, 并提供各页可覆写的两个钩子 */
+/* 主内容区页面基类: 统一底色与圆角, 并提供各页可覆写的钩子 */
 Rectangle {
     visible: false;
     color: Define.mainAreaColor;
@@ -11,7 +11,11 @@ Rectangle {
     property var thePlayer;
     /* 内存枢纽由主界面注入, 承载元数据缓存与加载进度这类只存内存的临时状态 */
     property var theMemStorage;
-    /* 钩子: 点界面空白处时收起本页子菜单; 顶栏刷新时重建本页列表 */
+    /* 钩子: 点界面空白处时收起本页子菜单; 顶栏刷新时重建本页列表;
+     * 顶栏搜索时按关键字过滤本页列表并返回命中的条目数组, 无列表的页面返回空数组 */
     function subsHide(scenePos) {}
     function refresh() {}
+    function search(keyword) {
+        return [];
+    }
 }
