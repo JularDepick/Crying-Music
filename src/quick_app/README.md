@@ -7,6 +7,7 @@
 | 编程语言 | C++17 |
 | 图形化 | Qt 6 Quick / QML |
 | 多媒体 | Qt Multimedia(MediaPlayer / AudioOutput) |
+| 网络 | Qt Network(QNetworkAccessManager) |
 | 构建系统 | CMake |
 
 # 目录结构

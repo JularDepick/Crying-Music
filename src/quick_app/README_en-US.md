@@ -10,6 +10,7 @@
 | Programming Language | C++17 |
 | GUI | Qt 6 Quick / QML |
 | Multimedia | Qt Multimedia(MediaPlayer / AudioOutput) |
+| Network | Qt Network(QNetworkAccessManager) |
 | Build System | CMake |
 
 # Directory Structure

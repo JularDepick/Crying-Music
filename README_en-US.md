@@ -24,6 +24,7 @@ A custom implementation that mimics mainstream music players.
 | Programming Language | C++17 |
 | GUI | Qt 6 Quick / QML |
 | Multimedia | Qt Multimedia |
+| Network | Qt Network |
 | Build System | CMake |
 
 
