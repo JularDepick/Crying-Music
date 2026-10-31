@@ -53,6 +53,18 @@ Item {
     property bool _silent: false;
     /* 曲库数据发生变化(拉取成功或后台刷新成功), 供界面按需重建 */
     signal manifestUpdated();
+    /* 是否处于失败后的自动重试中 */
+    property bool _retryOn: false;
+    /* 失败后的重试节拍: 每分钟一次, 直到拉取成功; 成功即停表 */
+    Timer {
+        id: retryTimer;
+        interval: 60000;
+        repeat: true;
+        running: serverRoot._retryOn;
+        onTriggered: {
+            serverRoot._retryTick();
+        }
+    }
     /* 单个候选地址的请求超时: 超时即换下一个备用地址 */
     Timer {
         id: reqTimer;
@@ -328,14 +340,18 @@ Item {
         _silent=true;
         return _startFetch();
     }
-    /* 重新拉取: 先复位状态再走一次完整流程 */
-    function retry() {
-        if(_fetching===true || loadState===1) {
+    /* 手动刷新: 按静默刷新处理, 有数据时不动加载状态, 失败也不做视觉反馈 */
+    function refreshNow() {
+        return refreshSilently();
+    }
+    /* 重试节拍: 后台静默重拉, 成功即停表并覆写缓存 */
+    function _retryTick() {
+        if(_fetching===true) {
             return false;
         }
-        loadState=0;
-        loadError="";
-        return ensureLoaded();
+        Assist.dlog("在线","后台重试拉取在线曲库");
+        _silent=true;
+        return _startFetch();
     }
     /* 发起一次拉取: 从元信息开始, 拿到后继续拉清单 */
     function _startFetch() {
@@ -371,6 +387,7 @@ Item {
     /* 拉取成功: 覆写缓存, 进入就绪态并通知界面 */
     function _finishOk() {
         _fetching=false;
+        _retryOn=false;
         saveCache();
         loadState=2;
         loadError="";
@@ -381,6 +398,7 @@ Item {
     /* 加载失败: 静默刷新只记日志并继续用缓存, 其余情况进入失败态 */
     function _fail(reason) {
         _fetching=false;
+        _retryOn=true;
         if(_silent===true) {
             _silent=false;
             Assist.dwarn("在线","后台刷新失败, 继续使用缓存: ",reason);

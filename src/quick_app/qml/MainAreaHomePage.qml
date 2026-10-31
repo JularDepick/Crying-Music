@@ -10,10 +10,10 @@ import "./"
 MainAreaFatherPage {
     id: mainArea_HomePage;
     visible: false;
-    /* 在线曲库请求在底部加载进度条上的使用者标识 */
-    property string onlineLoadingId: "onlineManifest";
     /* 推荐列表: 由在线曲库清单构造, 只由重建函数整体替换 */
     property var recommendModel: ([]);
+    /* 排序状态: 0 默认顺序, 1 歌名升, 2 歌名降, 3 歌手升, 4 歌手降 */
+    property int sortStep: 0;
     /* 标题与功能行 */
     Column {
         id: headColum;
@@ -64,12 +64,39 @@ MainAreaFatherPage {
                 }
             }
             CustomButtonA {
-                id: retryBtn;
+                id: sortBtn;
                 width: 80;
                 height: 30;
-                visible: (Server.loadState===3);
                 onClicked: {
-                    mainArea_HomePage.retryOnline();
+                    mainArea_HomePage.cycleSort();
+                }
+                transEnabled: false;
+                background: Rectangle {
+                    anchors.fill: parent;
+                    radius: 15;
+                    color: ((mainArea_HomePage.sortStep!==0||parent.hovered)? Define.choseDarkColor:Define.hoverDarkColor);
+                    Row {
+                        anchors.centerIn: parent;
+                        spacing: 5;
+                        Text {
+                            text: mainArea_HomePage.sortLabel();
+                        }
+                        ColorImage {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            width: 10;
+                            height: 10;
+                            source: mainArea_HomePage.sortIcon();
+                            color: Define.btnIconColor;
+                        }
+                    }
+                }
+            }
+            CustomButtonA {
+                id: refreshBtn;
+                width: 80;
+                height: 30;
+                onClicked: {
+                    mainArea_HomePage.refreshCatalog();
                 }
                 transEnabled: false;
                 background: Rectangle {
@@ -87,17 +114,18 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
-                            text: "重新加载";
+                            text: "刷新";
                         }
                     }
                 }
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter;
-                text: (Server.loadState===2? "在线曲库共 "+mainArea_HomePage.recommendModel.length+" 首"
-                       :(Server.loadState===3? "在线曲库加载失败":"正在加载在线曲库"));
+                text: (mainArea_HomePage.recommendModel.length>0
+                       ? "在线曲库共 "+mainArea_HomePage.recommendModel.length+" 首"
+                       :"正在加载在线曲库");
                 font.pixelSize: 13;
-                color: (Server.loadState===3? Define.btnIconRed:Define.btnIconColor);
+                color: Define.btnIconColor;
             }
         }
     }
@@ -247,7 +275,7 @@ MainAreaFatherPage {
                 }
             }
         }
-        /* 在线曲库的加载态与失败重试: 只在推荐列表为空时出现 */
+        /* 曲库为空时的提示: 拉取失败不做视觉反馈, 由拉取层每分钟自动重试 */
         Rectangle {
             id: onlineTipArea;
             anchors.centerIn: parent;
@@ -262,16 +290,8 @@ MainAreaFatherPage {
                 id: onlineTipText;
                 anchors.centerIn: parent;
                 font.pixelSize: 14;
-                color: (Server.loadState===3? Define.btnIconRed:Define.btnIconColor);
-                text: (Server.loadState===2? "在线曲库为空"
-                       :(Server.loadState===3? "在线曲库加载失败, 点击重试":"正在加载在线曲库..."));
-            }
-            MouseArea {
-                anchors.fill: parent;
-                enabled: (Server.loadState===3);
-                onClicked: {
-                    mainArea_HomePage.retryOnline();
-                }
+                color: Define.btnIconColor;
+                text: "正在加载在线曲库...";
             }
         }
     }
@@ -307,16 +327,16 @@ MainAreaFatherPage {
         }
         return v;
     }
-    /* 重建推荐列表 */
+    /* 重建推荐列表: 按当前排序态重排 */
     function rebuild() {
-        var v=collectOnlineSongs();
+        var v=sortEntries(collectOnlineSongs());
         mainArea_HomePage.recommendModel=v;
         Assist.dlog("在线","首页推荐重建: 共 ",v.length," 首");
         return true;
     }
     /* 数据有变化才重建: 后台静默刷新时尽量不打扰用户, 重建时保留滚动位置 */
     function rebuildIfChanged() {
-        var v=collectOnlineSongs();
+        var v=sortEntries(collectOnlineSongs());
         if(JSON.stringify(v)===JSON.stringify(mainArea_HomePage.recommendModel)) {
             return false;
         }
@@ -326,30 +346,56 @@ MainAreaFatherPage {
         Assist.dlog("在线","首页推荐已更新: 共 ",v.length," 首");
         return true;
     }
-    /* 请求在线曲库: 未就绪时拉取一次, 进度走底部加载进度条 */
-    function requestOnline() {
-        if(Server.loadState===1) {
-            return false;
+    /* 按排序态重排副本: 0 保持清单顺序, 1/2 按歌名升降, 3/4 按歌手升降 */
+    function sortEntries(v) {
+        var step=mainArea_HomePage.sortStep;
+        if(step===0) {
+            return v;
         }
-        if(Server.loadState===2) {
-            return rebuild();
-        }
-        if(theMemStorage!==undefined && theMemStorage!==null) {
-            theMemStorage.startLoading("在线曲库已更新",mainArea_HomePage.onlineLoadingId);
-        }
-        return Server.ensureLoaded();
+        var key=((step===1 || step===2)? "songname":"singer");
+        var asc=(step===1 || step===3);
+        var res=v.slice();
+        res.sort(function(a,b) {
+            if(a[key]===b[key]) {
+                return 0;
+            }
+            return ((a[key]>b[key]? 1:-1)*(asc? 1:-1));
+        });
+        return res;
     }
-    /* 在线曲库加载失败后的重试 */
-    function retryOnline() {
-        if(Server.loadState===1) {
-            return false;
+    /* 排序按钮的文案 */
+    function sortLabel() {
+        var step=mainArea_HomePage.sortStep;
+        if(step===1 || step===2) {
+            return "歌名";
         }
-        Assist.dlog("在线","首页重试加载在线曲库");
-        Server.retry();
-        if(theMemStorage!==undefined && theMemStorage!==null) {
-            theMemStorage.startLoading("在线曲库已更新",mainArea_HomePage.onlineLoadingId);
+        if(step===3 || step===4) {
+            return "歌手";
         }
-        return true;
+        return "排序";
+    }
+    /* 排序按钮的指示图标 */
+    function sortIcon() {
+        var step=mainArea_HomePage.sortStep;
+        if(step===1 || step===3) {
+            return "qrc:/assets/iconfont/listview/upsort.svg";
+        }
+        if(step===2 || step===4) {
+            return "qrc:/assets/iconfont/listview/downsort.svg";
+        }
+        return "qrc:/assets/iconfont/listview/justsort.svg";
+    }
+    /* 排序切换: 默认 -> 歌名升 -> 歌名降 -> 歌手升 -> 歌手降 -> 默认 */
+    function cycleSort() {
+        mainArea_HomePage.sortStep=(mainArea_HomePage.sortStep+1)%5;
+        Assist.dlog("在线","首页推荐排序: ",mainArea_HomePage.sortStep,", ",sortLabel());
+        return rebuild();
+    }
+    /* 手动刷新在线曲库: 拉取在后台进行, 失败不做视觉反馈, 由拉取层每分钟自动重试 */
+    function refreshCatalog() {
+        var ok=Server.refreshNow();
+        Assist.dlog("在线","手动刷新在线曲库: ",ok);
+        return ok;
     }
     /* 下载某一首: 队列由内存枢纽持有, 完成记录与提示也由它统一处理 */
     function startDownload(one) {
@@ -392,27 +438,16 @@ MainAreaFatherPage {
     }
     function refresh() {
         if(Server.loadState!==2) {
-            requestOnline();
+            Server.refreshNow();
         }
         return rebuild();
     }
-    /* 在线清单就绪或失败: 收尾加载进度条并重建推荐列表 */
+    /* 曲库就绪或数据变化: 数据变了才重建, 让后台刷新对用户无感 */
     Connections {
         target: Server;
         function onLoadStateChanged() {
-            if(Server.loadState===2) {
-                if(mainArea_HomePage.theMemStorage!==undefined && mainArea_HomePage.theMemStorage!==null) {
-                    mainArea_HomePage.theMemStorage.updateLoading(100,mainArea_HomePage.onlineLoadingId);
-                }
-                mainArea_HomePage.rebuildIfChanged();
-            } else if(Server.loadState===3) {
-                if(mainArea_HomePage.theMemStorage!==undefined && mainArea_HomePage.theMemStorage!==null) {
-                    mainArea_HomePage.theMemStorage.stopLoading(mainArea_HomePage.onlineLoadingId);
-                }
-                mainArea_HomePage.rebuildIfChanged();
-            }
+            mainArea_HomePage.rebuildIfChanged();
         }
-        /* 后台静默刷新成功: 数据变了才重建, 让刷新对用户无感 */
         function onManifestUpdated() {
             mainArea_HomePage.rebuildIfChanged();
         }
