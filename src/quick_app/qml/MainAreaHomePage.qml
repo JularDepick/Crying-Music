@@ -95,6 +95,9 @@ MainAreaFatherPage {
                 id: refreshBtn;
                 width: 80;
                 height: 30;
+                /* 已有拉取在途时禁用: 避免连点触发并行的拉取 */
+                enabled: (Server.fetching!==true);
+                opacity: (enabled? 1:0.5);
                 onClicked: {
                     mainArea_HomePage.refreshCatalog();
                 }
@@ -118,14 +121,6 @@ MainAreaFatherPage {
                         }
                     }
                 }
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter;
-                text: (mainArea_HomePage.recommendModel.length>0
-                       ? "在线曲库共 "+mainArea_HomePage.recommendModel.length+" 首"
-                       :"正在加载在线曲库");
-                font.pixelSize: 13;
-                color: Define.btnIconColor;
             }
         }
     }
@@ -295,10 +290,10 @@ MainAreaFatherPage {
             }
         }
     }
-    /* 网格滚动条: 与其它列表共用同一个组件 */
+    /* 网格滚动条: 与其它列表共用同一个组件, 轨道与网格视口等高以保证滑块比例正确 */
     CustomSliderC {
         id: recommendScrollBar;
-        anchors {top:recommendArea.top; bottom:recommendArea.bottom; right:parent.right;}
+        anchors {top:recommendView.top; bottom:recommendView.bottom; right:parent.right;}
         width: 4;
         visible: (recommendView.contentHeight > recommendView.height);
         handleRatio: Math.max(0.1,recommendView.height/recommendView.contentHeight);
@@ -334,10 +329,11 @@ MainAreaFatherPage {
         Assist.dlog("在线","首页推荐重建: 共 ",v.length," 首");
         return true;
     }
-    /* 数据有变化才重建: 后台静默刷新时尽量不打扰用户, 重建时保留滚动位置 */
-    function rebuildIfChanged() {
+    /* 数据有变化才重建: 后台静默刷新时尽量不打扰用户, 重建时保留滚动位置;
+     * force 为真时无视内容比对强制重建(封面缓存被清空后需要重建一次让封面按需重取) */
+    function rebuildIfChanged(force) {
         var v=sortEntries(collectOnlineSongs());
-        if(JSON.stringify(v)===JSON.stringify(mainArea_HomePage.recommendModel)) {
+        if(force!==true && JSON.stringify(v)===JSON.stringify(mainArea_HomePage.recommendModel)) {
             return false;
         }
         var keptY=recommendView.contentY;
@@ -391,8 +387,13 @@ MainAreaFatherPage {
         Assist.dlog("在线","首页推荐排序: ",mainArea_HomePage.sortStep,", ",sortLabel());
         return rebuild();
     }
-    /* 手动刷新在线曲库: 拉取在后台进行, 失败不做视觉反馈, 由拉取层每分钟自动重试 */
+    /* 手动刷新在线曲库: 已有拉取在途时不再发起, 保证同一时刻只有一个拉取;
+     * 拉取在后台进行, 失败不做视觉反馈, 由拉取层每分钟自动重试 */
     function refreshCatalog() {
+        if(Server.fetching===true) {
+            Assist.dlog("在线","手动刷新被忽略: 已有拉取在途");
+            return false;
+        }
         var ok=Server.refreshNow();
         Assist.dlog("在线","手动刷新在线曲库: ",ok);
         return ok;
@@ -450,6 +451,9 @@ MainAreaFatherPage {
         }
         function onManifestUpdated() {
             mainArea_HomePage.rebuildIfChanged();
+        }
+        function onIconCacheCleared() {
+            mainArea_HomePage.rebuildIfChanged(true);
         }
     }
     /* 封面来源: 优先取在线图标缓存, 未命中或尚未缓存时回退应用图标 */

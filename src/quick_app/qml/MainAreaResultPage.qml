@@ -242,7 +242,7 @@ MainAreaFatherPage {
                                         GlobalFileStorage.setLiked(modelData["absfpath"],next);
                                         var v=mainArea_ResultPage.resultModel.slice();
                                         v[index]["liked"]=next;
-                                        mainArea_ResultPage.resultModel=v;
+                                        mainArea_ResultPage.replaceModelKeepScroll(v);
                                     }
                                 }
                                 CustomButtonA {
@@ -293,6 +293,13 @@ MainAreaFatherPage {
             font.pixelSize: 14;
             color: Define.btnIconColor;
         }
+    }
+    /* 整体替换结果列表模型时保住滚动位置: 只改条目内容也会重建列表, 不处理就会跳回顶部 */
+    function replaceModelKeepScroll(v) {
+        var keepY=mainListView.contentY;
+        mainArea_ResultPage.resultModel=v;
+        mainListView.contentY=keepY;
+        return true;
     }
     /* 列表滚动条: 与其它列表共用同一个组件 */
     CustomSliderC {

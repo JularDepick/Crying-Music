@@ -454,7 +454,7 @@ MainAreaFatherPage {
                                         GlobalFileStorage.setLiked(modelData["absfpath"],next);
                                         var v=mainArea_RecentPage.mainListViewModel.slice();
                                         v[index]["liked"]=next;
-                                        mainArea_RecentPage.mainListViewModel=v;
+                                        mainArea_RecentPage.replaceModelKeepScroll(v);
                                     }
                                 }
                                 CustomButtonA {
@@ -684,6 +684,13 @@ MainAreaFatherPage {
                 return true;
             }
         }
+    }
+    /* 整体替换最近播放列表模型时保住滚动位置: 只改条目内容也会重建列表, 不处理就会跳回顶部 */
+    function replaceModelKeepScroll(v) {
+        var keepY=mainListView.contentY;
+        mainArea_RecentPage.mainListViewModel=v;
+        mainListView.contentY=keepY;
+        return true;
     }
     /* 列表滚动条: 与其它列表共用同一个组件 */
     CustomSliderC {

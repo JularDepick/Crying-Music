@@ -663,17 +663,19 @@ MainAreaFatherPage {
                 }
                 return res;
             }
-            /* 从当前列表移除单行, 不重建以免滚动位置跳动 */
+            /* 从当前列表移除单行: 先记下滚动位置, 换模型后原样恢复, 避免跳回顶部 */
             function removeRow(idx) {
                 var v=mainArea_LikedPage.mainListViewModel;
                 var l=v.length;
                 var nv=[];
+                var keepY=contentY;
                 for(var i=0;i<l;i++) {
                     if(i!==idx) {
                         nv.push(v[i]);
                     }
                 }
                 mainArea_LikedPage.mainListViewModel=nv;
+                contentY=keepY;
             }
             /* 批量取消喜欢: 交由 GlobalFileStorage 处理, 外部不直接改写其数据 */
             function batchUnlike() {

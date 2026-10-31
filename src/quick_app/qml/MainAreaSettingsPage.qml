@@ -15,6 +15,19 @@ MainAreaFatherPage {
     /* 下载目录操作的即时提示: 空字符串表示不显示 */
     property string dirTip: "";
     property bool dirTipOk: true;
+    /* 封面缓存操作的即时提示: 空字符串表示不显示 */
+    property string cacheTip: "";
+    property bool cacheTipOk: true;
+    /* 封面缓存生命周期候选: 值即天数, 档位来自设计常量 */
+    property var ttlOptions: buildTtlOptions();
+    function buildTtlOptions() {
+        var src=Define.iconCacheTtlDayOptions;
+        var res=[];
+        for(var i=0;i<src.length;i++) {
+            res.push({"label":String(src[i])+" 天","value":src[i]});
+        }
+        return res;
+    }
     /* 播放策略候选 */
     property var playOptions: [
         {"label":"不下载","value":Define.playStrategyNoDownload},
@@ -26,24 +39,6 @@ MainAreaFatherPage {
         {"label":"歌手-歌名","value":Define.downloadNameTemplates[1]},
         {"label":"歌名","value":Define.downloadNameTemplates[2]}
     ];
-    /* 用清单里的第一首做示例, 清单未就绪时用占位示例 */
-    function previewName() {
-        var rows=Server.manifestRows();
-        var loaded=(Server.loadState===2 && rows.length>0);
-        var song=(loaded? String(rows[0]["songname"]):"示例歌曲");
-        var singer=(loaded? Server.singersText(rows[0]["singers"]):"示例歌手");
-        var ext=".mp3";
-        var id="demo.mp3";
-        if(loaded) {
-            id=String(rows[0]["filename"]);
-            var dot=id.lastIndexOf(".");
-            if(dot>0) {
-                ext=id.substring(dot);
-                id="demo"+ext;
-            }
-        }
-        return Assist.composeDownloadName(GlobalFileStorage.downloadNameTemplate(),song,singer,id);
-    }
     /* 落盘的命名模板不在候选里时(例如更早版本手填过)回到默认候选 */
     function normalizeNameTemplate() {
         var cur=GlobalFileStorage.downloadNameTemplate();
@@ -64,6 +59,19 @@ MainAreaFatherPage {
     /* 下载目录是否有用户指定 */
     function downloadsDirIsCustom() {
         return (GlobalFileStorage.downloadsDirOverride()!=="");
+    }
+    /* 封面缓存概况文本 */
+    function cacheStatsText() {
+        var s=Server.iconCacheStats();
+        return ("已缓存 "+s["cached"]+" 个封面, 清单共 "+s["total"]+" 首");
+    }
+    /* 立即清理封面缓存: 只删本地缓存文件, 不动任何数据与偏好 */
+    function clearIconCache() {
+        var ok=Server.clearIconCache();
+        mainArea_SettingsPage.cacheTipOk=(ok===true);
+        mainArea_SettingsPage.cacheTip=(ok===true? "已清理封面缓存, 封面会在需要时重新缓存"
+                                               :"清理失败, 请查看控制台日志");
+        Assist.dlog("界面","清理封面缓存: ",ok);
     }
     /* 选择下载目录: 走系统文件夹选择框, 不允许直接改路径文本 */
     function chooseDownloadsDir() {
@@ -141,11 +149,6 @@ MainAreaFatherPage {
                 Assist.dlog("界面","下载文件命名: ",value);
             }
         }
-        Text {
-            text: "示例: "+mainArea_SettingsPage.previewName();
-            font.pixelSize: 13;
-            color: Define.btnIconColor;
-        }
         Rectangle {
             width: parent.width;
             height: 1;
@@ -157,13 +160,34 @@ MainAreaFatherPage {
             font.pixelSize: 15;
             font.weight: 500;
         }
-        Text {
-            text: mainArea_SettingsPage.downloadsDirText()
-                  +(mainArea_SettingsPage.downloadsDirIsCustom()? "  (自定义)":"  (默认)");
-            font.pixelSize: 13;
-            color: Define.btnIconColor;
-            wrapMode: Text.WordWrap;
+        /* 下载目录: 路径单行显示并限制在可用宽度内, 超出即截断, 悬停用提示展示完整路径 */
+        Row {
+            id: dirTextRow;
             width: parent.width;
+            spacing: 8;
+            Text {
+                id: dirPathText;
+                width: Math.min(implicitWidth,
+                                Math.max(0,dirTextRow.width-dirTagText.implicitWidth-dirTextRow.spacing));
+                text: mainArea_SettingsPage.downloadsDirText();
+                font.pixelSize: 13;
+                color: Define.btnIconColor;
+                elide: Text.ElideRight;
+                wrapMode: Text.NoWrap;
+                HoverHandler {
+                    id: dirPathHh;
+                }
+                ToolTip.visible: dirPathHh.hovered&&truncated;
+                ToolTip.text: text;
+                ToolTip.delay: 500;
+            }
+            Text {
+                id: dirTagText;
+                anchors.verticalCenter: dirPathText.verticalCenter;
+                text: (mainArea_SettingsPage.downloadsDirIsCustom()? "(自定义)":"(默认)");
+                font.pixelSize: 13;
+                color: Define.btnIconColor;
+            }
         }
         Row {
             id: dirButtons;
@@ -215,6 +239,66 @@ MainAreaFatherPage {
             text: mainArea_SettingsPage.dirTip;
             font.pixelSize: 13;
             color: (mainArea_SettingsPage.dirTipOk? Define.choseCyanColor:Define.btnIconRed);
+        }
+        Rectangle {
+            width: parent.width;
+            height: 1;
+            color: Define.subGrey;
+        }
+        /* 封面缓存 */
+        Text {
+            text: "封面缓存";
+            font.pixelSize: 15;
+            font.weight: 500;
+        }
+        Text {
+            text: "启动时先用本地封面, 之后在后台补全未缓存或已过期的封面; 生命周期只对之后缓存下来的封面生效, 已经缓存的不受影响";
+            font.pixelSize: 13;
+            color: Define.btnIconColor;
+            wrapMode: Text.WordWrap;
+            width: parent.width;
+        }
+        Text {
+            text: mainArea_SettingsPage.cacheStatsText();
+            font.pixelSize: 13;
+            color: Define.btnIconColor;
+        }
+        CustomChoose {
+            id: ttlChoose;
+            options: mainArea_SettingsPage.ttlOptions;
+            currentValue: GlobalFileStorage.iconCacheTtlDays();
+            onChosen: (value, index)=> {
+                GlobalFileStorage.setIconCacheTtlDays(value);
+                Assist.dlog("界面","封面缓存生命周期: ",value," 天");
+            }
+        }
+        Row {
+            spacing: 10;
+            CustomButtonA {
+                id: clearCacheBtn;
+                width: 100;
+                height: 30;
+                transEnabled: false;
+                background: Rectangle {
+                    anchors.fill: parent;
+                    radius: 15;
+                    color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                    Text {
+                        anchors.centerIn: parent;
+                        text: "立即清理";
+                        font.pixelSize: 13;
+                    }
+                }
+                onClicked: {
+                    mainArea_SettingsPage.clearIconCache();
+                }
+            }
+        }
+        Text {
+            visible: (mainArea_SettingsPage.cacheTip!=="");
+            text: mainArea_SettingsPage.cacheTip;
+            font.pixelSize: 13;
+            color: (mainArea_SettingsPage.cacheTipOk? Define.choseCyanColor:Define.btnIconRed);
         }
     }
     /* 系统文件夹选择框: 选中后写入界面状态, 目录不可写时保留原值 */
