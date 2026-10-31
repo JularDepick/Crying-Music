@@ -16,3 +16,6 @@ tmp/
 # other
 v*-*.md
 audio/file/
+
+# stray logs written by external processes
+/debug.log
