@@ -731,6 +731,37 @@ ApplicationWindow {
                 }
                 property var id2obj: new Map();
                 property var songobjs: ([]);
+                /* 播放目标: 在线条目已下载到本地时复用本地文件, 否则直接流式播放远端地址 */
+                function playbackTarget(one) {
+                    if(one===undefined || one===null) {
+                        return "";
+                    }
+                    if(one["online"]===true) {
+                        var p=GlobalFileStorage.downloadedPathOf(one["onlineId"]);
+                        return (p!==""? p:one["absfpath"]);
+                    }
+                    return (one["absfpath"]===undefined? "":one["absfpath"]);
+                }
+                /* 播放前置校验: 在线条目无法离线校验, 交给播放器在失败时报告 */
+                function playbackOk(one) {
+                    if(one===undefined || one===null || one["absfpath"]===undefined || one["absfpath"]==="") {
+                        return false;
+                    }
+                    if(one["online"]===true) {
+                        return true;
+                    }
+                    return AppFileHelper.existsFile(one["absfpath"]);
+                }
+                /* 当前播放项在队列中的条目, 找不到时返回 null */
+                function playingEntry() {
+                    var l=sortlist.length;
+                    for(var i=0;i<l;i++) {
+                        if(sortlist[i]["absfpath"]===playingWhich) {
+                            return sortlist[i];
+                        }
+                    }
+                    return null;
+                }
                 /* 播放状态: 本模块自己持有, 每次改动后同步到存储枢纽 */
                 property string playingWhich: "";
                 property int playingIndex: -1;
@@ -746,7 +777,7 @@ ApplicationWindow {
                     {songname:"心做し 心理作用", singer:"双笙-陈元汐", absfpath:"file:///C:\\Users\\liwenfang\\GitHub\\JularDepick\\Crying-Music\\src\\quick_app\\心做し_心理作用_双笙_陈元汐_.mp3"}
                 ];*/
                 function jump2play(which) {
-                    if(AppFileHelper.existsFile(which.absfpath)===false) {
+                    if(playbackOk(which)===false) {
                         Assist.derror("播放","跳转错误: ",which);
                         return false;
                     }
@@ -756,7 +787,7 @@ ApplicationWindow {
                     syncPlayState();
                     /* 换歌即把播放进度归零, 避免断点恢复落到上一首的位置 */
                     GlobalFileStorage.setPlayPosition(0);
-                    source=playingWhich;
+                    source=playbackTarget(which);
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
                     Assist.dlog("播放","跳转成功: ",which);
@@ -804,7 +835,7 @@ ApplicationWindow {
                         return false;
                     }
                     var one=(which===undefined? list[0]:which);
-                    if(AppFileHelper.existsFile(one.absfpath)===false) {
+                    if(playbackOk(one)===false) {
                         Assist.derror("播放","播放错误: ",one);
                         return false;
                     }
@@ -818,7 +849,7 @@ ApplicationWindow {
                     syncPlayState();
                     /* 换歌即把播放进度归零, 避免断点恢复落到上一首的位置 */
                     GlobalFileStorage.setPlayPosition(0);
-                    source=playingWhich;
+                    source=playbackTarget(one);
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
                     Assist.dlog("播放","播放列表: ",sortlist.length);
@@ -826,7 +857,7 @@ ApplicationWindow {
                 }
                 /* 直接切到队列中的某一项播放, 不改动队列顺序 */
                 function playItem(which) {
-                    if(AppFileHelper.existsFile(which.absfpath)===false) {
+                    if(playbackOk(which)===false) {
                         Assist.derror("播放","跳转错误: ",which);
                         return false;
                     }
@@ -835,7 +866,7 @@ ApplicationWindow {
                     syncPlayState();
                     /* 换歌即把播放进度归零, 避免断点恢复落到上一首的位置 */
                     GlobalFileStorage.setPlayPosition(0);
-                    source=playingWhich;
+                    source=playbackTarget(which);
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
                     return true;
@@ -851,7 +882,7 @@ ApplicationWindow {
                     syncPlayState();
                     /* 换歌即把播放进度归零, 避免断点恢复落到上一首的位置 */
                     GlobalFileStorage.setPlayPosition(0);
-                    source=playingWhich;
+                    source=playbackTarget(sortlist[idx]);
                     GlobalFileStorage.addRecent(playingWhich);
                     player.play();
                     return true;
@@ -988,16 +1019,26 @@ ApplicationWindow {
                 function syncPlayPosition(ms) {
                     GlobalFileStorage.setPlayPosition(ms);
                 }
-                /* 断点恢复: 校验队列与当前播放项后加载音频, 不自动播放 */
+                /* 断点恢复: 校验队列与当前播放项后加载音频, 不自动播放;
+                 * 在线条目只要地址仍在就恢复, 真正的可用性交给播放器报错 */
                 function restoreFromState() {
                     var st=GlobalFileStorage.playState;
                     sortlist=st.sortlist;
                     playingWhich=st.playingWhich;
                     playingIndex=st.playingIndex;
                     playMode=st.playMode;
-                    if(playingWhich==="" || AppFileHelper.existsFile(playingWhich)===false) {
+                    var one=playingEntry();
+                    var usable=false;
+                    if(playingWhich!=="") {
+                        if(one!==null) {
+                            usable=playbackOk(one);
+                        } else {
+                            usable=AppFileHelper.existsFile(playingWhich);
+                        }
+                    }
+                    if(usable===false) {
                         /* 上次的音频已不存在: 清掉当前播放项, 队列保留 */
-                        Assist.dwarn("播放","断点恢复失败: 上次的音频文件不存在, 已清掉当前播放项, 队列保留");
+                        Assist.dwarn("播放","断点恢复失败: 上次的音频不可用, 已清掉当前播放项, 队列保留");
                         playingWhich="";
                         playingIndex=-1;
                         syncPlayState();
@@ -1006,8 +1047,41 @@ ApplicationWindow {
                     Assist.dlog("播放","断点恢复: 队列 ",sortlist.length," 项, 当前 ",playingWhich);
                     pendingRestore=true;
                     syncPlayingInfo();
-                    source=playingWhich;
+                    source=(one!==null? playbackTarget(one):playingWhich);
                     return true;
+                }
+                /* 在线清单就绪后校正队列里的在线条目: 曲名与歌手一律以清单为准,
+                 * 因此清单就绪前按地址末段显示的临时名称会被改回清单值 */
+                function refreshOnlineTitles() {
+                    var l=sortlist.length;
+                    var res=sortlist.slice();
+                    var changed=false;
+                    for(var i=0;i<l;i++) {
+                        var one=res[i];
+                        if(one===undefined || one===null || one["online"]!==true) {
+                            continue;
+                        }
+                        var e=Server.onlineEntryOfKey(one["absfpath"]);
+                        if(e===null) {
+                            continue;
+                        }
+                        if(one["songname"]!==e["songname"] || one["singer"]!==e["singer"]) {
+                            one["songname"]=e["songname"];
+                            one["singer"]=e["singer"];
+                            changed=true;
+                        }
+                        if(e["icon"]!=="" && one["icon"]!==e["icon"]) {
+                            one["icon"]=e["icon"];
+                            changed=true;
+                        }
+                    }
+                    if(changed===true) {
+                        sortlist=res;
+                        /* 推回枢纽让面板与落盘拿到校正后的条目 */
+                        syncPlayState();
+                        Assist.dlog("在线","按清单校正队列里的在线条目");
+                    }
+                    return changed;
                 }
                 /* 从枢纽取回播放状态: 值不同才覆盖, 避免与推送动作形成回环 */
                 function updateFromPlayState() {
@@ -1042,6 +1116,15 @@ ApplicationWindow {
                 target: GlobalFileStorage;
                 function onPlayStateChanged() {
                     player.updateFromPlayState();
+                }
+            }
+            /* 在线清单就绪时校正队列里的在线条目, 使播放栏与面板显示清单值 */
+            Connections {
+                target: Server;
+                function onLoadStateChanged() {
+                    if(Server.loadState===2) {
+                        player.refreshOnlineTitles();
+                    }
                 }
             }
             /* 播放位置与时长变化时同步进度条: 手柄与已播放填充都读滑块的值 */
@@ -1673,7 +1756,15 @@ ApplicationWindow {
                                         Image {
                                             id: playingAvatarImage;
                                             anchors.fill: parent;
-                                            source: (modelData["absipath"]&&modelData["absipath"]!==""? modelData["absipath"]:"qrc:/favicon.jpg");
+                                            /* 封面: 本地路径优先, 在线条目取 Server 里的图标缓存, 都没有时回退应用图标;
+                                             * 在线封面在行可见时按需请求, 避免整表一次性发起下载 */
+                                            property string iconKey: (modelData["icon"]===undefined? "":modelData["icon"]);
+                                            onIconKeyChanged: {
+                                                Server.requestIcon(iconKey);
+                                            }
+                                            source: (modelData["absipath"]&&modelData["absipath"]!==""? modelData["absipath"]
+                                                     :(modelData["icon"]&&modelData["icon"]!==""&&Server.iconCache[modelData["icon"]]!==undefined
+                                                       ? Server.iconCache[modelData["icon"]]:"qrc:/favicon.jpg"));
                                             fillMode: Image.PreserveAspectCrop;
                                             layer.enabled: true;
                                             layer.effect: MultiEffect {
