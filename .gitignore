@@ -2,6 +2,7 @@
 build/
 dist/
 release/
+single-branch/
 
 # Agent Runtime
 AGENT*.md
