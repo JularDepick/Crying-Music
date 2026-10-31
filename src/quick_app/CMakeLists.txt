@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Multimedia Qml)
+find_package(Qt6 REQUIRED COMPONENTS Quick Multimedia Qml Network)
 
 # 业务逻辑源文件
 file(GLOB_RECURSE COMPONENTS_SOURCES CONFIGURE_DEPENDS "components/*.hpp")
@@ -62,7 +62,7 @@ endif()
 
 # 链接库
 target_link_libraries(CryingMusic
-    PRIVATE Qt6::Quick Qt6::Multimedia Qt6::Qml
+    PRIVATE Qt6::Quick Qt6::Multimedia Qt6::Qml Qt6::Network
 )
 
 # 静态链接 MinGW 运行时

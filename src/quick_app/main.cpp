@@ -6,6 +6,7 @@
 
 /* #include "./components/AppPathHelper.hpp" */
 #include "./components/AppFileHelper.hpp"
+#include "./components/AppNetHelper.hpp"
 #include "./components/AppClickHelper.hpp"
 
 /* using namespace std; */
@@ -27,9 +28,11 @@ int main(int argc, char *argv[])
     /* 注册AppHelpers实例 */
     /* AppPathHelper _aph_; */
     AppFileHelper _afh_;
+    AppNetHelper _anh_;
     AppClickHelper _ach_;
     /* qmlRegisterSingletonInstance("AppHelper",1,0,"AppPathHelper",&_aph_); */
     qmlRegisterSingletonInstance("AppHelper",1,0,"AppFileHelper",&_afh_);
+    qmlRegisterSingletonInstance("AppHelper",1,0,"AppNetHelper",&_anh_);
     qmlRegisterSingletonInstance("AppHelper",1,0,"AppClickHelper",&_ach_);
     /* 创建QML引擎 */
     QQmlApplicationEngine engine;
