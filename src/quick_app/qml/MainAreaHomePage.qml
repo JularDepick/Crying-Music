@@ -423,17 +423,9 @@ MainAreaFatherPage {
         }
         return thePlayer.playAll(v,v[0]);
     }
-    /* 关键字搜索: 只过滤推荐列表的曲名与歌手 */
+    /* 关键字搜索: 走统一的搜索匹配算法过滤推荐列表 */
     function search(keyword) {
-        var v=mainArea_HomePage.recommendModel;
-        var l=v.length;
-        var res=[];
-        for(var i=0;i<l;i++) {
-            if(Assist.keywordMatch(v[i]["songname"],v[i]["singer"],keyword)) {
-                res.push(v[i]);
-            }
-        }
-        return res;
+        return Assist.searchList(keyword,mainArea_HomePage.recommendModel);
     }
     function subsHide(scenePos) {
     }

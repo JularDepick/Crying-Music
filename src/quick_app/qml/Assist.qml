@@ -1,6 +1,8 @@
 pragma Singleton
 import QtQuick
 
+import AppHelper 1.0
+
 Item {
     /* 调试输出的分类清单与开关取自设计常量 Define.debugCategoryOn */
     function debugOn(category) {
@@ -94,15 +96,26 @@ Item {
         }
         return base+ext;
     }
-    /* 关键字匹配: 曲名或歌手包含关键字时命中, 忽略大小写与首尾空白 */
-    function keywordMatch(songname,singer,keyword) {
-        var kw=String(keyword===undefined || keyword===null? "":keyword).trim().toLowerCase();
-        if(kw==="") {
-            return false;
+    /* 关键字搜索: 预处理, 精确与模糊召回, 计分去重与排序全部交给 C++ 匹配算法,
+     * 这里只把候选的三个字段递过去, 再按返回的下标把命中条目映射回原数组,
+     * 保持条目引用不变, 因此结果页与来源页共用同一批条目对象 */
+    function searchList(keyword,list) {
+        var v=(Array.isArray(list)? list:[]);
+        var cand=[];
+        for(var i=0;i<v.length;i++) {
+            cand.push({"songname": v[i]["songname"],
+                       "singer": v[i]["singer"],
+                       "path": v[i]["absfpath"]});
         }
-        var n=String(songname===undefined || songname===null? "":songname).toLowerCase();
-        var s=String(singer===undefined || singer===null? "":singer).toLowerCase();
-        return (n.indexOf(kw)>=0 || s.indexOf(kw)>=0);
+        var r=AppSearchHelper.search(String(keyword===undefined || keyword===null? "":keyword),cand);
+        var idx=r["indices"];
+        var res=[];
+        for(var j=0;j<idx.length;j++) {
+            res.push(v[idx[j]]);
+        }
+        dlog("列表","搜索: 关键字 ",r["query"],", 长度 ",r["len"],", 模式 ",r["mode"],
+             ", 精确 ",r["exact"],", 模糊 ",r["fuzzy"],", 命中 ",res.length);
+        return res;
     }
     /* 命中判定: 场景坐标是否落在该可见项的矩形内 */
     function hitItem(item, scenePos) {

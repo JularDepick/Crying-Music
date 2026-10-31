@@ -834,6 +834,10 @@ MainAreaFatherPage {
     function refresh() {
         mainListView.rebuild();
     }
+    /* 关键字搜索: 走统一的搜索匹配算法过滤最近播放列表 */
+    function search(keyword) {
+        return Assist.searchList(keyword,mainArea_RecentPage.mainListViewModel);
+    }
     /* 在线清单就绪后重建一次, 让在线条目取回真实曲名与歌手 */
     Connections {
         target: Server;

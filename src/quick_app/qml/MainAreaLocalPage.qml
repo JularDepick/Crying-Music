@@ -1891,17 +1891,9 @@ MainAreaFatherPage {
     function jump2list() {
         ;
     }
-    /* 关键字搜索: 过滤当前标签的列表条目 */
+    /* 关键字搜索: 走统一的搜索匹配算法过滤当前标签的列表条目 */
     function search(keyword) {
-        var v=mainArea_LocalPage.mainListViewModel;
-        var l=v.length;
-        var res=[];
-        for(var i=0;i<l;i++) {
-            if(Assist.keywordMatch(v[i]["songname"],v[i]["singer"],keyword)) {
-                res.push(v[i]);
-            }
-        }
-        return res;
+        return Assist.searchList(keyword,mainArea_LocalPage.mainListViewModel);
     }
     /* 红心状态会被其它页面改写, 显示时轻量同步一次;
      * 下载歌曲标签的数据来自下载记录, 显示时重建一次 */
