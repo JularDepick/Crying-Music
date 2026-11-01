@@ -1362,7 +1362,22 @@ ApplicationWindow {
                     Image {
                         id: lyricsOpenerImage;
                         anchors.fill: parent;
-                        source: "qrc:/favicon.jpg";
+                        /* 封面跟随当前播放项: 优先条目自带的封面路径, 其次按封面名取在线封面缓存,
+                         * 都没有时回退应用图标; 本地条目与未播放时都走回退 */
+                        property var playingEntry: player.playingEntry();
+                        property string coverName: (playingEntry===null? "":(playingEntry["cover"]===undefined? "":String(playingEntry["cover"])));
+                        property string coverSource: ((playingEntry!==null && playingEntry["absipath"]
+                                                      ? String(playingEntry["absipath"])
+                                                      :(coverName!=="" && Server.coverCache[coverName]!==undefined
+                                                        ? String(Server.coverCache[coverName]):"qrc:/favicon.jpg")));
+                        /* 换歌时按需请求封面: 已缓存或本进程已失败时 requestCover 直接返回 */
+                        onCoverNameChanged: {
+                            if(coverName!=="") {
+                                Server.requestCover(coverName);
+                            }
+                        }
+                        source: coverSource;
+                        fillMode: Image.PreserveAspectCrop;
                     }
                     CustomButtonA {
                         id: lyricsOpenerBtn;
@@ -2140,18 +2155,10 @@ ApplicationWindow {
         }
     }
     LyricsSubTab {
+        /* similar to canvas */
         id: lyricsSubTab;
         anchors.fill: parent;
         visible: false;
-        function show() {
-            visible=true;
-        }
-        function hide() {
-            visible=false;
-        }
-        function tshow() {
-            visible=!visible;
-        }
     }
     /* 加载进度条: 状态由内存枢纽的加载状态驱动 */
     Rectangle {

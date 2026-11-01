@@ -7,14 +7,16 @@ import "./"
 
 Item {
     id: serverRoot;
-    /* 远程数据分布: 清单与元信息在仓库的 online-data 分支, 音频本体在对象存储的 file/ 段下,
-     * 封面与歌词也由对象存储提供; 取数流程为:
-     * 依次尝试多个备用地址 oss.meta_file_url[i] 与 oss.manifest_file_url[i], 拿到即止;
-     * 元信息就绪后立即把对象存储派生的地址追加为兜底备用源:
-     * 基址去掉末尾的 file/ 即数据根, 该根下取 manifest.json, cover/ 与 lyrics/;
-     * 将获取到的 JSON 内容分别覆盖存进同结构的 oss.meta 与 oss.manifest;
-     * 清单与元信息体积小, 直接用 XMLHttpRequest 拉取; 封面与歌词由 C++ 侧下载到本地缓存后复用
-     */
+    /* 远程数据分布:
+        * OSS元数据、歌曲清单、封面图片、歌词文件在仓库的 online-data 分支
+        * OSS侧也有歌曲清单、封面图片、歌词文件的备份,用于兜底
+     * 资源获取流程:
+        * 依次尝试多个备用地址 oss.meta_file_url[i] 与 oss.manifest_file_url[i], 拿到即止
+        * OSS元信息就绪后立即把OSS派生的地址追加为兜底备用源:
+          * 基址去掉末尾的 file/ 即数据根, 该根下取 manifest.json, cover/ 与 lyrics/
+        * 将获取到的 JSON 内容分别覆盖存进同结构的 oss.meta 与 oss.manifest
+        * 清单与元信息体积小, 直接用 XMLHttpRequest 拉取; 封面与歌词由 C++ 侧下载到本地缓存后复用
+    */
     property var oss:
     ({
         "meta_file_url": [
