@@ -89,7 +89,7 @@ Rectangle {
             NumberAnimation { duration: 150; }
         }
         anchors {top:parent.top; right:parent.right;}
-        anchors.topMargin: Define.windowPadding+rowsTopMargin;
+        anchors.topMargin: Define.windowPadding+controlBar.rowsTopMargin;
         anchors.rightMargin: Define.windowPadding;
     }
 

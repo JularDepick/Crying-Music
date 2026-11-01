@@ -10,7 +10,7 @@ import "./"
 /* 播放栏: 主界面与歌词页共用同一份实现, 由 cardStyle 区分卡片式与透明浮条.
  * 播放器与内存在主界面, 这里只做呈现与命令转发; 队列与播放状态的权威始终是注入的播放器对象 */
 Rectangle {
-    id: playerBar;
+    id: root;
     /* 注入: 播放器, 探测用播放器与内存枢纽(内存枢纽用于边播边下的策略钩子) */
     property var thePlayer: null;
     property var theProber: null;
@@ -96,10 +96,10 @@ Rectangle {
     Connections {
         target: root.thePlayer;
         function onPositionChanged() {
-            playerBar.syncStampDisplay();
+            root.syncStampDisplay();
         }
         function onDurationChanged() {
-            playerBar.syncStampDisplay();
+            root.syncStampDisplay();
             root.thePlayer.rememberOnlineDuration();
         }
     }
@@ -477,9 +477,10 @@ Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter;
                             height: 120;
                             /* 初值取自存储枢纽里的音量, 拖动结束后写回存储 */
-                                            value: GlobalFileStorage.playState.volume;
-                            /* 拖动过程中实时把音量交给宿主, 由宿主更新音频输出; 松手时仍写回存储 */
-                            onMoved: {
+                            value: GlobalFileStorage.playState.volume;
+                            /* 音量一变就交给宿主更新音频输出, 覆盖拖动, 静音按钮与初值同步三种来源;
+                             * 松手与静音都由下面的 pressedChanged 写回存储 */
+                            onValueChanged: {
                                 root.volumeMoved(Math.round(value));
                             }
                             onPressedChanged: {
@@ -522,7 +523,7 @@ Rectangle {
             }
             PlayerBarSliderA {
                 id: stampSlider;
-                width: playerBar.width*0.3;
+                width: root.width*0.3;
                 anchors.verticalCenter: parent.verticalCenter;
                 maxStamp: Math.max(0,Math.floor(root.thePlayer.duration/1000));
                 property int showedValue: (pressed? value:Math.floor(root.thePlayer.position/1000));
