@@ -12,10 +12,18 @@ Rectangle {
     property var theWindow: null;
     property var thePlayer: null;
     property var thePlayerBar: null;
+    /* 注入: 内存枢纽(边播边下策略钩子)与侧栏展开状态(播放条按钮间距) */
+    property var theMemStorage: null;
+    property bool theSidebarSpreaded: true;
     /* 歌词行: 每项形如 {t: 秒(无时间戳为 -1), text: 文本} */
     property var lyricLines: [];
     /* 当前播放位置对应的行下标, 无时间戳或未播放时为 -1 */
     property int currentLine: -1;
+
+    /* 控件可见性: 鼠标静止一段时间后淡出, 移动即恢复 */
+    property bool chromeVisible: true;
+    /* 锚定比例: 当前行固定在歌词视口高度的这个位置, 上下都能看到后续歌词 */
+    readonly property real anchorRatio: 0.42;
     topLeftRadius: Define.windowRadius;
     topRightRadius: Define.windowRadius;
     bottomLeftRadius: Define.windowRadius;
@@ -35,6 +43,13 @@ Rectangle {
             if(mouse.button!==Qt.LeftButton) {
                 return;
             }
+            /* 点面板之外的空白处先收起播放列表面板 */
+            if(playerBarSubone.listVisible===true) {
+                var sp=pageDrag.mapToItem(null,mouse.x,mouse.y);
+                if(Assist.hitItem(listPanel,sp)!==true) {
+                    playerBarSubone.sub_hideList();
+                }
+            }
             var mx=mouse.x;
             var my=mouse.y;
             var d=Define.windowPadding-Define.edgeMouseAreaD;
@@ -49,6 +64,11 @@ Rectangle {
     /* 左上角退出入口: 收起歌词页回到 canvas */
     CustomButtonA {
         id: closeLyricsBtn;
+        opacity: (root.chromeVisible? 1:0);
+        enabled: root.chromeVisible;
+        Behavior on opacity {
+            NumberAnimation { duration: 150; }
+        }
         anchors {left:parent.left; top:parent.top;}
         anchors.leftMargin: Define.windowPadding+controlBar.rowsTopMargin;
         anchors.topMargin: (Define.windowPadding+controlBar.rowsTopMargin
@@ -63,19 +83,24 @@ Rectangle {
     WindowControlBar {
         id: controlBar;
         theWindow: root.theWindow;
+        opacity: (root.chromeVisible? 1:0);
+        enabled: root.chromeVisible;
+        Behavior on opacity {
+            NumberAnimation { duration: 150; }
+        }
         anchors {top:parent.top; right:parent.right;}
         anchors.topMargin: Define.windowPadding+rowsTopMargin;
         anchors.rightMargin: Define.windowPadding;
     }
 
-    /* 封面大图: 放在左侧, 取当前播放项的封面, 没有时回退应用图标 */
+    /* 封面大图: 版面按参考图取宽 32%, 左起 17.1%, 顶起 26.1%, 高 46.5% */
     Rectangle {
         id: coverPanel;
-        anchors {left:parent.left;}
-        anchors.leftMargin: Define.windowPadding*6;
-        anchors.verticalCenter: lyricArea.verticalCenter;
-        width: (lyricArea.height*0.42);
-        height: width;
+        anchors {left:parent.left; top:parent.top;}
+        anchors.leftMargin: root.width*0.171;
+        anchors.topMargin: root.height*0.261;
+        width: root.width*0.32;
+        height: root.height*0.465;
         radius: Define.mainAreaRaduis*2;
         clip: true;
         color: Define.hoverDarkColor;
@@ -89,12 +114,12 @@ Rectangle {
     Item {
         id: lyricArea;
         anchors {top:parent.top; bottom:playerBarSubone.top;}
-        anchors.topMargin: Define.windowPadding+controlBar.rowsTopMargin+controlBar.rowsHeight+20;
-        anchors.bottomMargin: 10;
-        anchors.left: coverPanel.right;
+        anchors.topMargin: root.height*0.227;
+        anchors.bottomMargin: 20;
+        anchors.left: parent.left;
         anchors.right: parent.right;
-        anchors.leftMargin: 60;
-        anchors.rightMargin: Define.windowPadding*6;
+        anchors.leftMargin: root.width*0.576;
+        anchors.rightMargin: root.width*0.176;
     }
     ListView {
         id: lyricView;
@@ -103,6 +128,18 @@ Rectangle {
         spacing: 12;
         clip: true;
         boundsBehavior: Flickable.StopAtBounds;
+        /* 首尾留白: 让第一行与最后一行也能落到锚定线上, 否则 ListView 会把内容顶到边界 */
+        header: Item {
+            width: lyricView.width;
+            height: lyricView.height*root.anchorRatio;
+        }
+        footer: Item {
+            width: lyricView.width;
+            height: lyricView.height*(1-root.anchorRatio);
+        }
+        /* 视口尺寸变化与用户拖动结束后都重新锚定一次 */
+        onHeightChanged: Qt.callLater(root.anchorToCurrentLine);
+        onMovementEnded: root.anchorToCurrentLine();
         delegate: Text {
             width: lyricView.width;
             horizontalAlignment: Text.AlignHCenter;
@@ -114,174 +151,47 @@ Rectangle {
         }
     }
 
-    /* 底部播放条: 功能与播放栏等同, 状态绑定到播放栏, 改动一律经播放栏的命令下发 */
+    /* 播放列表面板: 本页自己的一份实例, 内容与主界面共用同一份实现, 队列状态来自注入的播放器 */
     Rectangle {
-        id: playerBarSubone;
-        anchors {left:parent.left; right:parent.right; bottom:parent.bottom;}
-        anchors.leftMargin: Define.windowPadding;
+        id: listPanel;
+        anchors {top:parent.top; bottom:playerBarSubone.top; right:parent.right;}
+        anchors.topMargin: Define.windowPadding+controlBar.rowsTopMargin+controlBar.rowsHeight+20;
+        anchors.bottomMargin: 10;
         anchors.rightMargin: Define.windowPadding;
-        anchors.bottomMargin: Define.windowPadding;
-        height: 80;
+        width: 450;
         topLeftRadius: Define.mainAreaRaduis;
         topRightRadius: Define.mainAreaRaduis;
         bottomLeftRadius: Define.mainAreaRaduis;
         bottomRightRadius: Define.mainAreaRaduis;
         color: Define.mainAreaColor;
-        /* 左侧: 封面缩略图, 曲名与歌手, 喜欢按钮 */
-        Row {
-            anchors {left:parent.left; verticalCenter:parent.verticalCenter;}
-            leftPadding: 12;
-            spacing: 10;
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter;
-                width: 40;
-                height: 40;
-                radius: 5;
-                clip: true;
-                Image {
-                    anchors.fill: parent;
-                    fillMode: Image.PreserveAspectCrop;
-                    source: root.coverSource;
-                }
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter;
-                width: Define.playerTitleMaxWidth;
-                elide: Text.ElideRight;
-                text: (root.playingEntryData===null? "":String(root.playingEntryData["songname"]))
-                      +(root.playingEntryData===null || root.playingEntryData["singer"]===""
-                        ? "":(" - "+String(root.playingEntryData["singer"])));
-                font.pixelSize: 14;
-                color: Define.btnIconColor;
-            }
-            PlayerBarButton {
-                anchors.verticalCenter: parent.verticalCenter;
-                enabled: (root.thePlayerBar!==null && root.thePlayerBar.barLikeEnabled);
-                property bool liked: (root.thePlayerBar!==null && root.thePlayerBar.barLiked);
-                icon.source: (liked? "qrc:/assets/iconfont/function/liked.svg":"qrc:/assets/iconfont/function/like.svg");
-                icon.color: (enabled===false? Define.forbdDarkColor:(liked? (hovered? Define.btnHoverRed:Define.btnIconRed):(hovered? Define.btnIconRed:Define.btnIconColor)));
-                onClicked: {
-                    if(root.thePlayerBar!==null) {
-                        root.thePlayerBar.barToggleLike();
-                    }
-                }
-            }
+        border.color: Define.subGrey;
+        border.width: 1;
+        visible: playerBarSubone.listVisible;
+        PlayingListViewArea {
+            anchors.fill: parent;
+            thePlayer: root.thePlayer;
+            headEnabled: false;
         }
-        /* 中部: 上一曲, 播放暂停, 下一曲, 以及进度与两端时间 */
-        Column {
-            anchors {horizontalCenter: parent.horizontalCenter; verticalCenter: parent.verticalCenter;}
-            spacing: 8;
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter;
-                spacing: Define.btnSpacing;
-                height: 20;
-                PlayerBarButton {
-                    icon.source: "qrc:/assets/iconfont/playerbar/lastone.svg";
-                    onClicked: {
-                        if(root.thePlayerBar!==null) {
-                            root.thePlayerBar.barPrev();
-                        }
-                    }
-                }
-                PlayerBarButton {
-                    id: subPlayPauseBtn;
-                    property string svgBase: "qrc:/assets/iconfont/playerbar/";
-                    property bool playing: (root.thePlayerBar!==null && root.thePlayerBar.barPlaying);
-                    hoverEnabled: false;
-                    transEnabled: false;
-                    icon.source: svgBase+(playing? "pause.svg":"play.svg");
-                    onClicked: {
-                        if(root.thePlayerBar!==null) {
-                            root.thePlayerBar.barTogglePlay();
-                        }
-                    }
-                    background: Rectangle {
-                        anchors.centerIn: parent;
-                        width: parent.width+20;
-                        height: parent.height+10;
-                        color: Define.btnHoverColor;
-                        radius: height/2;
-                    }
-                }
-                PlayerBarButton {
-                    icon.source: "qrc:/assets/iconfont/playerbar/nextone.svg";
-                    onClicked: {
-                        if(root.thePlayerBar!==null) {
-                            root.thePlayerBar.barNext();
-                        }
-                    }
-                }
-            }
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter;
-                spacing: 10;
-                height: 20;
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter;
-                    text: Assist.int2mmss(subStampSlider.showedValue);
-                }
-                PlayerBarSliderA {
-                    id: subStampSlider;
-                    width: playerBarSubone.width*0.3;
-                    anchors.verticalCenter: parent.verticalCenter;
-                    maxStamp: (root.thePlayerBar===null? 0:root.thePlayerBar.barDuration);
-                    property int showedValue: (pressed? value:(root.thePlayerBar===null? 0:root.thePlayerBar.barPosition));
-                    onPressedChanged: {
-                        if(!pressed && root.thePlayerBar!==null) {
-                            root.thePlayerBar.barSeek(value);
-                        }
-                    }
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter;
-                    text: Assist.int2mmss(subStampSlider.maxStamp);
-                }
-            }
+    }
+    /* 底部播放条: 与主界面播放栏共用同一份实现, 透明无外边距; 队列与播放状态的权威是注入的播放器 */
+    PlayerBar {
+        id: playerBarSubone;
+        cardStyle: false;
+        opacity: (root.chromeVisible? 1:0);
+        enabled: root.chromeVisible;
+        Behavior on opacity {
+            NumberAnimation { duration: 150; }
         }
-        /* 右侧: 静音, 音量与播放列表 */
-        Row {
-            anchors {right:parent.right; verticalCenter:parent.verticalCenter;}
-            rightPadding: 12;
-            spacing: 10;
-            PlayerBarButton {
-                anchors.verticalCenter: parent.verticalCenter;
-                icon.source: ((root.thePlayerBar!==null && root.thePlayerBar.barVolume===0)
-                              ? "qrc:/assets/iconfont/playerbar/soundless.svg"
-                              : "qrc:/assets/iconfont/playerbar/sound.svg");
-                onClicked: {
-                    if(root.thePlayerBar!==null) {
-                        root.thePlayerBar.barToggleMute();
-                    }
-                }
-            }
-            PlayerBarSliderA {
-                id: subVolumeSlider;
-                anchors.verticalCenter: parent.verticalCenter;
-                width: 90;
-                maxStamp: 100;
-                value: (root.thePlayerBar===null? 0:root.thePlayerBar.barVolume);
-                onPressedChanged: {
-                    if(!pressed && root.thePlayerBar!==null) {
-                        root.thePlayerBar.barSetVolume(value);
-                        /* 拖动会打断绑定, 松手后按播放栏的音量重新接上 */
-                        value=Qt.binding(function() {
-                            return (root.thePlayerBar===null? 0:root.thePlayerBar.barVolume);
-                        });
-                    }
-                }
-            }
-            PlayerBarButton {
-                anchors.verticalCenter: parent.verticalCenter;
-                icon.color: (((root.thePlayerBar!==null && root.thePlayerBar.barListVisible)
-                             || (hovered&&hoverColorEnabled))? Define.btnHoverColor:Define.btnIconColor);
-                icon.source: "qrc:/assets/iconfont/playerbar/playerlist.svg";
-                onClicked: {
-                    /* 播放列表面板属于主界面: 先收起歌词页, 再由播放栏打开面板 */
-                    root.hide();
-                    if(root.thePlayerBar!==null) {
-                        root.thePlayerBar.barToggleList();
-                    }
-                }
+        thePlayer: root.thePlayer;
+        theMemStorage: root.theMemStorage;
+        sidebarSpreaded: root.theSidebarSpreaded;
+        anchors {left:parent.left; right:parent.right; bottom:parent.bottom;}
+        onLyricsOpenerClicked: {
+            root.hide();
+        }
+        onVolumeMoved: (value)=> {
+            if(root.theWindow!==null) {
+                root.theWindow.outputVolume=value;
             }
         }
     }
@@ -338,6 +248,8 @@ Rectangle {
         var text=AppFileHelper.readFile(path,"UTF-8");
         lyricLines=parseLyrics(text);
         syncCurrentLine();
+        /* 模型刚替换时列表还没完成布局, 延后一帧再锚定 */
+        Qt.callLater(root.anchorToCurrentLine);
         Assist.dlog("界面","歌词已载入: ",playingLyricsName,", 行数 ",lyricLines.length);
         return true;
     }
@@ -406,6 +318,8 @@ Rectangle {
         }
         return idx;
     }
+    /* 行号变化时重新锚定 */
+    onCurrentLineChanged: anchorToCurrentLine();
     function syncCurrentLine() {
         if(thePlayerBar===null || lyricLines.length<=0) {
             currentLine=-1;
@@ -413,18 +327,49 @@ Rectangle {
         }
         currentLine=lineIndexAt(thePlayerBar.barPosition);
     }
-    /* 当前行变化时把该行滚到可视区中部 */
-    onCurrentLineChanged: {
-        if(currentLine>=0 && currentLine<lyricLines.length) {
-            lyricView.positionViewAtIndex(currentLine,ListView.Center);
+    /* 鼠标在页面内移动即恢复控件并重新计时 */
+    HoverHandler {
+        id: pageHover;
+        onPointChanged: root.bumpIdle();
+    }
+    /* 控件淡出计时: 页面可见时启动, 到点把控件淡出 */
+    Timer {
+        id: idleTimer;
+        interval: 5000;
+        repeat: false;
+        onTriggered: {
+            root.chromeVisible=false;
         }
+    }
+    function bumpIdle() {
+        chromeVisible=true;
+        idleTimer.restart();
+    }
+    /* Esc 退出歌词页 */
+    Shortcut {
+        sequence: "Esc";
+        enabled: root.visible;
+        onActivated: {
+            root.hide();
+        }
+    }
+    /* 把当前行钉到锚定线: 先按顶部对齐定位, 再上移一个锚定高度, 首尾由列表的首尾留白兜底;
+     * 用户正在拖动时不抢占, 松手后由列表的 movementEnded 重新锚定 */
+    function anchorToCurrentLine() {
+        if(visible!==true || lyricView.moving===true) {
+            return false;
+        }
+        if(currentLine<0 || currentLine>=lyricLines.length) {
+            return false;
+        }
+        lyricView.positionViewAtIndex(currentLine,ListView.Beginning);
+        var maxY=Math.max(0,lyricView.contentHeight-lyricView.height);
+        lyricView.contentY=Math.max(0,Math.min(maxY,lyricView.contentY-lyricView.height*anchorRatio));
+        return true;
     }
     Connections {
         target: root.thePlayerBar;
         function onBarPositionChanged() {
-            if(!subStampSlider.pressed && root.thePlayerBar!==null) {
-                subStampSlider.value=root.thePlayerBar.barPosition;
-            }
             root.syncCurrentLine();
         }
     }
@@ -439,16 +384,19 @@ Rectangle {
     /* 显示时同步一次播放条与歌词, 隐藏时只改可见性 */
     onVisibleChanged: {
         if(visible===true) {
-            if(root.thePlayerBar!==null) {
-                subStampSlider.value=root.thePlayerBar.barPosition;
-            }
             root.syncLyrics();
+            Qt.callLater(root.anchorToCurrentLine);
+            root.bumpIdle();
+        } else {
+            idleTimer.stop();
+            root.chromeVisible=true;
         }
     }
     function show() {
         visible=true;
     }
     function hide() {
+        playerBarSubone.sub_hideList();
         visible=false;
     }
     function tshow() {
