@@ -92,6 +92,16 @@ Item {
     signal lyricsUpdated(string lyricsName);
     /* 是否处于失败后的自动重试中 */
     property bool _retryOn: false;
+    /* 本次运行的元信息是否来自本地缓存: 该模式下失败不切换界面状态, 改为后台轮询 */
+    property bool _metaFromCache: false;
+    /* 缓存模式下的后台轮询开关: meta 源已全部失败, 轮询只更新缓存文件, 不打断本次运行 */
+    property bool _metaPollOn: false;
+    /* 缓存指向的对象存储是否已确认不可用(404): 置位后立即重取元信息, 拿到即启用 */
+    property bool _ossDead: false;
+    /* 是否已升级为立即重取: 升级期间的失败按固定节拍继续重试 */
+    property bool _escalateOn: false;
+    /* 元信息派生出的对象存储数据根, 用于识别 404 是否来自该对象存储 */
+    property string _ossDataRoot: "";
     /* 失败后的重试节拍: 每分钟一次, 直到拉取成功; 成功即停表 */
     Timer {
         id: retryTimer;
@@ -100,6 +110,16 @@ Item {
         running: serverRoot._retryOn;
         onTriggered: {
             serverRoot._retryTick();
+        }
+    }
+    /* 缓存模式下的元信息轮询: 按节拍持续取最新元信息, 成功也只写缓存文件 */
+    Timer {
+        id: metaPollTimer;
+        interval: Define.onlineMetaPollMs;
+        repeat: true;
+        running: serverRoot._metaPollOn;
+        onTriggered: {
+            serverRoot._metaPollTick();
         }
     }
     /* 封面缓存索引写盘: 连续拉取时合并成一次写入 */
@@ -151,6 +171,12 @@ Item {
                 return;
             }
             serverRoot._netLose(req,reason);
+        }
+        /* 4xx 或 5xx 状态: 404 交给元信息侧判断缓存里的元信息是否已过时 */
+        function onHttpError(url,status) {
+            if(status===404) {
+                serverRoot._noteOssStatus(url);
+            }
         }
     }
     /* 对象存储基址: 元信息未就绪时为空字符串 */
@@ -702,6 +728,11 @@ Item {
         _setData(meta,man);
         loadState=2;
         loadError="";
+        /* 进入缓存模式: 本次运行的元信息来自本地缓存, 后续失败只做后台轮询 */
+        _metaFromCache=true;
+        _metaPollOn=false;
+        _ossDead=false;
+        _escalateOn=false;
         Assist.dlog("在线","已从缓存恢复在线曲库: 共 ",man.length," 首");
         return true;
     }
@@ -754,6 +785,8 @@ Item {
         spec.manifest_file_url=_appendUniqueUrl(spec.manifest_file_url,root+"manifest.json");
         spec.cover_file_base_url=_appendUniqueUrl(spec.cover_file_base_url,root+"cover/");
         spec.lyrics_file_base_url=_appendUniqueUrl(spec.lyrics_file_base_url,root+"lyrics/");
+        /* 记下数据根: 缓存模式下据此识别对象存储的 404 */
+        serverRoot._ossDataRoot=root;
         Assist.dlog("在线","追加对象存储兜底源: ",root);
         return spec;
     }
@@ -900,6 +933,92 @@ Item {
         _silent=true;
         return _startFetch();
     }
+    /* 缓存模式下的后台轮询节拍: 对象存储已失效时改为立即重取并启用 */
+    function _metaPollTick() {
+        if(_fetching===true || _metaPollInFlight()===true || _escalateOn===true) {
+            return false;
+        }
+        if(_ossDead===true) {
+            return _escalateMeta();
+        }
+        return _pollMetaToCache();
+    }
+    /* 拉一次元信息并只更新缓存文件: 成功也不替换本次运行已生效的元信息与清单 */
+    function _pollMetaToCache() {
+        var started=_netStart("meta","metaPoll",oss.meta_file_url,
+                              {"validate":function(data) { return (data!==null && typeof data==="object"
+                                                                  && typeof data.audio_obj_base_url==="string"
+                                                                  && data.audio_obj_base_url!==""); },
+                               "ok":function(data) { serverRoot._metaPollDone(data); },
+                               "fail":function(reason) { serverRoot._metaPollFail(reason); }});
+        return started;
+    }
+    /* 后台轮询是否有在途请求: 直接看请求表, 被其它拉取中止时不会留下永远置位的标志 */
+    function _metaPollInFlight() {
+        for(var i=0;i<_netReqs.length;i++) {
+            var one=_netReqs[i];
+            if(one.closed===true) {
+                continue;
+            }
+            if(one.group!==undefined && one.group!==null && one.group.key==="metaPoll") {
+                return true;
+            }
+        }
+        return false;
+    }
+    /* 轮询成功: 只写缓存; 若此时已确认对象存储失效, 则立即启用这份新元信息 */
+    function _metaPollDone(data) {
+        var dir=GlobalFileStorage.onlineCacheDir();
+        var ok=false;
+        if(dir!=="") {
+            ok=AppFileHelper.writeFile(dir+"/"+GlobalFileStorage.onlineMetaFileName,
+                                       JSON.stringify(data),"UTF-8");
+        }
+        if(_ossDead===true) {
+            Assist.dlog("在线","轮询到最新元信息, 且缓存指向的对象存储已失效: 立即启用, 缓存写入 ",
+                        (ok===true? "成功":"失败"));
+            _escalateOn=true;
+            _ossDead=false;
+            /* 升级期间的失败只记日志: 界面已经有可用的曲库, 不切到失败态 */
+            _silent=true;
+            _setData(data,oss.manifest);
+            _metaFromCache=false;
+            _loadManifest();
+            return true;
+        }
+        Assist.dlog("在线","轮询到最新元信息: 只更新缓存(",(ok===true? "成功":"失败"),
+                    "), 本次运行继续使用已生效的元信息");
+        return ok;
+    }
+    /* 轮询失败: 继续等下一个节拍, 缓存里的元信息照常使用 */
+    function _metaPollFail(reason) {
+        Assist.dwarn("在线","后台轮询元信息失败, 继续使用缓存: ",reason);
+        return false;
+    }
+    /* 立即重取元信息并立即启用: 缓存指向的对象存储已不可用时使用 */
+    function _escalateMeta() {
+        if(_fetching===true || _metaPollInFlight()===true) {
+            return false;
+        }
+        Assist.dwarn("在线","缓存的元信息指向的对象存储不可用, 立即重取最新元信息并启用");
+        _escalateOn=true;
+        _ossDead=false;
+        _silent=true;
+        return _startFetch();
+    }
+    /* 记一次 404: 只认缓存模式下来自当前对象存储数据根的地址 */
+    function _noteOssStatus(url) {
+        if(_metaFromCache!==true || _ossDead===true || _escalateOn===true) {
+            return false;
+        }
+        var u=String(url);
+        if(_ossDataRoot==="" || u.indexOf(_ossDataRoot)!==0) {
+            return false;
+        }
+        _ossDead=true;
+        Assist.dwarn("在线","对象存储返回 404, 缓存里的元信息已过时: ",u);
+        return _escalateMeta();
+    }
     /* 发起一次拉取: 从元信息开始, 拿到后继续拉清单 */
     function _startFetch() {
         _fetching=true;
@@ -911,6 +1030,8 @@ Item {
                    "ok":function(data) {
                        Assist.dlog("在线","元信息就绪: 对象存储基址 ",data.audio_obj_base_url);
                        serverRoot._setData(data,serverRoot.oss.manifest);
+                       /* 元信息已在本次运行生效, 退出缓存模式 */
+                       serverRoot._metaFromCache=false;
                        serverRoot._loadManifest();
                    },
                    "fail":function(reason) {
@@ -934,6 +1055,11 @@ Item {
     function _finishOk() {
         _fetching=false;
         _retryOn=false;
+        /* 元信息与清单都已由在线数据生效: 退出缓存模式与轮询/升级状态 */
+        _metaFromCache=false;
+        _metaPollOn=false;
+        _ossDead=false;
+        _escalateOn=false;
         saveCache();
         loadState=2;
         loadError="";
@@ -942,10 +1068,23 @@ Item {
         serverRoot.startCoverFill();
         _silent=false;
     }
-    /* 加载失败: 静默刷新只记日志并继续用缓存, 其余情况进入失败态 */
+    /* 加载失败: 有缓存可用时不进入失败态, 改为后台轮询元信息;
+     * 已升级为立即重取时按固定节拍继续重试; 没有缓存可用时才进入失败态 */
     function _fail(reason) {
         _netAbortFetch();
         _fetching=false;
+        if(_metaFromCache===true) {
+            _silent=false;
+            if(_escalateOn===true) {
+                _retryOn=true;
+                Assist.dwarn("在线","立即重取元信息失败, 继续按节拍重试: ",reason);
+                return;
+            }
+            _metaPollOn=true;
+            _retryOn=false;
+            Assist.dwarn("在线","在线元信息不可用, 继续使用缓存并后台轮询最新元信息: ",reason);
+            return;
+        }
         _retryOn=true;
         if(_silent===true) {
             _silent=false;
@@ -1089,6 +1228,10 @@ Item {
         var group=req.group;
         if(xhr.status<200 || xhr.status>=300 || xhr.responseText==="") {
             Assist.dwarn("在线","地址不可用: ",req.url,", 状态 ",xhr.status);
+            if(xhr.status===404) {
+                /* 404 可能意味着缓存里的元信息指向的对象存储已过时, 交给元信息侧判断 */
+                serverRoot._noteOssStatus(req.url);
+            }
             _netLose(req,"地址不可用");
             return false;
         }

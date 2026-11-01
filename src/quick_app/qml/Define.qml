@@ -62,6 +62,10 @@ Item {
     property int onlineCoverHedgeMs: 2000;
     property int onlineLyricsHedgeMs: 1500;
     property int onlineSourceTimeoutMs: 3000;
+    /* 缓存模式下的后台元信息轮询节拍: meta 源全部失败后按此节拍持续取最新元信息,
+     * 只更新缓存文件, 不打断本次运行已生效的数据; 缓存指向的对象存储失效时改为立即重取
+     */
+    property int onlineMetaPollMs: 60000;
     /* 在线封面缓存的生命周期: 默认天数与设置页可选档位;
      * 生命周期在缓存写入那一刻定下, 之后改档位不影响已经缓存的封面 */
     property int coverCacheTtlDefaultDays: 7;

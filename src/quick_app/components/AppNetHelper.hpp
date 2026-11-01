@@ -57,6 +57,7 @@ public:
         m_cachedFileReplies.insert(cacheKey, reply);
         connect(reply, &QNetworkReply::finished, this, [this, reply, cacheKey, targetPath, targetName]() {
             m_cachedFileReplies.remove(cacheKey);
+            reportHttpStatusIfBad(reply);
             reply->deleteLater();
             if (reply->error()!=QNetworkReply::NoError) {
                 emit cachedFileFailed(cacheKey, reply->errorString());
@@ -157,6 +158,7 @@ public:
         m_sizeReplies.insert(taskKey, reply);
         connect(reply, &QNetworkReply::finished, this, [this, reply, taskKey, url]() {
             m_sizeReplies.remove(taskKey);
+            reportHttpStatusIfBad(reply);
             if (reply->error()==QNetworkReply::NoError) {
                 const qint64 len = reply->header(QNetworkRequest::ContentLengthHeader).toLongLong();
                 reply->deleteLater();
@@ -197,6 +199,8 @@ signals:
     void sizeReady(const QString &taskKey, qint64 bytes);
     void sizeFailed(const QString &taskKey, const QString &reason);
     void downloadFailed(const QString &taskKey, const QString &reason);
+    /* 请求返回 4xx 或 5xx: url 为请求地址, status 为 HTTP 状态码 */
+    void httpError(const QString &url, int status);
 
 private:
     struct DownloadTask {
@@ -306,6 +310,7 @@ private:
         }
         DownloadTask task = m_downloads.take(taskKey);
         writeChunkFinal(task, reply);
+        reportHttpStatusIfBad(reply);
         reply->deleteLater();
         if (task.file!=nullptr) {
             task.file->close();
@@ -328,6 +333,17 @@ private:
             return;
         }
         emit downloadFinished(taskKey, QUrl::fromLocalFile(task.dstPath).toString());
+    }
+
+    /* 上报一次 HTTP 状态: 仅当响应状态为 4xx 或 5xx 时发出, 供上层判断资源是否已失效 */
+    void reportHttpStatusIfBad(QNetworkReply *reply) {
+        if (reply==nullptr) {
+            return;
+        }
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (status>=400) {
+            emit httpError(reply->url().toString(), status);
+        }
     }
 
     /* 收尾前的最后一次写入: 此时 take 已把任务移出表, 因此单独处理 */

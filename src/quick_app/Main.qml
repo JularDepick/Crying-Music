@@ -20,6 +20,9 @@ ApplicationWindow {
     visible: false;
     title: qsTr(Define.initTitle);
     flags: Qt.Window | Qt.FramelessWindowHint;
+    /* 画中画窗口的开关状态: 由窗口持有, 顶栏与歌词页两处操控栏副本共用同一个值, 保持状态链可被各处引用;
+     * 画中画窗口本身尚未实现, 当前只用于副本之间的状态同步 */
+    property bool flowCardShowed: false;
 
     /* 内存枢纽: 只存内存的临时状态, 不落盘; 由主界面持有并注入给各页。
      * 声明在页面之前, 保证页面构建时它已存在 */
@@ -692,48 +695,12 @@ ApplicationWindow {
                     }
                 }
             }
-            Row {
+            /* 右上角窗口操控栏: 与歌词页共用同一份实现, 两处副本操控同一个窗口 */
+            WindowControlBar {
                 id: sysButtons;
+                theWindow: window;
                 anchors {top:parent.top; right:parent.right;}
                 anchors.topMargin: parent.rowsTopMargin;
-                rightPadding: 20;
-                height: parent.rowsHeight;
-                spacing: Define.btnSpacing;
-                TopNavBarButton {
-                    id: flowCardWinBtn;
-                    icon.source: "qrc:/assets/iconfont/topnavbar/flowized.svg";
-                    icon.color: (((hovered&&hoverColorEnabled)||showed)? Define.btnHoverColor:Define.btnIconColor);
-                    property bool showed: false;
-                    onClicked: {
-                        /* build flow card */
-                        if(!showed) {
-                            window.hide();
-                        }
-
-                        showed=!showed;
-                    }
-                }
-                TopNavBarButton {
-                    id: minWindowBtn;
-                    icon.source: "qrc:/assets/iconfont/topnavbar/minimized.svg";
-                    onClicked: window.showMinimized();
-                }
-                TopNavBarButton {
-                    id: maxWindowBtn;
-                    icon.source: (window.visibility==Window.Maximized? "qrc:/assets/iconfont/topnavbar/normalized.svg":"qrc:/assets/iconfont/topnavbar/maximized.svg");
-                    onClicked: {
-                        if (window.visibility !== Window.Maximized) {
-                            window.showMaximized();
-                        } else {
-                            window.showNormal();
-                        }
-                    }
-                }
-                TopNavBarButton {
-                    id: closeWindowBtn;
-                    icon.source: "qrc:/assets/iconfont/topnavbar/closewin.svg";
-                    onClicked: window.hide();
-                }
             }
         }
         Rectangle {
@@ -890,6 +857,61 @@ ApplicationWindow {
             bottomLeftRadius: Define.mainAreaRaduis;
             bottomRightRadius: Define.mainAreaRaduis;
             color: Define.mainAreaColor;
+            /* 对外状态与命令: 供歌词页的播放条与播放栏同源, 状态只读, 改动一律走下面的命令,
+             * 命令内部更新播放栏自己的控件, 因此两处的滑块与按钮始终指向同一份状态 */
+            readonly property bool barPlaying: player.playing;
+            readonly property int barPosition: Math.floor(player.position/1000);
+            readonly property int barDuration: Math.max(0,Math.floor(player.duration/1000));
+            readonly property int barVolume: soundSlider.value;
+            readonly property bool barLikeEnabled: (player.playingWhich!=="");
+            readonly property bool barLiked: (barLikeEnabled && GlobalFileStorage.isLiked(player.playingWhich));
+            readonly property bool barListVisible: playingListBtn.subVisible;
+            function barTogglePlay() {
+                if(player.playing) {
+                    player.pause();
+                } else {
+                    player.play();
+                }
+                stampSlider.value=Math.floor(player.position/1000);
+            }
+            function barPrev() {
+                player.playPrev();
+            }
+            function barNext() {
+                player.playNext(false);
+            }
+            function barSeek(sec) {
+                var v=Math.max(0,Math.min(barDuration,Math.floor(sec)));
+                player.position=v*1000;
+                stampSlider.value=v;
+                if(!player.playing) {
+                    player.play();
+                }
+            }
+            function barSetVolume(v) {
+                var n=Math.max(0,Math.min(100,Math.floor(v)));
+                soundSlider.value=n;
+                GlobalFileStorage.setVolume(n);
+            }
+            function barToggleMute() {
+                if(soundSlider.value===0) {
+                    soundSlider.value=soundCtrl.lastVolume;
+                } else {
+                    soundCtrl.lastVolume=soundSlider.value;
+                    soundSlider.value=0;
+                }
+                GlobalFileStorage.setVolume(soundSlider.value);
+            }
+            function barToggleLike() {
+                if(!barLikeEnabled) {
+                    return false;
+                }
+                GlobalFileStorage.setLiked(player.playingWhich,!barLiked);
+                return true;
+            }
+            function barToggleList() {
+                playingListBtn.sub_tshow();
+            }
             /* 把进度条手柄与已播放填充同步到当前播放位置; 按住拖动时不打断用户 */
             function syncStampDisplay() {
                 if(stampSlider.pressed===false) {
@@ -2155,8 +2177,12 @@ ApplicationWindow {
         }
     }
     LyricsSubTab {
-        /* similar to canvas */
+        /* 与 canvas 平级的整窗覆盖层: 层级由声明顺序决定, 加载进度条与完成提示仍声明在它之后;
+         * 窗口与播放栏从这里注入, 由歌词页自己去操控, 互相之间不引用对方的控件 */
         id: lyricsSubTab;
+        theWindow: window;
+        thePlayer: player;
+        thePlayerBar: playerBar;
         anchors.fill: parent;
         visible: false;
     }
