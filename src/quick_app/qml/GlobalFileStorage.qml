@@ -46,7 +46,7 @@ Item {
     /* 二进制运行目录下的存储目录指针文件, 记录上一次选定的存储目录 */
     property string storagePointerFileName: "storageDirPath.json";
     /* 落盘数据的结构版本号, 供将来做结构迁移 */
-    property int dataVersion: 1;
+    property int dataVersion: 2;
     /* 下述 # 系指 storageDirPath */
     /* 存到 #/data/localScan.json */
     property var localScan:

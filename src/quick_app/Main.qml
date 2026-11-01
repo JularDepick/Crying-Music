@@ -154,6 +154,7 @@ ApplicationWindow {
                        "songname":one["songname"],
                        "singer":one["singer"],
                        "cover":(one["cover"]===undefined? "":one["cover"]),
+                       "lyrics":(one["lyrics"]===undefined? "":one["lyrics"]),
                        "url":one["absfpath"],
                        "dst":dst,
                        "progress":0,
@@ -164,6 +165,9 @@ ApplicationWindow {
             downloadTasks=v;
             Assist.dlog("下载","开始下载: ",id," -> ",dst);
             AppNetHelper.downloadAudio(one["absfpath"],dst,id);
+            /* 顺带把这首曲目的封面与歌词一并取回: 已缓存或已放弃的请求会直接返回 */
+            Server.requestCover((one["cover"]===undefined? "":String(one["cover"])));
+            Server.requestLyrics((one["lyrics"]===undefined? "":String(one["lyrics"])));
             return true;
         }
         /* 取消下载: 中止请求, 队列的清理由失败回调统一完成 */
@@ -213,8 +217,12 @@ ApplicationWindow {
                                              "songname":t["songname"],
                                              "singer":t["singer"],
                                              "cover":t["cover"],
+                                             "lyrics":t["lyrics"],
+                                             "coverPath":Server.coverPathOf(t["cover"]),
                                              "size":AppFileHelper.fileSize(localPath),
                                              "duration":0});
+            /* 记录写好后立刻体检一次资产: 缺的进补全队列, 由补全节拍静默重试 */
+            Server.ensureDownloadedAssets();
             Assist.dlog("下载","下载完成: ",t["onlineId"]);
             memStorage.showDownloadTip("已下载: "+t["songname"]);
         }

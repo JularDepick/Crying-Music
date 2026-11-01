@@ -60,6 +60,10 @@ Item {
     property var lyricsMiss: ({})
     /* 正在拉取的歌词: 同一份歌词同一时刻只保留一组对冲请求 */
     property var _lyricsPending: ({})
+    /* 歌词流式来源: 首个开始返回数据的源独占, 其余源的部分文本丢弃 */
+    property string _lyricsStreamOwner: "";
+    /* 歌词的部分文本: 只用于边下边显, 完整内容仍以歌词缓存文件为准 */
+    signal lyricsPartial(string lyricsName, string text);
     /* 后台补全队列与是否正在补全 */
     property var _coverQueue: []
     property bool _coverFilling: false
@@ -110,6 +114,16 @@ Item {
         running: serverRoot._retryOn;
         onTriggered: {
             serverRoot._retryTick();
+        }
+    }
+    /* 资产补全的节拍: 队列非空时每 5 秒检查一次 */
+    Timer {
+        id: assetTimer;
+        interval: 5000;
+        repeat: true;
+        running: serverRoot._assetItems.length>0;
+        onTriggered: {
+            serverRoot._assetTick();
         }
     }
     /* 缓存模式下的元信息轮询: 按节拍持续取最新元信息, 成功也只写缓存文件 */
@@ -427,6 +441,7 @@ Item {
         var path=dir+"/"+lyricsName;
         var ok=(dir!=="" && AppFileHelper.writeFile(path,text,"UTF-8")===true);
         delete _lyricsPending[lyricsName];
+        _lyricsStreamOwner="";
         if(ok!==true) {
             lyricsMiss[lyricsName]=true;
             Assist.dwarn("在线","歌词写入失败: ",lyricsName);
@@ -445,6 +460,7 @@ Item {
     /* 歌词全部候选源都失败: 本进程内不再重试 */
     function _lyricsFailed(lyricsName,reason) {
         delete _lyricsPending[lyricsName];
+        _lyricsStreamOwner="";
         lyricsMiss[lyricsName]=true;
         Assist.derror("在线","歌词拉取失败: ",lyricsName,", 原因 ",reason);
     }
@@ -495,6 +511,7 @@ Item {
         lyricsCache=({});
         lyricsMiss=({});
         _lyricsPending=({});
+        _lyricsStreamOwner="";
         Assist.dlog("在线","歌词缓存已清空");
         return true;
     }
@@ -681,6 +698,124 @@ Item {
         coverCacheCleared();
         return true;
     }
+    /* ===== 已下载曲目的资产补全: 封面与歌词缺失时按退避节拍静默重试 ===== */
+    /* 待补全队列: 每项形如 {kind:"cover"|"lyrics", name, tries, nextAt, deadline, inflight} */
+    property var _assetItems: []
+    /* 每项最多尝试的次数 */
+    readonly property int assetMaxTries: 3
+    /* 失败后的退避节拍: 30 秒, 2 分钟, 10 分钟 */
+    readonly property var assetBackoffMs: [30000,120000,600000]
+    /* 某类资产是否已经就绪 */
+    function assetReadyOf(kind,name) {
+        if(typeof name!=="string" || name==="") {
+            return true;
+        }
+        return (kind==="cover"? (coverPathOf(name)!==""):(lyricsPathOf(name)!==""));
+    }
+    /* 把一个资产排进补全队列: 已就绪, 已在队列或名字为空时忽略 */
+    function enqueueAsset(kind,name) {
+        if(typeof name!=="string" || name==="") {
+            return false;
+        }
+        if(assetReadyOf(kind,name)===true) {
+            return false;
+        }
+        for(var i=0;i<_assetItems.length;i++) {
+            var one=_assetItems[i];
+            if(one["kind"]===kind && one["name"]===name) {
+                return false;
+            }
+        }
+        var v=_assetItems.slice();
+        v.push({"kind":kind,"name":name,"tries":0,"nextAt":Date.now(),
+                "deadline":0,"inflight":false});
+        _assetItems=v;
+        return true;
+    }
+    /* 扫描下载记录: 缺封面或歌词的排进补全队列; 歌词名优先取记录, 记录里没有时按在线标识查清单 */
+    function ensureDownloadedAssets() {
+        var list=GlobalFileStorage.downloads;
+        var queued=0;
+        var n=(list===undefined || list===null? 0:list.length);
+        for(var i=0;i<n;i++) {
+            var one=list[i];
+            var cover=(one["cover"]===undefined? "":String(one["cover"]));
+            var lyrics=(one["lyrics"]===undefined? "":String(one["lyrics"]));
+            if(lyrics==="" && typeof one["onlineId"]==="string" && one["onlineId"]!=="") {
+                var ent=onlineEntryOfKey(one["onlineId"]);
+                if(ent!==null && ent["lyrics"]!==undefined) {
+                    lyrics=String(ent["lyrics"]);
+                }
+            }
+            if(enqueueAsset("cover",cover)===true) {
+                queued=queued+1;
+            }
+            if(enqueueAsset("lyrics",lyrics)===true) {
+                queued=queued+1;
+            }
+        }
+        if(queued>0) {
+            Assist.dlog("下载","已下载曲目的资产待补全: ",queued," 项");
+        }
+        return queued;
+    }
+    /* 节拍: 在途项到期结算, 非在途项到期发起一次尝试 */
+    function _assetTick() {
+        var now=Date.now();
+        var items=_assetItems.slice();
+        for(var i=0;i<items.length;i++) {
+            var one=items[i];
+            if(_assetItems.indexOf(one)<0) {
+                continue;
+            }
+            if(one["inflight"]===true) {
+                if(now<one["deadline"]) {
+                    continue;
+                }
+                one["inflight"]=false;
+                if(assetReadyOf(one["kind"],one["name"])===true) {
+                    _assetRemove(one);
+                    continue;
+                }
+                one["tries"]=one["tries"]+1;
+                if(one["tries"]>=assetMaxTries) {
+                    Assist.dwarn("下载","资产补全放弃: ",one["kind"]," ",one["name"]);
+                    _assetRemove(one);
+                } else {
+                    one["nextAt"]=now+assetBackoffMs[Math.min(one["tries"]-1,assetBackoffMs.length-1)];
+                    Assist.dwarn("下载","资产补全失败, 稍后重试: ",one["kind"]," ",one["name"]);
+                }
+                continue;
+            }
+            if(now<one["nextAt"]) {
+                continue;
+            }
+            one["inflight"]=true;
+            one["deadline"]=now+Define.onlineSourceTimeoutMs+2000;
+            _assetStart(one["kind"],one["name"]);
+        }
+        return true;
+    }
+    function _assetRemove(one) {
+        var v=[];
+        for(var i=0;i<_assetItems.length;i++) {
+            if(_assetItems[i]!==one) {
+                v.push(_assetItems[i]);
+            }
+        }
+        _assetItems=v;
+    }
+    /* 发起一次资产补全: 先清掉一次性放弃标记, 再走既有请求入口 */
+    function _assetStart(kind,name) {
+        if(kind==="cover") {
+            delete coverMiss[name];
+            delete _coverPending[name];
+            return requestCover(name);
+        }
+        delete lyricsMiss[name];
+        delete _lyricsPending[name];
+        return requestLyrics(name);
+    }
     /* 启动引导: 先读磁盘缓存让曲库立即可用; 有缓存时再后台静默刷新, 失败不影响界面;
      * 没有缓存时按普通流程拉取, 界面照常显示加载态 */
     function bootstrap() {
@@ -688,6 +823,7 @@ Item {
         var had=loadCache();
         bootstrapCoverCache();
         loadLyricsCache();
+        ensureDownloadedAssets();
         if(had===true) {
             refreshSilently();
         } else {
@@ -1066,6 +1202,8 @@ Item {
         Assist.dlog("在线","清单就绪: 共 ",manifestRows().length," 首");
         serverRoot.manifestUpdated();
         serverRoot.startCoverFill();
+        /* 清单就绪后可以把下载记录里的歌词名补齐, 再扫一次资产 */
+        ensureDownloadedAssets();
         _silent=false;
     }
     /* 加载失败: 有缓存可用时不进入失败态, 改为后台轮询元信息;
@@ -1204,10 +1342,23 @@ Item {
         req.token=Date.now()+Math.random();
         var token=req.token;
         xhr.onreadystatechange=function() {
-            if(xhr.readyState!==XMLHttpRequest.DONE) {
+            if(req.closed===true || group.done===true || req.token!==token) {
                 return;
             }
-            if(req.closed===true || group.done===true || req.token!==token) {
+            /* 歌词支持边下边显: 首个开始返回数据的源独占流式来源, 它的部分文本随到随发 */
+            if(xhr.readyState===XMLHttpRequest.LOADING) {
+                if(group.kind==="lyrics") {
+                    if(serverRoot._lyricsStreamOwner==="") {
+                        serverRoot._lyricsStreamOwner=req.url;
+                        Assist.dlog("在线","歌词流式来源: ",req.url);
+                    }
+                    if(serverRoot._lyricsStreamOwner===req.url && xhr.responseText!=="") {
+                        serverRoot.lyricsPartial(group.key,xhr.responseText);
+                    }
+                }
+                return;
+            }
+            if(xhr.readyState!==XMLHttpRequest.DONE) {
                 return;
             }
             serverRoot._netSettle(req,xhr);

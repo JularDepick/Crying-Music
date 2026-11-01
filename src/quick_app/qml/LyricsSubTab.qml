@@ -327,6 +327,41 @@ Rectangle {
         }
         currentLine=lineIndexAt(thePlayerBar.barPosition);
     }
+    /* 流式歌词的节流提交: 每个节拍只提交一次最新文本, 避免逐块重建列表 */
+    property string _partialText: "";
+    function applyPartialLyrics(text) {
+        _partialText=String(text);
+        if(partialTimer.running!==true) {
+            partialTimer.start();
+        }
+    }
+    function commitPartialLyrics() {
+        var t=_partialText;
+        if(t==="") {
+            return false;
+        }
+        var cut=t.lastIndexOf("\n");
+        if(cut>0) {
+            t=t.substring(0,cut);
+        }
+        var parsed=parseLyrics(t);
+        if(parsed.length<=lyricLines.length) {
+            return false;
+        }
+        lyricLines=parsed;
+        syncCurrentLine();
+        Qt.callLater(root.anchorToCurrentLine);
+        Assist.dlog("界面","歌词流式显示: 已收到 ",parsed.length," 行");
+        return true;
+    }
+    Timer {
+        id: partialTimer;
+        interval: 250;
+        repeat: false;
+        onTriggered: {
+            root.commitPartialLyrics();
+        }
+    }
     /* 鼠标在页面内移动即恢复控件并重新计时 */
     HoverHandler {
         id: pageHover;
@@ -375,6 +410,13 @@ Rectangle {
     }
     Connections {
         target: Server;
+        /* 边下边显: 服务端把已收到的部分文本发过来, 这里只取完整行, 末尾半行丢弃 */
+        function onLyricsPartial(lyricsName,text) {
+            if(lyricsName!==root.playingLyricsName) {
+                return;
+            }
+            root.applyPartialLyrics(text);
+        }
         function onLyricsUpdated(lyricsName) {
             if(lyricsName===root.playingLyricsName) {
                 root.loadLyricText();

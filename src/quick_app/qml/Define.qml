@@ -68,8 +68,8 @@ Item {
     property int onlineMetaPollMs: 60000;
     /* 在线封面缓存的生命周期: 默认天数与设置页可选档位;
      * 生命周期在缓存写入那一刻定下, 之后改档位不影响已经缓存的封面 */
-    property int coverCacheTtlDefaultDays: 7;
-    property var coverCacheTtlDayOptions: [1,7,15,30];
+    property int coverCacheTtlDefaultDays: 28;
+    property var coverCacheTtlDayOptions: [1,7,28,30];
     /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;
      * 输出的统一格式为 [分类标签]<具体信息>, 由 Assist 的输出函数拼装 */
     property var debugCategoryOn:
