@@ -22,6 +22,8 @@ Rectangle {
     /* 实例开关: 是否由本实例承担播放器级的副作用(进度节拍上报, 枢纽回灌, 清单校正);
      * 主界面那份取 true, 歌词页那份取 false, 避免同一件事被做两遍 */
     property bool ownsPlayerSideEffects: false;
+    /* 实例开关: 封面上的悬停图标用关闭歌词页的图形(歌词页实例)还是打开歌词页的图形(主界面实例) */
+    property bool lyricsCloseIcon: false;
     /* 左侧封面被点击: 主界面用来进入歌词页, 歌词页用来退出 */
     signal lyricsOpenerClicked();
     /* 音量被拖动: 宿主据此更新音频输出, 避免两侧各存一份音量 */
@@ -61,8 +63,9 @@ Rectangle {
     bottomLeftRadius: Define.mainAreaRaduis;
     bottomRightRadius: Define.mainAreaRaduis;
     color: (cardStyle? Define.mainAreaColor:Define.nocolor);
-    /* 供宿主读取的播放位置(秒): 歌词页据此定位当前行; 其余播放命令两处都直接走注入的播放器 */
-    readonly property int barPosition: Math.floor(root.thePlayer.position/1000);
+    /* 供宿主读取的播放位置(秒, 保留小数): 歌词页据此定位当前行与当前词, 逐字进度需要秒级以下的精度;
+     * 其余播放命令两处都直接走注入的播放器 */
+    readonly property real positionSec: (root.thePlayer===null? 0:root.thePlayer.position/1000);
     /* 把进度条手柄与已播放填充同步到当前播放位置; 按住拖动时不打断用户 */
     function syncStampDisplay() {
         if(stampSlider.pressed===false) {
@@ -142,10 +145,12 @@ Rectangle {
                 id: lyricsOpenerBtn;
                 anchors.fill: parent;
                 transEnabled: false;
-                icon.source: (hovered? "qrc:/assets/iconfont/playerbar/lyricsopen.svg":"");
+                icon.source: (hovered? (root.lyricsCloseIcon
+                                        ? "qrc:/assets/iconfont/playerbar/lyricsclose.svg"
+                                        : "qrc:/assets/iconfont/playerbar/lyricsopen.svg"):"");
                 icon.color: Define.mainAreaColor;
-                icon.width: parent.width-5;
-                icon.height: parent.width-5;
+                icon.width: parent.width/2;
+                icon.height: parent.width/2;
                 onClicked: {
                     root.lyricsOpenerClicked();
                     Assist.dlog("播放","clicked lyricsOpenerBtn");

@@ -140,9 +140,10 @@ Rectangle {
             width: lyricView.width;
             horizontalAlignment: Text.AlignHCenter;
             wrapMode: Text.Wrap;
-            /* 当前行且已唱到某个词时改用富文本, 已唱部分单独着色 */
-            textFormat: (root.wordHighlightOn(index)? Text.StyledText:Text.PlainText);
-            text: root.lineTextOf(index);
+            /* 文本与格式取自同一份渲染结果, 不会出现文本带标签而格式仍是纯文本的错配 */
+            readonly property var lineRender: root.renderOf(index);
+            textFormat: (lineRender["styled"]===true? Text.StyledText:Text.PlainText);
+            text: lineRender["text"];
             font.pixelSize: (index===root.currentLine? root.currentFontSize:root.baseFontSize);
             font.bold: (index===root.currentLine);
             color: (index===root.currentLine? Define.btnIconColor:Define.forbdDarkColor);
@@ -184,6 +185,8 @@ Rectangle {
     PlayerBar {
         id: playerBarSubone;
         cardStyle: false;
+        /* 歌词页里这枚封面按钮的作用是退出歌词页, 悬停图标用关闭图形 */
+        lyricsCloseIcon: true;
         opacity: (root.chromeVisible? 1:0);
         enabled: root.chromeVisible;
         Behavior on opacity {
@@ -419,7 +422,11 @@ Rectangle {
         var stripRe=/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
         var rows=text.split(/\r?\n/);
         for(var i=0;i<rows.length;i++) {
-            var line=String(rows[i]);
+            /* 元信息标签行(ti/ar/al/by/offset 等)不是歌词: 整行的这类标签一律剥掉, 剥完为空就跳过 */
+            var line=String(rows[i]).replace(/\[[A-Za-z_]+:[^\]]*\]/g,"");
+            if(line.trim()==="") {
+                continue;
+            }
             var stamps=[];
             tagRe.lastIndex=0;
             var m=tagRe.exec(line);
@@ -482,8 +489,8 @@ Rectangle {
             currentWord=-1;
             return;
         }
-        /* 偏移量正值让歌词提前: 用播放位置加偏移去匹配时间戳 */
-        var sec=thePlayerBar.barPosition+lyricsOffsetMs/1000;
+        /* 偏移量正值让歌词提前: 用播放位置加偏移去匹配时间戳; 位置取小数秒, 逐字进度才有足够精度 */
+        var sec=thePlayerBar.positionSec+lyricsOffsetMs/1000;
         currentLine=lineIndexAt(sec);
         currentWord=(currentLine<0? -1:wordIndexAt(lyricLines[currentLine],sec));
     }
@@ -567,23 +574,20 @@ Rectangle {
         }
         return idx;
     }
-    /* 是否按逐字进度着色: 当前行且已经唱到某个词 */
-    function wordHighlightOn(index) {
-        return (index===root.currentLine && root.currentWord>=0);
-    }
-    /* 行文本: 非当前行给纯文本, 当前行把已唱部分与未唱部分分开着色 */
-    function lineTextOf(index) {
+    /* 行渲染: 一次算出这一行要显示的文本与是否按富文本渲染, 供委托同时取用;
+     * 只有当前行且已经唱到某个词时才拼富文本, 已唱部分单独着色, 其余情况一律纯文本 */
+    function renderOf(index) {
         var one=(index>=0 && index<lyricLines.length? lyricLines[index]:null);
         if(one===null || one===undefined) {
-            return "";
+            return ({"text":"", "styled":false});
         }
         var plain=String(one["text"]);
         if(index!==root.currentLine || root.currentWord<0) {
-            return plain;
+            return ({"text":plain, "styled":false});
         }
         var ws=one["words"];
         if(ws===undefined || ws===null || ws.length<=0) {
-            return plain;
+            return ({"text":plain, "styled":false});
         }
         var sung=Assist.hexOf(Define.choseCyanColor);
         var res="";
@@ -591,7 +595,7 @@ Rectangle {
             var t=String(ws[i]["text"]).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
             res=(i<=root.currentWord? res+"<font color=\""+sung+"\">"+t+"</font>":res+t);
         }
-        return res;
+        return ({"text":res, "styled":true});
     }
     /* 字号调节: 限制在设计常量的上下限内, 结果落盘为界面偏好 */
     function adjustFontSize(delta) {
@@ -672,7 +676,7 @@ Rectangle {
     }
     Connections {
         target: root.thePlayerBar;
-        function onBarPositionChanged() {
+        function onPositionSecChanged() {
             root.syncCurrentLine();
         }
     }
