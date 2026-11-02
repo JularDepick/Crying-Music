@@ -1,0 +1,30 @@
+# 触发器: online-data 分支的数据变更后部署到 Pages
+# 推送事件只认被推送分支上的工作流文件, 所以本文件必须留在 online-data 分支上;
+# 执行内容不在本分支, 通过 @main 调用 main 上的 build-site-and-deploy-as-pages.yml
+# 互斥: 与 main 上的 while-push-main-site.yml 使用同一个并发组, 互相撤回正在运行的部署
+name: 在线曲库数据变更后部署Pages
+
+# 注意: 新增数据目录时必须把该目录加进下面的 paths, 否则推它不会触发部署
+on:
+  push:
+    branches: ["online-data"]
+    paths:
+      - "oss/**"
+      - "audio/**"
+      - "api/**"
+      - ".github/workflows/while-push-online-data.yml"
+  workflow_dispatch:
+
+# 调用方只能降权不能提权: 这里授予的权限就是被调用流程能拿到的上限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages-deploy"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    uses: JularDepick/Crying-Music/.github/workflows/build-site-and-deploy-as-pages.yml@main
