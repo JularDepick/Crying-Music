@@ -73,6 +73,14 @@ public:
                 emit cachedFileFailed(cacheKey, QStringLiteral("空响应"));
                 return;
             }
+            /* 挡掉镜像用 200 返回的错误页: 文本与 JSON 一定不是图片, 未声明类型的照旧接受 */
+            const QString contentType =
+                reply->header(QNetworkRequest::ContentTypeHeader).toString().toLower();
+            if (contentType.startsWith(QStringLiteral("text/"))
+                || contentType.startsWith(QStringLiteral("application/json"))) {
+                emit cachedFileFailed(cacheKey, QStringLiteral("内容不是图片: ") + contentType);
+                return;
+            }
             QDir().mkpath(QFileInfo(targetPath).absolutePath());
             QFile out(targetPath);
             if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(data)<0) {

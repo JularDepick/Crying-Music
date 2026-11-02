@@ -9,13 +9,13 @@ Item {
     id: serverRoot;
     /* 远程数据分布:
         * 元信息(meta.json)在仓库的 online-data 分支, 它的候选地址写在下面的 meta_file_url, 是在线曲库的唯一入口
-        * 歌曲清单, 音频本体, 封面, 歌词与增强歌词都由元信息声明: 若干个备用数据根, 以及各类资源在数据根下的目录与扩展名
+        * 元信息是"数据根 + 资源声明"的组数组, 每一项是一组: base_url 给出本组的备用数据根,
+          resource 给出本组的 manifest_file 与各类资源的目录与扩展名; 本组没有声明某项目录, 本组就不提供该类资源
      * 资源获取流程:
         * 依次尝试多个备用地址 oss.meta_file_url[i] ,拿到即止
-        * 元信息就绪后立即按它声明的目录结构与扩展名解析进 oss.audio_*_base_url 与 oss.audio_*_ext:
-          * audio_base_url[i] 依次加 audio.manifest_file, audio.file_folder, audio.cover_folder,
-            audio.lyrics_lrc_folder 与 audio.lyrics_elrc_folder, 得到各类资源的候选前缀
-          * 扩展名分别取 audio.file_ext, audio.cover_ext, audio.lyrics_lrc_ext 与 audio.lyrics_elrc_ext
+        * 元信息就绪后立即按组解析: 每个数据根加本组声明的目录得到一条候选源, 扩展名按本组自己的声明,
+          结果存进 oss.audio_manifest_base_url 与 oss.audio_*_src(每项 {b:前缀, e:扩展名});
+          规范扩展名取第一个声明了该项的组, 在线标识与缓存文件名按它拼出
         * 清单只给不带扩展名的主文件名, 播放地址, 封面名与歌词名都由它加各自的扩展名拼出
         * 将获取到的 JSON 内容分别覆盖存进同结构的 oss.meta 与 oss.manifest
         * 元信息和清单文件体积小、更新频繁, 直接用 XMLHttpRequest 即时拉取; 封面与歌词由 C++ 侧下载到本地缓存后复用
@@ -31,16 +31,17 @@ Item {
         /* 获取到的元信息原文与清单原文 */
         "meta": ({}),
         "manifest": [],
-        /* 以下各项由元信息解析而来: *_base_url 为数据根加目录拼好的候选前缀, *_ext 为该类文件的扩展名;
-         * 元信息未就绪时全部为空 */
+        /* 以下各项由元信息解析而来: audio_manifest_base_url 为清单的候选地址,
+         * audio_*_src 为候选源数组(每项 {b:前缀, e:扩展名}), audio_*_ext 为规范扩展名;
+         * 在线标识与缓存文件名按规范扩展名拼出, 元信息未就绪时全部为空 */
         "audio_manifest_base_url": [],
-        "audio_file_base_url": [],
+        "audio_file_src": [],
         "audio_file_ext": "",
-        "audio_cover_base_url": [],
+        "audio_cover_src": [],
         "audio_cover_ext": "",
-        "audio_lyrics_lrc_base_url": [],
+        "audio_lyrics_lrc_src": [],
         "audio_lyrics_lrc_ext": "",
-        "audio_lyrics_elrc_base_url": [],
+        "audio_lyrics_elrc_src": [],
         "audio_lyrics_elrc_ext": ""
     });
     /* 清单加载状态: 0 未加载, 1 加载中, 2 已就绪, 3 加载失败 */
@@ -212,14 +213,14 @@ Item {
             }
         }
     }
-    /* 数据根基址归一: 元信息的 audio_base_url 给出多个备用数据根, 允许是数组或单个字符串;
-     * 去空白, 补齐末尾分隔符并去重; 元信息不合格时返回空数组 */
-    function _metaRoots(meta) {
+    /* 数据根基址归一: 单组节点用 base_url 声明本组的备用数据根, 也容忍旧结构的 audio_base_url,
+     * 允许是数组或单个字符串; 去空白, 补齐末尾分隔符并去重; 不合格时返回空数组 */
+    function _metaRoots(node) {
         var res=[];
-        if(meta===null || meta===undefined || typeof meta!=="object") {
+        if(node===null || node===undefined || typeof node!=="object") {
             return res;
         }
-        var raw=meta.audio_base_url;
+        var raw=(node.base_url!==undefined? node.base_url:node.audio_base_url);
         var list=(Array.isArray(raw)? raw:(typeof raw==="string"? [raw]:[]));
         for(var i=0;i<list.length;i++) {
             var b=(typeof list[i]==="string"? String(list[i]).trim():"");
@@ -231,6 +232,46 @@ Item {
             }
             if(res.indexOf(b)<0) {
                 res.push(b);
+            }
+        }
+        return res;
+    }
+    /* 元信息分组: 新结构是"数据根 + 资源声明"的数组, 每组声明的目录只对本组的根生效;
+     * 旧结构是单个对象, 视为唯一一组; 两种结构都归一到 {roots, res}
+     */
+    function _metaGroups(meta) {
+        var res=[];
+        if(meta===null || meta===undefined) {
+            return res;
+        }
+        var list=(Array.isArray(meta)? meta:[meta]);
+        for(var i=0;i<list.length;i++) {
+            var one=list[i];
+            if(one===null || typeof one!=="object") {
+                continue;
+            }
+            var roots=_metaRoots(one);
+            if(roots.length<=0) {
+                continue;
+            }
+            var r=(one.resource!==undefined && one.resource!==null && typeof one.resource==="object"
+                   ? one.resource
+                   :(one.audio!==undefined && one.audio!==null && typeof one.audio==="object"
+                     ? one.audio:({})));
+            res.push({"roots":roots,"res":r});
+        }
+        return res;
+    }
+    /* 元信息声明的全部数据根基址(按组顺序去重): 判死记账与日志用它, 与单组节点归一区分开 */
+    function _allRoots(meta) {
+        var res=[];
+        var groups=_metaGroups(meta);
+        for(var i=0;i<groups.length;i++) {
+            var roots=groups[i]["roots"];
+            for(var j=0;j<roots.length;j++) {
+                if(res.indexOf(roots[j])<0) {
+                    res.push(roots[j]);
+                }
             }
         }
         return res;
@@ -248,69 +289,112 @@ Item {
         var s=(typeof value==="string"? String(value).trim():"");
         return (s===""? "":(s.charAt(0)==="."? s:"."+s));
     }
-    /* 按元信息声明的目录结构与扩展名构造各类资源的候选前缀: 数据根与目录拼成前缀,
-     * 同一数据根下清单, 音频, 封面, 普通歌词与增强歌词各一条前缀 */
+    /* 按组构造候选源: 组内每个数据根加本组声明的目录得到一条候选源, 扩展名按本组自己的声明;
+     * 目录与扩展名缺任一项的组不提供该类资源, 因此各组的能力可以不一样 */
     function _parseOss(meta) {
         var spec=({"audio_manifest_base_url":[],
-                   "audio_file_base_url":[],
+                   "audio_file_src":[],
                    "audio_file_ext":"",
-                   "audio_cover_base_url":[],
+                   "audio_cover_src":[],
                    "audio_cover_ext":"",
-                   "audio_lyrics_lrc_base_url":[],
+                   "audio_lyrics_lrc_src":[],
                    "audio_lyrics_lrc_ext":"",
-                   "audio_lyrics_elrc_base_url":[],
+                   "audio_lyrics_elrc_src":[],
                    "audio_lyrics_elrc_ext":""});
-        if(meta===null || meta===undefined || typeof meta!=="object") {
-            return spec;
+        var groups=_metaGroups(meta);
+        for(var g=0;g<groups.length;g++) {
+            var one=groups[g];
+            var r=one["res"];
+            var roots=one["roots"];
+            var manifestFile=(typeof r["manifest_file"]==="string"? String(r["manifest_file"]).trim():"");
+            var fileDir=_folderOf(r["file_folder"]);
+            var fileExt=_extOf(r["file_ext"]);
+            var coverDir=_folderOf(r["cover_folder"]);
+            var coverExt=_extOf(r["cover_ext"]);
+            var lrcDir=_folderOf(r["lyrics_lrc_folder"]);
+            var lrcExt=_extOf(r["lyrics_lrc_ext"]);
+            var elrcDir=_folderOf(r["lyrics_elrc_folder"]);
+            var elrcExt=_extOf(r["lyrics_elrc_ext"]);
+            var hasFile=(fileDir!=="" && fileExt!=="");
+            var hasCover=(coverDir!=="" && coverExt!=="");
+            var hasLrc=(lrcDir!=="" && lrcExt!=="");
+            var hasElrc=(elrcDir!=="" && elrcExt!=="");
+            /* 规范扩展名取第一个真正提供该类资源的组 */
+            if(hasFile && spec.audio_file_ext==="") {
+                spec.audio_file_ext=fileExt;
+            }
+            if(hasCover && spec.audio_cover_ext==="") {
+                spec.audio_cover_ext=coverExt;
+            }
+            if(hasLrc && spec.audio_lyrics_lrc_ext==="") {
+                spec.audio_lyrics_lrc_ext=lrcExt;
+            }
+            if(hasElrc && spec.audio_lyrics_elrc_ext==="") {
+                spec.audio_lyrics_elrc_ext=elrcExt;
+            }
+            for(var i=0;i<roots.length;i++) {
+                var root=roots[i];
+                if(manifestFile!=="") {
+                    spec.audio_manifest_base_url.push(root+manifestFile);
+                }
+                if(hasFile) {
+                    spec.audio_file_src.push({"b":root+fileDir,"e":fileExt});
+                }
+                if(hasCover) {
+                    spec.audio_cover_src.push({"b":root+coverDir,"e":coverExt});
+                }
+                if(hasLrc) {
+                    spec.audio_lyrics_lrc_src.push({"b":root+lrcDir,"e":lrcExt});
+                }
+                if(hasElrc) {
+                    spec.audio_lyrics_elrc_src.push({"b":root+elrcDir,"e":elrcExt});
+                }
+            }
         }
-        var a=(meta.audio!==null && meta.audio!==undefined && typeof meta.audio==="object"
-               ? meta.audio:({}));
-        var manifestFile=(typeof a["manifest_file"]==="string"? String(a["manifest_file"]).trim():"");
-        var fileDir=_folderOf(a["file_folder"]);
-        var coverDir=_folderOf(a["cover_folder"]);
-        var lrcDir=_folderOf(a["lyrics_lrc_folder"]);
-        var elrcDir=_folderOf(a["lyrics_elrc_folder"]);
-        var roots=_metaRoots(meta);
-        for(var i=0;i<roots.length;i++) {
-            var root=roots[i];
-            if(manifestFile!=="") {
-                spec.audio_manifest_base_url.push(root+manifestFile);
-            }
-            if(fileDir!=="") {
-                spec.audio_file_base_url.push(root+fileDir);
-            }
-            if(coverDir!=="") {
-                spec.audio_cover_base_url.push(root+coverDir);
-            }
-            if(lrcDir!=="") {
-                spec.audio_lyrics_lrc_base_url.push(root+lrcDir);
-            }
-            if(elrcDir!=="") {
-                spec.audio_lyrics_elrc_base_url.push(root+elrcDir);
-            }
-        }
-        spec.audio_file_ext=_extOf(a["file_ext"]);
-        spec.audio_cover_ext=_extOf(a["cover_ext"]);
-        spec.audio_lyrics_lrc_ext=_extOf(a["lyrics_lrc_ext"]);
-        spec.audio_lyrics_elrc_ext=_extOf(a["lyrics_elrc_ext"]);
         return spec;
     }
-    /* 元信息是否可用: 至少有一个数据根, 且能拼出清单与音频的前缀 */
+    /* 元信息是否可用: 能拼出清单地址, 且至少有一组提供音频本体(否则曲库能列出但播不了) */
     function _metaValid(meta) {
         var spec=_parseOss(meta);
-        return (spec.audio_manifest_base_url.length>0 && spec.audio_file_base_url.length>0);
+        return (spec.audio_manifest_base_url.length>0 && spec.audio_file_src.length>0);
     }
-    /* 按候选前缀拼出地址: 文件名按 URL 规则编码, 以兼容中文与日文文件名 */
-    function _urlsOf(bases,name) {
+    /* 去掉规范扩展名, 得到主文件名: 各组声明的扩展名可能不同, 拼地址前先把名字还原成主文件名 */
+    function _mainNameOf(name,ext) {
+        var s=String(name);
+        var e=String(ext);
+        if(e!=="" && s.length>e.length && s.substring(s.length-e.length)===e) {
+            return s.substring(0,s.length-e.length);
+        }
+        return s;
+    }
+    /* 按候选源拼出地址: 每个源自己带扩展名, 文件名按 URL 规则编码, 以兼容中文与日文文件名 */
+    function _urlsOfSources(sources,mainName) {
         var res=[];
-        if(Array.isArray(bases)!==true || typeof name!=="string" || name==="") {
+        if(Array.isArray(sources)!==true || typeof mainName!=="string" || mainName==="") {
             return res;
         }
-        var enc=encodeURIComponent(name);
-        for(var i=0;i<bases.length;i++) {
-            var base=String(bases[i]);
-            if(base!=="") {
-                res.push(base+enc);
+        for(var i=0;i<sources.length;i++) {
+            var one=sources[i];
+            if(one===null || one===undefined) {
+                continue;
+            }
+            var base=String(one["b"]);
+            if(base==="") {
+                continue;
+            }
+            res.push(base+encodeURIComponent(mainName+String(one["e"])));
+        }
+        return res;
+    }
+    /* 候选源的前缀记录: 只用于日志, 形如 前缀+扩展名 */
+    function _srcPrefixes(sources) {
+        var res=[];
+        if(Array.isArray(sources)!==true) {
+            return res;
+        }
+        for(var i=0;i<sources.length;i++) {
+            if(sources[i]!==null && sources[i]!==undefined) {
+                res.push(String(sources[i]["b"])+"*"+String(sources[i]["e"]));
             }
         }
         return res;
@@ -319,12 +403,16 @@ Item {
      * 收藏, 最近播放, 播放队列与下载记录都以它为键, 因此本函数不随数据根健康度变化
      */
     function audioUrlOf(onlineId) {
-        var list=_urlsOf(oss.audio_file_base_url,onlineId);
+        var list=audioUrlCandidates(onlineId);
         return (list.length>0? list[0]:"");
     }
-    /* 在线音频的全部候选地址: 每个数据根一条, 顺序即元信息声明的顺序 */
+    /* 在线音频的全部候选地址: 每个提供音频本体的数据根一条, 顺序即元信息里组的顺序 */
     function audioUrlCandidates(onlineId) {
-        return _urlsOf(oss.audio_file_base_url,onlineId);
+        var id=String(onlineId===undefined || onlineId===null? "":onlineId);
+        if(id==="") {
+            return [];
+        }
+        return _urlsOfSources(oss.audio_file_src,_mainNameOf(id,oss.audio_file_ext));
     }
     /* 地址所属的数据根: 取与地址前缀匹配的数据根基址, 不属于任何数据根时返回空字符串 */
     function _rootOf(url) {
@@ -577,9 +665,13 @@ Item {
         var p=coverCache[coverName];
         return (typeof p==="string"? p:"");
     }
-    /* 封面的候选地址: 由元信息给出的封面前缀依次拼出 */
+    /* 封面的候选地址: 每个声明了封面目录的数据根一条, 扩展名按该组自己的声明 */
     function coverUrlCandidates(coverName) {
-        return _urlsOf(oss.audio_cover_base_url,coverName);
+        var n=String(coverName===undefined || coverName===null? "":coverName);
+        if(n==="") {
+            return [];
+        }
+        return _urlsOfSources(oss.audio_cover_src,_mainNameOf(n,oss.audio_cover_ext));
     }
     /* 请求一个封面的本地缓存: 已缓存或已失败时直接返回, 每个封面只发起一组对冲请求 */
     function requestCover(coverName) {
@@ -610,11 +702,11 @@ Item {
         return _netStart("cover",name,urls,
                          {"force":(force===true),
                           "validate":function(localPath) { return (typeof localPath==="string" && localPath!==""); },
-                          "ok":function(localPath) { serverRoot._coverDone(name,localPath); },
+                          "ok":function(localPath,src) { serverRoot._coverDone(name,localPath,src); },
                           "fail":function(reason) { serverRoot._coverFailed(name,reason); }});
     }
     /* 封面拿到: 记进缓存与索引, 并推进补全队列 */
-    function _coverDone(name,localPath) {
+    function _coverDone(name,localPath,src) {
         delete _coverPending[name];
         delete coverMiss[name];
         var at=Date.now();
@@ -631,7 +723,7 @@ Item {
         idx[name]=({"path":String(localPath),"at":at,"ttl":coverTtlMs()});
         coverIndex=idx;
         _coverIndexDirty=true;
-        Assist.dlog("在线","封面已缓存: ",name);
+        Assist.dlog("在线","封面来源: ",name," <- ",src);
         _pumpCoverQueue();
     }
     /* 封面全部候选源都失败: 本进程内不再重试 */
@@ -640,6 +732,54 @@ Item {
         _noteMiss(coverMiss,name);
         Assist.derror("在线","封面拉取失败: ",name,", 原因 ",reason);
         _pumpCoverQueue();
+    }
+    /* 内容是否像 HTML: 镜像或劫持用 200 返回的错误页就是这种文本, 用来挡边下边显与落盘 */
+    function looksLikeHtml(text) {
+        var low=String(text).toLowerCase();
+        return (low.indexOf("<!doctype")>=0 || low.indexOf("<html")>=0
+                || low.indexOf("<head")>=0 || low.indexOf("<body")>=0);
+    }
+    /* 文本是否全为十进制数字且非空 */
+    function digitsOnly(s) {
+        if(s==="") {
+            return false;
+        }
+        for(var i=0;i<s.length;i++) {
+            var c=s.charCodeAt(i);
+            if(c<48 || c>57) {
+                return false;
+            }
+        }
+        return true;
+    }
+    /* 歌词内容是否可用: 挡掉 HTML 与 JSON 这类错误页, 并要求至少出现一处 [分:秒] 时间标签;
+     * 普通歌词与增强歌词都是 LRC 文本, 元信息行同样带方括号, 因此这条判定对两档都成立
+     */
+    function lyricsTextUsable(text) {
+        var s=String(text);
+        if(s==="" || looksLikeHtml(s)===true) {
+            return false;
+        }
+        var from=0;
+        while(true) {
+            var a=s.indexOf("[",from);
+            if(a<0) {
+                return false;
+            }
+            var c=s.indexOf(":",a+1);
+            var b=s.indexOf("]",a+1);
+            if(c>a && b>c) {
+                var head=s.substring(a+1,c);
+                var tail=s.substring(c+1,b);
+                var dot=tail.indexOf(".");
+                var sec=(dot>=0? tail.substring(0,dot):tail);
+                if(head.length<=3 && digitsOnly(head)===true
+                   && sec.length<=2 && digitsOnly(sec)===true) {
+                    return true;
+                }
+            }
+            from=a+1;
+        }
     }
     /* 歌词缓存路径: 未缓存时为空字符串, 值是可直接读盘的文件地址 */
     function lyricsPathOf(lyricsName) {
@@ -693,13 +833,13 @@ Item {
             main=main.substring(0,main.length-elrcExt.length);
         }
         if(elrcExt!=="") {
-            var enh=_urlsOf(oss.audio_lyrics_elrc_base_url,main+elrcExt);
+            var enh=_urlsOfSources(oss.audio_lyrics_elrc_src,main);
             for(var i=0;i<enh.length;i++) {
                 res.push(enh[i]);
             }
         }
         if(lrcExt!=="") {
-            var lrc=_urlsOf(oss.audio_lyrics_lrc_base_url,main+lrcExt);
+            var lrc=_urlsOfSources(oss.audio_lyrics_lrc_src,main);
             for(var j=0;j<lrc.length;j++) {
                 res.push(lrc[j]);
             }
@@ -724,8 +864,8 @@ Item {
         }
         _lyricsPending[name]=true;
         var started=_netStart("lyrics",name,urls,
-                              {"validate":function(text) { return (typeof text==="string" && text!==""); },
-                               "ok":function(text) { serverRoot._lyricsDone(name,text); },
+                              {"validate":function(text) { return serverRoot.lyricsTextUsable(text); },
+                               "ok":function(text,src) { serverRoot._lyricsDone(name,text,src); },
                                "fail":function(reason) { serverRoot._lyricsFailed(name,reason); }});
         if(started!==true) {
             delete _lyricsPending[name];
@@ -733,7 +873,7 @@ Item {
         return started;
     }
     /* 歌词拿到: 写盘并记进内存索引 */
-    function _lyricsDone(lyricsName,text) {
+    function _lyricsDone(lyricsName,text,src) {
         var dir=GlobalFileStorage.lyricsCacheDir();
         var path=dir+"/"+lyricsName;
         var ok=(dir!=="" && AppFileHelper.writeFile(path,text,"UTF-8")===true);
@@ -751,7 +891,7 @@ Item {
         }
         m[lyricsName]=path;
         lyricsCache=m;
-        Assist.dlog("在线","歌词已缓存: ",lyricsName);
+        Assist.dlog("在线","歌词来源: ",lyricsName," <- ",src);
         lyricsUpdated(lyricsName);
         return true;
     }
@@ -775,6 +915,7 @@ Item {
         }
         var files=AppFileHelper.listFiles(dir);
         var m=({});
+        var dropped=0;
         for(var i=0;i<files.length;i++) {
             var url=String(files[i]);
             var cut=url.lastIndexOf("/");
@@ -791,10 +932,16 @@ Item {
             if(name===GlobalFileStorage.lyricsCacheIndexFileName) {
                 continue;
             }
+            /* 缓存里的文件必须是可用歌词: 早期版本会把镜像 200 返回的错误页原样落盘, 这里清掉重新取 */
+            if(lyricsTextUsable(AppFileHelper.readFile(url,"UTF-8"))!==true) {
+                AppFileHelper.removeFile(url);
+                dropped=dropped+1;
+                continue;
+            }
             m[name]=url;
         }
         lyricsCache=m;
-        Assist.dlog("在线","恢复歌词缓存: ",Object.keys(m).length," 份");
+        Assist.dlog("在线","恢复歌词缓存: ",Object.keys(m).length," 份, 清理不可用 ",dropped," 份");
         return true;
     }
     /* 歌词缓存索引的落盘路径: 缓存目录未确定时为空字符串 */
@@ -960,7 +1107,7 @@ Item {
         return (Date.now()>=(Number(e["at"])+Number(e["ttl"])));
     }
     /* 启动时接管本地封面: 索引里文件仍在的条目立刻可用, 随后静默补全未缓存或已过期的封面 */
-    function bootstrapCoverCache() {
+    function bootstrapCoverCache(fill) {
         var dir=GlobalFileStorage.coverCacheDir();
         if(dir==="") {
             Assist.dwarn("在线","封面缓存不可用: 缓存目录未确定");
@@ -984,7 +1131,9 @@ Item {
         coverCache=c;
         _coverIndexDirty=true;
         Assist.dlog("在线","封面缓存就绪: 复用 ",hit," 个本地封面");
-        startCoverFill();
+        if(fill!==false) {
+            startCoverFill();
+        }
         return true;
     }
     /* 静默全量补全封面: 只排队未缓存或已过期的条目, 并发上限取设计常量 */
@@ -1236,10 +1385,15 @@ Item {
      * 没有缓存时按普通流程拉取, 界面照常显示加载态 */
     function bootstrap() {
         loadPlayedMeta();
-        var had=loadCache();
-        bootstrapCoverCache();
+        /* 封面缓存先于曲库装载: 曲库一就绪首页立刻重建, 那时索引必须已经可用,
+         * 否则已缓存的封面会被当成未缓存再请求一轮
+         */
+        bootstrapCoverCache(false);
         loadLyricsCache();
         loadLyricsIndex();
+        var had=loadCache();
+        /* 清单已就绪, 再排队补全未缓存或已过期的封面 */
+        startCoverFill();
         ensureDownloadedAssets();
         if(had===true) {
             refreshSilently();
@@ -1313,20 +1467,29 @@ Item {
                          "meta":meta,
                          "manifest":(Array.isArray(manifest)? manifest:[]),
                          "audio_manifest_base_url":spec.audio_manifest_base_url,
-                         "audio_file_base_url":spec.audio_file_base_url,
+                         "audio_file_src":spec.audio_file_src,
                          "audio_file_ext":spec.audio_file_ext,
-                         "audio_cover_base_url":spec.audio_cover_base_url,
+                         "audio_cover_src":spec.audio_cover_src,
                          "audio_cover_ext":spec.audio_cover_ext,
-                         "audio_lyrics_lrc_base_url":spec.audio_lyrics_lrc_base_url,
+                         "audio_lyrics_lrc_src":spec.audio_lyrics_lrc_src,
                          "audio_lyrics_lrc_ext":spec.audio_lyrics_lrc_ext,
-                         "audio_lyrics_elrc_base_url":spec.audio_lyrics_elrc_base_url,
+                         "audio_lyrics_elrc_src":spec.audio_lyrics_elrc_src,
                          "audio_lyrics_elrc_ext":spec.audio_lyrics_elrc_ext});
-        /* 记下数据根: 缓存模式下据此识别对象存储的 404 */
-        serverRoot._ossRoots=_metaRoots(meta);
+        /* 记下全部数据根: 缓存模式下据此识别对象存储的 404, 取用地址据此判死 */
+        serverRoot._ossRoots=_allRoots(meta);
         Assist.dlog("在线","元信息已解析: 数据根 ",serverRoot._ossRoots.length," 个, 清单前缀 ",
                     (spec.audio_manifest_base_url.length>0? spec.audio_manifest_base_url[0]:"(缺)"),
-                    ", 扩展名 ",spec.audio_file_ext," ",spec.audio_cover_ext," ",
+                    ", 规范扩展名 ",spec.audio_file_ext," ",spec.audio_cover_ext," ",
                     spec.audio_lyrics_lrc_ext," ",spec.audio_lyrics_elrc_ext);
+        /* 各类资源各自一份候选源, 组间互不牵连: 某组没有声明该类目录, 它就不参与该类的兜底 */
+        Assist.dlog("在线","候选源: 清单 ",spec.audio_manifest_base_url.length,
+                    " 条, 音频 ",spec.audio_file_src.length,
+                    " 条, 封面 ",spec.audio_cover_src.length,
+                    " 条, 普通歌词 ",spec.audio_lyrics_lrc_src.length,
+                    " 条, 增强歌词 ",spec.audio_lyrics_elrc_src.length);
+        Assist.dlog("在线","音频候选: ",_srcPrefixes(spec.audio_file_src).join(" "));
+        Assist.dlog("在线","普通歌词候选: ",_srcPrefixes(spec.audio_lyrics_lrc_src).join(" "));
+        Assist.dlog("在线","增强歌词候选: ",_srcPrefixes(spec.audio_lyrics_elrc_src).join(" "));
     }
     /* 取一首在线歌曲的已播放缓存: 没有记录时返回 null */
     function playedMetaOf(key) {
@@ -1574,8 +1737,9 @@ Item {
         Assist.dlog("在线","开始拉取在线曲库: 元信息与清单",(_silent? "(后台静默)":""));
         _netStart("meta","meta",oss.meta_file_url,
                   {"validate":function(data) { return serverRoot._metaValid(data); },
-                   "ok":function(data) {
-                       Assist.dlog("在线","元信息就绪: 数据根 ",serverRoot._metaRoots(data).join(" "));
+                   "ok":function(data,src) {
+                       Assist.dlog("在线","元信息来源: ",src);
+                       Assist.dlog("在线","元信息就绪: 数据根 ",serverRoot._allRoots(data).join(" "));
                        serverRoot._setData(data,serverRoot.oss.manifest);
                        /* 元信息已在本次运行生效, 退出缓存模式 */
                        serverRoot._metaFromCache=false;
@@ -1590,7 +1754,8 @@ Item {
     function _loadManifest() {
         _netStart("manifest","manifest",oss.audio_manifest_base_url,
                   {"validate":function(data) { return Array.isArray(data); },
-                   "ok":function(data) {
+                   "ok":function(data,src) {
+                       Assist.dlog("在线","清单来源: ",src);
                        serverRoot._setData(serverRoot.oss.meta,data);
                        serverRoot._finishOk();
                    },
@@ -1760,12 +1925,16 @@ Item {
             /* 歌词支持边下边显: 首个开始返回数据的源独占流式来源, 它的部分文本随到随发 */
             if(xhr.readyState===XMLHttpRequest.LOADING) {
                 if(group.kind==="lyrics") {
-                    if(serverRoot._lyricsOwners[group.key]===undefined) {
-                        serverRoot._lyricsOwners[group.key]=req.url;
-                        Assist.dlog("在线","歌词流式来源: ",req.url);
-                    }
-                    if(serverRoot._lyricsOwners[group.key]===req.url && xhr.responseText!=="") {
-                        serverRoot.lyricsPartial(group.key,xhr.responseText);
+                    /* 边下边显只放行成功状态且像歌词的文本: 错误页一旦流进界面就得等下一次完整拉取才消失 */
+                    if((xhr.status===0 || (xhr.status>=200 && xhr.status<300))
+                       && serverRoot.looksLikeHtml(xhr.responseText)!==true) {
+                        if(serverRoot._lyricsOwners[group.key]===undefined) {
+                            serverRoot._lyricsOwners[group.key]=req.url;
+                            Assist.dlog("在线","歌词流式来源: ",req.url);
+                        }
+                        if(serverRoot._lyricsOwners[group.key]===req.url && xhr.responseText!=="") {
+                            serverRoot.lyricsPartial(group.key,xhr.responseText);
+                        }
                     }
                 }
                 return;
@@ -1854,7 +2023,8 @@ Item {
         }
         _netDrain();
         if(group.ok) {
-            group.ok(payload);
+            /* 把胜出的地址一并交回, 日志据此看出这次请求实际打到了哪个数据根 */
+            group.ok(payload,req.url);
         }
         return true;
     }

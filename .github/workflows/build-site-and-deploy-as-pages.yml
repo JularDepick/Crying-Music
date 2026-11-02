@@ -2,7 +2,7 @@
 # 发布内容 = main 分支的 site/ 目录 + online-data 分支的全量内容(在线曲库数据: oss/ 与 audio/)
 # 触发条件 = online-data 分支任意推送, 或 main 分支的 site/ 与本文档的变更, 或手动触发
 # 注意: 推送事件使用的永远是被推送分支上的工作流文件, 所以 online-data 分支必须也持有本文件副本;
-#       main 分支上的这一份会在每次部署时把副本同步过去(用 GITHUB_TOKEN 推送, 不会递归触发工作流)
+#       副本需手工维护, 本工作流不向任何分支写入提交
 # 注意: 若仓库的 github-pages 环境配了部署分支限制, 需要放行 online-data 分支, 否则部署步骤会被环境拒绝
 name: 构建并部署站点与在线曲库数据到Pages
 
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -105,27 +105,6 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: './_site/'
-
-      - name: 同步工作流文件到online-data分支
-        if: github.ref_name == 'main' && steps.decide.outputs.deploy == 'true'
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          source="repo-main/.github/workflows/build-site-and-deploy-as-pages.yml"
-          target="repo-online/.github/workflows/build-site-and-deploy-as-pages.yml"
-          if [ -f "${target}" ] && cmp -s "${source}" "${target}"; then
-            echo "online-data分支上的副本已是最新"
-            exit 0
-          fi
-          mkdir -p "$(dirname "${target}")"
-          cp "${source}" "${target}"
-          git -C repo-online config user.name "github-actions[bot]"
-          git -C repo-online config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C repo-online add .github/workflows/build-site-and-deploy-as-pages.yml
-          git -C repo-online commit -m "同步Pages工作流文件"
-          git -C repo-online push origin HEAD:online-data
-          echo "已同步工作流文件到online-data分支"
 
   deploy:
     needs: build
