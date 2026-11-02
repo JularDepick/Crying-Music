@@ -1,0 +1,27 @@
+# 触发器: main 分支的站点相关变更后部署到 Pages
+# 本文件只管触发与互斥, 执行内容在 build-site-and-deploy-as-pages.yml
+# 互斥: 与 online-data 分支上的 while-push-online-data.yml 使用同一个并发组, 互相撤回正在运行的部署
+name: main站点变更后部署Pages
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "site/**"
+      - ".github/workflows/while-push-main-site.yml"
+      - ".github/workflows/build-site-and-deploy-as-pages.yml"
+  workflow_dispatch:
+
+# 调用方只能降权不能提权: 这里授予的权限就是被调用流程能拿到的上限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages-deploy"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    uses: JularDepick/Crying-Music/.github/workflows/build-site-and-deploy-as-pages.yml@main

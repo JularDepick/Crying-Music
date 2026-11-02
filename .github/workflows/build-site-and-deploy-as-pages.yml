@@ -1,14 +1,15 @@
-# 构建并部署静态内容到 GitHub Pages
+# 构建并部署静态内容到 GitHub Pages(可复用工作流)
+# 本文件只放执行内容, 不放触发条件: 触发交给 main 上的 while-push-main-site.yml
+# 与 online-data 分支上的 while-push-online-data.yml, 两者都用 @main 调用本文件
 # 发布内容 = main 分支的 site/ 目录 + online-data 分支的全量内容(在线曲库数据: oss/ 与 audio/)
-# 触发条件 = online-data 分支任意推送, 或 main 分支的 site/ 与本文档的变更, 或手动触发
-# 注意: 推送事件使用的永远是被推送分支上的工作流文件, 所以 online-data 分支必须也持有本文件副本;
-#       副本需手工维护, 本工作流不向任何分支写入提交
-# 注意: 若仓库的 github-pages 环境配了部署分支限制, 需要放行 online-data 分支, 否则部署步骤会被环境拒绝
+# 约定: 同名路径以 online-data 为准; .git 与 .github 不进发布目录, .gitignore 不作为内容发布
+# 约定: 本文件不写 concurrency, 互斥与撤回由调用方用同一个并发组实现, 同名组会导致自我取消
+# 约定: 被复用工作流拿到的 github 上下文属于调用方, 因此下面的 checkout 必须显式写 ref
+# 注意: 若仓库的 github-pages 环境配了部署分支限制, 需要放行 online-data 分支(部署 ref 取调用方的 ref)
 name: 构建并部署站点与在线曲库数据到Pages
 
 on:
-  push:
-    branches: ["main", "online-data"]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -16,63 +17,19 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    outputs:
-      deploy: ${{ steps.decide.outputs.deploy }}
     steps:
       - name: 拉取main分支
         uses: actions/checkout@v4
         with:
           ref: main
           path: repo-main
-          fetch-depth: 0
-
-      - name: 判断本次是否需要部署
-        id: decide
-        working-directory: repo-main
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            echo "手动触发, 直接部署"
-            echo "deploy=true" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-          if [ "${GITHUB_REF_NAME}" = "online-data" ]; then
-            echo "online-data分支推送, 总是部署"
-            echo "deploy=true" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-          before='${{ github.event.before }}'
-          after='${{ github.sha }}'
-          if [ -z "${before}" ] || [ "${before}" = "0000000000000000000000000000000000000000" ]; then
-            echo "main分支首次推送, 按有变更处理"
-            echo "deploy=true" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-          if ! changed="$(git diff --name-only "${before}" "${after}" -- site .github/workflows/build-site-and-deploy-as-pages.yml 2>/dev/null)"; then
-            echo "无法比对提交区间 ${before}..${after}, 按有变更处理"
-            echo "deploy=true" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-          if [ -n "${changed}" ]; then
-            echo "main分支的站点相关变更:"
-            printf '%s\n' "${changed}"
-            echo "deploy=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "main分支本次推送不含站点相关变更, 跳过部署"
-            echo "deploy=false" >> "${GITHUB_OUTPUT}"
-          fi
+          fetch-depth: 1
 
       - name: 拉取online-data分支
-        if: steps.decide.outputs.deploy == 'true'
         uses: actions/checkout@v4
         with:
           ref: online-data
@@ -80,7 +37,6 @@ jobs:
           fetch-depth: 1
 
       - name: 组装发布目录
-        if: steps.decide.outputs.deploy == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -97,18 +53,15 @@ jobs:
           find _site -maxdepth 2 -mindepth 1 -type d | sort
 
       - name: 配置Pages环境
-        if: steps.decide.outputs.deploy == 'true'
         uses: actions/configure-pages@v5
 
       - name: 上传内容
-        if: steps.decide.outputs.deploy == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: './_site/'
 
   deploy:
     needs: build
-    if: needs.build.outputs.deploy == 'true'
     timeout-minutes: 10
     runs-on: ubuntu-latest
     environment:
