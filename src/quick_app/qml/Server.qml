@@ -458,13 +458,18 @@ Item {
         var list=audioUrlCandidates(onlineId);
         return (list.length>0? list[0]:"");
     }
-    /* 在线音频的全部候选地址: 每个提供音频本体的数据根一条, 顺序即元信息里组的顺序 */
+    /* 在线音频的全部候选地址: 每个提供音频本体的数据根一条, 顺序即元信息里组的顺序;
+     * 标识里的文件名是主文件名加规范扩展名, 与数据根无关 */
     function audioUrlCandidates(onlineId) {
         var id=String(onlineId===undefined || onlineId===null? "":onlineId);
         if(id==="") {
             return [];
         }
-        return _urlsOfSources(oss.audio_file_src,_mainNameOf(id,oss.audio_file_ext));
+        var name=GlobalFileStorage.onlineNameOf(id);
+        if(name==="") {
+            return [];
+        }
+        return _urlsOfSources(oss.audio_file_src,_mainNameOf(name,oss.audio_file_ext));
     }
     /* 地址所属的数据根: 取与地址前缀匹配的数据根基址, 不属于任何数据根时返回空字符串 */
     function _rootOf(url) {
@@ -552,9 +557,9 @@ Item {
         Assist.dwarn("在线","数据根本次运行内判为不可用: ",root);
         return true;
     }
-    /* 是否为在线键: 在线歌曲在存储里的标识就是它的播放地址 */
+    /* 是否为在线键: 在线歌曲在存储里的标识是固定前缀加文件名, 不是播放地址 */
     function isOnlineKey(key) {
-        return (typeof key==="string" && (key.indexOf("http://")===0 || key.indexOf("https://")===0));
+        return (typeof key==="string" && key.indexOf(String(Define.onlineKeyTag))===0);
     }
     /* 清单行数组: 未就绪时为空数组 */
     function manifestRows() {
@@ -581,10 +586,10 @@ Item {
         }
         return String(row["fn"]);
     }
-    /* 在线标识: 主文件名加音频扩展名, 等于线上文件名, 因此下载记录与已播放缓存都不受清单结构变化影响 */
+    /* 在线标识: 固定前缀加主文件名加音频扩展名; 与数据根无关, 换根或新增数据源都不会让键失效 */
     function onlineIdOfRow(row) {
         var fn=rowFileName(row);
-        return (fn===""? "":fn+String(oss.audio_file_ext));
+        return (fn===""? "":String(Define.onlineKeyTag)+fn+String(oss.audio_file_ext));
     }
     /* 封面名: 主文件名加封面扩展名 */
     function coverNameOfRow(row) {
@@ -596,18 +601,14 @@ Item {
         var fn=rowFileName(row);
         return (fn===""? "":fn+String(oss.audio_lyrics_lrc_ext));
     }
-    /* 由清单行构造条目: 在线标识取主文件名加音频扩展名, 播放地址取第一个数据根拼出;
-     * 时长优先取清单声明的秒数, 清单没有该字段时退回已播放缓存 */
+    /* 由清单行构造条目: 条目的 absfpath 就是在线的稳定标识, 实际播放地址在播放与下载时
+     * 按当前元信息解析; 时长优先取清单声明的秒数, 清单没有该字段时退回已播放缓存 */
     function onlineEntryOfRow(row) {
         var id=onlineIdOfRow(row);
         if(id==="") {
             return null;
         }
-        var url=audioUrlOf(id);
-        if(url==="") {
-            return null;
-        }
-        var pm=playedMetaOf(url);
+        var pm=playedMetaOf(id);
         var dur=(typeof row["dur"]==="number" && row["dur"]>0
                  ? Math.floor(row["dur"]):(pm===null? 0:pm["duration"]));
         var sn=(typeof row["sn"]==="string" && row["sn"]!==""? row["sn"]:rowFileName(row));
@@ -615,7 +616,7 @@ Item {
         return ({
             "songname": sn,
             "singer": singersText(row["sgr"]),
-            "absfpath": url,
+            "absfpath": id,
             "absipath": "",
             "size": (pm===null? 0:pm["size"]),
             "duration": dur,
@@ -624,34 +625,28 @@ Item {
             "onlineId": id,
             "cover": coverNameOfRow(row),
             "lyrics": lyricsNameOfRow(row),
-            "liked": GlobalFileStorage.isLiked(url),
+            "liked": GlobalFileStorage.isLiked(id),
             "checked": false
         });
     }
-    /* 由在线键反查条目: 清单未就绪或查不到时退回用地址末段当曲名 */
+    /* 由在线标识反查条目: 清单未就绪或查不到时退回用标识里的文件名当曲名 */
     function onlineEntryOfKey(key) {
         if(isOnlineKey(key)===false) {
             return null;
         }
         var rows=manifestRows();
         for(var i=0;i<rows.length;i++) {
-            if(audioUrlOf(onlineIdOfRow(rows[i]))===key) {
+            if(onlineIdOfRow(rows[i])===key) {
                 return onlineEntryOfRow(rows[i]);
             }
         }
-        var name=key;
-        var cut=name.lastIndexOf("/");
-        if(cut>=0) {
-            name=name.substring(cut+1);
-        }
-        try {
-            name=decodeURIComponent(name);
-        } catch(e) {
-            name=key;
-        }
+        var name=GlobalFileStorage.onlineNameOf(key);
         var dot=name.lastIndexOf(".");
         if(dot>0) {
             name=name.substring(0,dot);
+        }
+        if(name==="") {
+            name=key;
         }
         var pm2=playedMetaOf(key);
         return ({
@@ -663,7 +658,7 @@ Item {
             "duration": (pm2===null? 0:pm2["duration"]),
             "source": "online",
             "online": true,
-            "onlineId": "",
+            "onlineId": key,
             "cover": "",
             "lyrics": "",
             "liked": GlobalFileStorage.isLiked(key),
@@ -1486,7 +1481,7 @@ Item {
         if(dir==="") {
             return "";
         }
-        var p=dir+"/"+id;
+        var p=dir+"/"+GlobalFileStorage.onlineNameOf(id);
         if(AppFileHelper.existsFile(p)!==true) {
             _audioCacheForget(id);
             return "";
@@ -1542,11 +1537,12 @@ Item {
                     if(one===null || typeof one!=="object") {
                         continue;
                     }
-                    if(AppFileHelper.existsFile(dir+"/"+k)!==true) {
+                    var idk=GlobalFileStorage.onlineKeyOf(k);
+                    if(AppFileHelper.existsFile(dir+"/"+GlobalFileStorage.onlineNameOf(idk))!==true) {
                         continue;
                     }
-                    m[k]=({"size":(typeof one["size"]==="number"? one["size"]:0),
-                          "at":(typeof one["at"]==="number"? one["at"]:0)});
+                    m[idk]=({"size":(typeof one["size"]==="number"? one["size"]:0),
+                             "at":(typeof one["at"]==="number"? one["at"]:0)});
                     n=n+1;
                 }
             }
@@ -1630,7 +1626,7 @@ Item {
             var id=keys[i];
             var cur=audioCacheIndex[id];
             var sz=(cur!==null && typeof cur==="object" && typeof cur["size"]==="number"? cur["size"]:0);
-            AppFileHelper.removeFile(dir+"/"+id);
+            AppFileHelper.removeFile(dir+"/"+GlobalFileStorage.onlineNameOf(id));
             _audioCacheForget(id);
             total=total-sz;
             drop=drop+1;
@@ -1688,7 +1684,7 @@ Item {
             Assist.dwarn("在线","音频缓存目录不可用: ",dir);
             return false;
         }
-        var p=dir+"/"+id;
+        var p=dir+"/"+GlobalFileStorage.onlineNameOf(id);
         AppFileHelper.removeFile(p);
         _audioCachePending[id]=true;
         AppNetHelper.downloadAudio(one["url"],p,audioCacheTag+id);
@@ -1709,10 +1705,34 @@ Item {
         Assist.dlog("在线","清空音频缓存: 删除 ",removed,", 重建 ",ready);
         return (removed===true && ready===true);
     }
+    /* 已播放元数据的键迁移: 早期版本按播放地址记, 现在按在线标识记;
+     * 只在实际发生改写时写盘 */
+    function _migratePlayedMeta() {
+        var m=({});
+        var n=0;
+        for(var k in playedMeta) {
+            var id=GlobalFileStorage.onlineKeyOf(k);
+            if(id!==k) {
+                n=n+1;
+            }
+            if(m[id]===undefined) {
+                m[id]=playedMeta[k];
+            }
+        }
+        if(n>0) {
+            playedMeta=m;
+            savePlayedMeta();
+            Assist.dlog("在线","已播元数据键迁移: ",n," 项");
+        }
+        return n;
+    }
     /* 启动引导: 先读磁盘缓存让曲库立即可用; 有缓存时再后台静默刷新, 失败不影响界面;
      * 没有缓存时按普通流程拉取, 界面照常显示加载态 */
     function bootstrap() {
+        /* 先把存储里的历史播放地址归一成在线标识, 再恢复队列与缓存 */
+        GlobalFileStorage.migrateOnlineKeys();
         loadPlayedMeta();
+        _migratePlayedMeta();
         loadAudioCache();
         /* 封面缓存先于曲库装载: 曲库一就绪首页立刻重建, 那时索引必须已经可用,
          * 否则已缓存的封面会被当成未缓存再请求一轮
@@ -1918,7 +1938,11 @@ Item {
         if(_sizeMiss[key]===true || _sizeProbing[key]===true) {
             return false;
         }
-        var target=(typeof url==="string" && isOnlineKey(url)===true? url:key);
+        var urlOk=(typeof url==="string" && (url.indexOf("http://")===0 || url.indexOf("https://")===0));
+        var target=(urlOk===true? url:audioUrlOf(key));
+        if(target==="") {
+            return false;
+        }
         _sizeProbing[key]=true;
         AppNetHelper.probeAudioSize(target,key);
         return true;

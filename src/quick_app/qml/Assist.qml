@@ -81,6 +81,10 @@ Item {
      * 结果为空时回退到在线文件名本身, 再空则用 online */
     function composeDownloadName(template,songname,singer,onlineId) {
         var id=String(onlineId===undefined? "":onlineId);
+        var tag=String(Define.onlineKeyTag);
+        if(id.indexOf(tag)===0) {
+            id=id.substring(tag.length);
+        }
         var dot=id.lastIndexOf(".");
         var ext=(dot>0? id.substring(dot):"");
         var tpl=(typeof template==="string" && template!==""? template:Define.downloadNameTemplate);

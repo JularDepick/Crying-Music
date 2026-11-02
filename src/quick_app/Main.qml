@@ -166,7 +166,7 @@ ApplicationWindow {
                 Assist.dwarn("下载","音频缓存复制失败, 改为重新下载: ",id);
             }
             /* 实际取用的地址按数据根健康度挑选: 在线标识不变, 只影响这次请求打到哪个根 */
-            var url=Server.mediaUrlOf(id,one["absfpath"]);
+            var url=Server.mediaUrlOf(id,"");
             if(url==="") {
                 Assist.derror("下载","在线地址不可用, 无法下载");
                 return false;
@@ -344,8 +344,11 @@ ApplicationWindow {
         }
         /* 在线音频开始加载时探测一次字节数: 作为元数据就绪前的临时显示数据 */
         onSourceChanged: {
-            /* 字节数按在线标识记录, 实际探测走真正取用的地址; 回退到本地文件时不探测 */
-            if(Server.isOnlineKey(playingWhich)===false || Server.isOnlineKey(source)===false) {
+            /* 字节数按在线标识记录, 实际探测走真正取用的地址; 回退到本地文件或缓存时不探测 */
+            if(Server.isOnlineKey(playingWhich)===false) {
+                return;
+            }
+            if(String(source).indexOf("http")!==0) {
                 return;
             }
             Server.ensureSize(playingWhich,source);
@@ -382,12 +385,33 @@ ApplicationWindow {
                     Server.touchAudioCache(one["onlineId"]);
                     return c;
                 }
-                var u=Server.mediaUrlOf(one["onlineId"],one["absfpath"]);
+                var u=Server.mediaUrlOf(one["onlineId"],"");
                 /* 没缓存就边播边缓存: 缓存走后台, 播放仍按实际取用地址拉流 */
                 Server.enqueueAudioCache(one["onlineId"],u);
                 return u;
             }
             return (one["absfpath"]===undefined? "":one["absfpath"]);
+        }
+        /* 在线清单刷新后重新解析当前在线歌曲的取用地址: 只在未在播放且地址确实变了时改源,
+         * 避免打断正在播放的音频 */
+        function recheckOnlineSource() {
+            if(Server.isOnlineKey(playingWhich)===false) {
+                return false;
+            }
+            if(playbackState===MediaPlayer.PlayingState) {
+                return false;
+            }
+            var one=playingEntry();
+            if(one===null) {
+                return false;
+            }
+            var t=playbackTarget(one);
+            if(t==="" || t===String(source)) {
+                return false;
+            }
+            Assist.dlog("播放","在线清单更新, 重新解析播放地址: ",playingWhich," -> ",t);
+            source=t;
+            return true;
         }
         /* 在线曲目的媒体地址失败时换数据根重试一次: 判掉当前根后取下一个候选,
          * 队列里的条目与在线标识都不动; 已下载回退到本地文件与本地曲目不换源
@@ -397,7 +421,7 @@ ApplicationWindow {
                 return false;
             }
             var from=String(source);
-            if(Server.isOnlineKey(from)===false) {
+            if(from.indexOf("http")!==0) {
                 return false;
             }
             Server.markMediaDead(from);
@@ -1562,6 +1586,13 @@ ApplicationWindow {
         target: AppClickHelper;
         function onMousePressed(scenePos) {
             window.subsHide(scenePos);
+        }
+    }
+    /* 元信息或清单刷新后, 让播放模块重新解析当前在线歌曲的取用地址 */
+    Connections {
+        target: Server;
+        function onManifestUpdated() {
+            player.recheckOnlineSource();
         }
     }
     Component.onCompleted: {

@@ -59,6 +59,9 @@ Item {
     /* 在线播放策略的两个取值: 不下载(纯流式) 与 边播放边下载 */
     property string playStrategyNoDownload: "nodownload";
     property string playStrategyDownloadWhilePlaying: "downloadwhileplaying";
+    /* 在线标识的前缀: 存储里的在线条目一律以它开头, 与本地路径区分开;
+     * 标识与数据根无关, 因此换根或以后新增数据源都不会让已经存下的键失效 */
+    property string onlineKeyTag: "online:";
     /* 对冲拉取: 某个候选源超过各自的等待时长仍未返回, 就并行拉起下一个备用源;
      * 从发起时刻起超过 onlineSourceTimeoutMs 仍未返回即判该源失败 */
     property int onlineMetaHedgeMs: 1000;

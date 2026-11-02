@@ -656,6 +656,130 @@ Item {
     function isExcluded(absfpath) {
         return hasPath(localScan.excludedFiles,absfpath);
     }
+    /* 在线标识里的文件名: 带前缀的去掉前缀, 历史遗留的播放地址按末段解码后取文件名,
+     * 本地路径原样返回; 连续编码的地址最多剥三层 */
+    function onlineNameOf(key) {
+        var tag=String(Define.onlineKeyTag);
+        var s=String(key===undefined || key===null? "":key);
+        if(s==="") {
+            return "";
+        }
+        if(s.indexOf(tag)===0) {
+            return s.substring(tag.length);
+        }
+        if(s.indexOf("http://")!==0 && s.indexOf("https://")!==0) {
+            return s;
+        }
+        var name=s;
+        for(var n=0;n<3;n++) {
+            var cut=name.lastIndexOf("/");
+            if(cut<0) {
+                break;
+            }
+            name=name.substring(cut+1);
+            try {
+                name=decodeURIComponent(name);
+            } catch(e) {
+                break;
+            }
+            if(name.indexOf("://")<0) {
+                break;
+            }
+        }
+        return name;
+    }
+    /* 把任意历史键归一成在线标识: 播放地址按文件名重建, 本地路径与已归一的键原样返回 */
+    function onlineKeyOf(value) {
+        var tag=String(Define.onlineKeyTag);
+        var s=String(value===undefined || value===null? "":value);
+        if(s==="" || s.indexOf(tag)===0) {
+            return s;
+        }
+        if(s.indexOf("http://")===0 || s.indexOf("https://")===0) {
+            var name=onlineNameOf(s);
+            return (name===""? "":tag+name);
+        }
+        return s;
+    }
+    /* 在线标识迁移: 把喜欢, 最近播放, 播放队列, 当前播放项与下载记录里的历史播放地址
+     * 一次性换成与数据根无关的在线标识; 没有变化时不写盘 */
+    function migrateOnlineKeys() {
+        var n=0;
+        var i;
+        var k;
+        var lk=[];
+        for(i=0;i<likedFiles.length;i++) {
+            var a=onlineKeyOf(likedFiles[i]);
+            if(a!==likedFiles[i]) {
+                n=n+1;
+            }
+            if(lk.indexOf(a)<0) {
+                lk.push(a);
+            }
+        }
+        var rc=[];
+        for(i=0;i<recentFiles.length;i++) {
+            var b=onlineKeyOf(recentFiles[i]);
+            if(b!==recentFiles[i]) {
+                n=n+1;
+            }
+            if(rc.indexOf(b)<0) {
+                rc.push(b);
+            }
+        }
+        var st=playState;
+        var list=[];
+        for(i=0;i<st.sortlist.length;i++) {
+            var one=st.sortlist[i];
+            var v=({});
+            for(k in one) {
+                v[k]=one[k];
+            }
+            if(one["online"]===true) {
+                var kk=onlineKeyOf(one["absfpath"]);
+                if(kk!==one["absfpath"]) {
+                    n=n+1;
+                }
+                v["absfpath"]=kk;
+                v["onlineId"]=kk;
+            }
+            list.push(v);
+        }
+        var which=onlineKeyOf(st.playingWhich);
+        if(which!==st.playingWhich) {
+            n=n+1;
+        }
+        var dl=[];
+        for(i=0;i<downloads.length;i++) {
+            var d=downloads[i];
+            var item=({});
+            for(k in d) {
+                item[k]=d[k];
+            }
+            var dk=onlineKeyOf(d["onlineId"]);
+            if(dk!==d["onlineId"]) {
+                n=n+1;
+            }
+            item["onlineId"]=dk;
+            dl.push(item);
+        }
+        if(n<=0) {
+            return 0;
+        }
+        likedFiles=lk;
+        saveLiked();
+        recentFiles=rc;
+        saveRecent();
+        downloads=dl;
+        saveDownloads();
+        playState=_playStateWith({"sortlist":list,
+                                  "playingWhich":which,
+                                  "playingIndex":st.playingIndex,
+                                  "playMode":st.playMode});
+        savePlayState();
+        Assist.dlog("落盘","在线标识迁移: 共改写 ",n," 处");
+        return n;
+    }
     /* 设置喜欢状态 */
     function setLiked(absfpath,on) {
         Assist.dlog("落盘","喜欢状态: ",absfpath," -> ",on);
