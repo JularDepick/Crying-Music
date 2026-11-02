@@ -50,6 +50,11 @@ Rectangle {
     function sub_hideList() {
         playingListBtn.sub_hide();
     }
+    /* 点击是否落在播放列表按钮上: 落在开启按钮时由按钮自己切换,
+     * 宿主的区域外点击收起要让位, 否则按下先收起, 抬手又切换回打开 */
+    function hitsListOpener(scenePos) {
+        return Assist.hitItem(playingListBtn, scenePos);
+    }
     height: 80;
     topLeftRadius: Define.mainAreaRaduis;
     topRightRadius: Define.mainAreaRaduis;

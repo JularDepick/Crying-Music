@@ -10,8 +10,10 @@ Rectangle {
     id: root;
     /* 注入: 持有播放队列与播放命令的播放器对象 */
     property var thePlayer: null;
-    /* 实例开关: 是否带面板头部; 歌词页这类全屏宿主可以关掉, 只保留列表 */
+    /* 实例开关: 是否带面板头部(标题, 曲目数与清空列表); 关掉后只保留列表 */
     property bool headEnabled: true;
+    /* 实例开关: 头部只留空白占位, 不显示标题, 曲目数与清空按钮; 歌词页用 */
+    property bool headBlank: false;
     /* 实例开关: 播放状态变化时是否自动定位到当前播放行 */
     property bool autoFollow: true;
     /* 队列, 当前播放标识与下标: 统一从注入的播放器取, 未注入时按空队列处理 */
@@ -27,15 +29,16 @@ Rectangle {
             wheel.accepted=true;
         }
     }
-    /* 头部: 标题, 曲目数与清空列表; 关闭时整段不占位 */
+    /* 头部: 标题, 曲目数与清空列表; 关闭时整段不占位, 只留空白时按内边距占位 */
     Column {
         id: playingListHead;
         anchors {left:parent.left; right:parent.right; top:parent.top;}
-        visible: root.headEnabled;
+        visible: (root.headEnabled || root.headBlank);
         padding: 20;
-        bottomPadding: 10;
+        bottomPadding: (root.headEnabled? 10:20);
         spacing: 10;
         Rectangle {
+            visible: root.headEnabled;
             width: parent.width-parent.padding*2;
             height: 30;
             color: Define.nocolor;
@@ -77,6 +80,7 @@ Rectangle {
             }
         }
         Rectangle {
+            visible: root.headEnabled;
             width: parent.width-parent.padding*2;
             height: 2;
             radius: 1;
@@ -86,7 +90,7 @@ Rectangle {
     Rectangle {
         id: playingListViewArea;
         anchors {left:parent.left; right:parent.right;}
-        anchors.top: (root.headEnabled? playingListHead.bottom:parent.top);
+        anchors.top: ((root.headEnabled||root.headBlank)? playingListHead.bottom:parent.top);
         anchors.bottom: parent.bottom;
         color: Define.nocolor;
         ListView {

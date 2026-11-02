@@ -177,6 +177,7 @@ Rectangle {
             anchors.fill: parent;
             thePlayer: root.thePlayer;
             headEnabled: false;
+            headBlank: true;
         }
     }
     /* 底部播放条: 与主界面播放栏共用同一份实现, 透明无外边距; 队列与播放状态的权威是注入的播放器 */
@@ -738,7 +739,8 @@ Rectangle {
     function subsHide(scenePos) {
         var closed=root.closeMenu();
         playerBarSubone.subsHide(scenePos);
-        if(playerBarSubone.listVisible===true && Assist.hitItem(listPanel,scenePos)!==true) {
+        if(playerBarSubone.listVisible===true && Assist.hitItem(listPanel,scenePos)!==true
+           && playerBarSubone.hitsListOpener(scenePos)!==true) {
             playerBarSubone.sub_hideList();
         }
         return closed;
