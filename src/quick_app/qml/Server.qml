@@ -25,7 +25,8 @@ Item {
         /* 元信息的候选地址: 在线曲库的唯一入口, 只能在这里硬编码 */
         "meta_file_url": [
             "https://raw.githubusercontent.com/JularDepick/Crying-Music/online-data/oss/meta.json",
-            "https://JularDepick.github.io/Crying-Music/oss/meta.json"
+            "https://JularDepick.github.io/Crying-Music/oss/meta.json",
+            "https://cdn.jsdelivr.net/gh/JularDepick/Crying-Music@online-data/oss/meta.json"
         ],
         /* 获取到的元信息原文与清单原文 */
         "meta": ({}),
@@ -66,8 +67,8 @@ Item {
     property var lyricsMiss: ({})
     /* 正在拉取的歌词: 同一份歌词同一时刻只保留一组对冲请求 */
     property var _lyricsPending: ({})
-    /* 歌词流式来源: 首个开始返回数据的源独占, 其余源的部分文本丢弃 */
-    property string _lyricsStreamOwner: "";
+    /* 歌词流式来源: 键为歌词名, 值为首个开始返回数据的源; 同一份歌词的其余源的部分文本丢弃 */
+    property var _lyricsOwners: ({})
     /* 歌词的部分文本: 只用于边下边显, 完整内容仍以歌词缓存文件为准 */
     signal lyricsPartial(string lyricsName, string text);
     /* 后台补全队列与是否正在补全 */
@@ -114,6 +115,14 @@ Item {
     property bool _escalateOn: false;
     /* 元信息声明的数据根基址, 用于识别 404 是否来自元信息指向的数据根 */
     property var _ossRoots: [];
+    /* 数据根健康表: 键为元信息声明的数据根基址, 值为 true 表示本次运行内已判死;
+     * 在线音频的播放或下载在这个根上失败时置位, 之后取用地址跳过它
+     */
+    property var _rootDown: ({})
+    /* 已实证可用的主机来源(小写) -> true: 元信息, 清单, 封面与歌词的任一次成功都算一次实证,
+     * 在线音频优先取用这些来源的数据根, 避免把不可达的数据根排在前面
+     */
+    property var _liveOrigins: ({})
     /* 失败后的重试节拍: 首次按退避下限等待, 每次重试先把间隔拉长一个步长, 到上限封顶;
      * 拉取成功即停表并复位
      */
@@ -306,10 +315,102 @@ Item {
         }
         return res;
     }
-    /* 在线标识转播放地址: 播放地址取第一个可用数据根 */
+    /* 在线标识的规范地址: 取第一个候选数据根拼出, 它就是存储里的在线标识,
+     * 收藏, 最近播放, 播放队列与下载记录都以它为键, 因此本函数不随数据根健康度变化
+     */
     function audioUrlOf(onlineId) {
         var list=_urlsOf(oss.audio_file_base_url,onlineId);
         return (list.length>0? list[0]:"");
+    }
+    /* 在线音频的全部候选地址: 每个数据根一条, 顺序即元信息声明的顺序 */
+    function audioUrlCandidates(onlineId) {
+        return _urlsOf(oss.audio_file_base_url,onlineId);
+    }
+    /* 地址所属的数据根: 取与地址前缀匹配的数据根基址, 不属于任何数据根时返回空字符串 */
+    function _rootOf(url) {
+        var u=String(url);
+        for(var i=0;i<_ossRoots.length;i++) {
+            var root=String(_ossRoots[i]);
+            if(root!=="" && u.indexOf(root)===0) {
+                return root;
+            }
+        }
+        return "";
+    }
+    /* 地址的主机来源(小写): 用来判断这台主机本次运行内是否已经实证可用 */
+    function _originOf(url) {
+        var u=String(url);
+        var i=u.indexOf("://");
+        if(i<0) {
+            return "";
+        }
+        var j=u.indexOf("/",i+3);
+        return (j<0? u:u.substring(0,j)).toLowerCase();
+    }
+    /* 记一次实证: 某次拉取成功即说明这台主机本次运行内可用 */
+    function noteOriginLive(url) {
+        var o=_originOf(url);
+        if(o==="") {
+            return false;
+        }
+        _liveOrigins[o]=true;
+        return true;
+    }
+    /* 在线音频的实际取用地址: 跳过本次运行内已判死的数据根, 优先取已实证可用的主机;
+     * 候选全部判死时退回 fallback(缺省取第一个候选), 保持判死之前的行为;
+     * 它只决定实际请求哪个地址, 不改变在线标识本身
+     */
+    function mediaUrlOf(onlineId,fallback) {
+        var list=audioUrlCandidates(onlineId);
+        var fb=(typeof fallback==="string"? fallback:"");
+        if(list.length<=0) {
+            return fb;
+        }
+        var first="";
+        for(var i=0;i<list.length;i++) {
+            var u=list[i];
+            if(_rootDown[_rootOf(u)]===true) {
+                continue;
+            }
+            if(_liveOrigins[_originOf(u)]===true) {
+                return u;
+            }
+            if(first==="") {
+                first=u;
+            }
+        }
+        if(first!=="") {
+            return first;
+        }
+        return (fb!==""? fb:list[0]);
+    }
+    /* 换根重试用到的下一个地址: 跳过当前地址与已判死的数据根, 没有可换的返回空字符串 */
+    function mediaUrlAfter(onlineId,currentUrl) {
+        var list=audioUrlCandidates(onlineId);
+        var cur=String(currentUrl);
+        for(var i=0;i<list.length;i++) {
+            var u=list[i];
+            if(u===cur || _rootDown[_rootOf(u)]===true) {
+                continue;
+            }
+            return u;
+        }
+        return "";
+    }
+    /* 把某个数据根判死: 在线音频在它上面播放或下载失败时调用, 只认元信息声明的数据根;
+     * 判死只作用于本次运行, 下次启动重新从元信息的声明顺序开始
+     */
+    function markMediaDead(url) {
+        var root=_rootOf(url);
+        if(root==="") {
+            return false;
+        }
+        if(_rootDown[root]===true) {
+            return false;
+        }
+        _rootDown[root]=true;
+        Assist.dwarn("在线","数据根本次运行内判为不可用: ",root);
+        return true;
     }
     /* 是否为在线键: 在线歌曲在存储里的标识就是它的播放地址 */
     function isOnlineKey(key) {
@@ -442,6 +543,32 @@ Item {
         }
         return null;
     }
+    /* 拉取失败后的一次性放弃: 每个资源记为 {tries:失败次数, at:最近一次失败时刻};
+     * 失败次数用尽后本次运行不再重试, 未用尽时冷却一段时间再放行, 以便瞬时故障自愈
+     */
+    readonly property int missMaxTries: 3
+    readonly property int missCooldownMs: 60000
+    /* 某个资源当前是否仍处于放弃状态 */
+    function _missActive(map,name) {
+        var one=map[name];
+        if(one===undefined || one===null) {
+            return false;
+        }
+        var tries=(typeof one==="object" && typeof one["tries"]==="number"? one["tries"]:1);
+        if(tries>=missMaxTries) {
+            return true;
+        }
+        var at=(typeof one==="object" && typeof one["at"]==="number"? one["at"]:0);
+        return ((Date.now()-at)<missCooldownMs);
+    }
+    /* 记一次失败: 失败次数累加并刷新时刻 */
+    function _noteMiss(map,name) {
+        var one=map[name];
+        var tries=(one!==undefined && one!==null && typeof one==="object"
+                    && typeof one["tries"]==="number"? one["tries"]+1:1);
+        map[name]=({"tries":tries,"at":Date.now()});
+        return tries;
+    }
     /* 封面缓存路径: 未缓存时为空字符串 */
     function coverPathOf(coverName) {
         if(typeof coverName!=="string" || coverName==="") {
@@ -462,7 +589,7 @@ Item {
         if(coverPathOf(coverName)!=="") {
             return true;
         }
-        if(coverMiss[coverName]===true || _coverPending[coverName]===true) {
+        if(_missActive(coverMiss,coverName)===true || _coverPending[coverName]===true) {
             return false;
         }
         return _coverRequest(coverName,false);
@@ -489,6 +616,7 @@ Item {
     /* 封面拿到: 记进缓存与索引, 并推进补全队列 */
     function _coverDone(name,localPath) {
         delete _coverPending[name];
+        delete coverMiss[name];
         var at=Date.now();
         var c=({});
         for(var k in coverCache) {
@@ -509,7 +637,7 @@ Item {
     /* 封面全部候选源都失败: 本进程内不再重试 */
     function _coverFailed(name,reason) {
         delete _coverPending[name];
-        coverMiss[name]=true;
+        _noteMiss(coverMiss,name);
         Assist.derror("在线","封面拉取失败: ",name,", 原因 ",reason);
         _pumpCoverQueue();
     }
@@ -529,12 +657,17 @@ Item {
             return "";
         }
         var lrcExt=String(oss.audio_lyrics_lrc_ext);
+        var elrcExt=String(oss.audio_lyrics_elrc_ext);
         var main=name;
+        /* 入参可能已经是某一档的歌词名: 两档的扩展名都剥掉, 保证本函数可以重复调用 */
         if(lrcExt!=="" && main.length>lrcExt.length
            && main.substring(main.length-lrcExt.length)===lrcExt) {
             main=main.substring(0,main.length-lrcExt.length);
         }
-        var elrcExt=String(oss.audio_lyrics_elrc_ext);
+        if(elrcExt!=="" && main.length>elrcExt.length
+           && main.substring(main.length-elrcExt.length)===elrcExt) {
+            main=main.substring(0,main.length-elrcExt.length);
+        }
         if(GlobalFileStorage.lyricsEnhanced()!==true || elrcExt==="") {
             return main+lrcExt;
         }
@@ -582,7 +715,7 @@ Item {
         if(lyricsPathOf(name)!=="") {
             return true;
         }
-        if(lyricsMiss[name]===true || _lyricsPending[name]===true) {
+        if(_missActive(lyricsMiss,name)===true || _lyricsPending[name]===true) {
             return false;
         }
         var urls=lyricsUrlCandidates(name);
@@ -605,12 +738,13 @@ Item {
         var path=dir+"/"+lyricsName;
         var ok=(dir!=="" && AppFileHelper.writeFile(path,text,"UTF-8")===true);
         delete _lyricsPending[lyricsName];
-        _lyricsStreamOwner="";
+        delete _lyricsOwners[lyricsName];
         if(ok!==true) {
-            lyricsMiss[lyricsName]=true;
+            _noteMiss(lyricsMiss,lyricsName);
             Assist.dwarn("在线","歌词写入失败: ",lyricsName);
             return false;
         }
+        delete lyricsMiss[lyricsName];
         var m=({});
         for(var k in lyricsCache) {
             m[k]=lyricsCache[k];
@@ -624,8 +758,8 @@ Item {
     /* 歌词全部候选源都失败: 本进程内不再重试 */
     function _lyricsFailed(lyricsName,reason) {
         delete _lyricsPending[lyricsName];
-        _lyricsStreamOwner="";
-        lyricsMiss[lyricsName]=true;
+        delete _lyricsOwners[lyricsName];
+        _noteMiss(lyricsMiss,lyricsName);
         Assist.derror("在线","歌词拉取失败: ",lyricsName,", 原因 ",reason);
     }
     /* 歌词缓存概况: 已缓存份数与清单条目数, 供设置页显示 */
@@ -756,7 +890,7 @@ Item {
         lyricsCache=({});
         lyricsMiss=({});
         _lyricsPending=({});
-        _lyricsStreamOwner="";
+        _lyricsOwners=({});
         lyricsIndex=({});
         Assist.dlog("在线","歌词缓存与偏移索引已清空");
         return true;
@@ -873,7 +1007,8 @@ Item {
             if(cached===true && coverExpired(name)!==true) {
                 continue;
             }
-            if(coverMiss[name]===true || _coverPending[name]===true || _coverQueue.indexOf(name)>=0) {
+            if(_missActive(coverMiss,name)===true || _coverPending[name]===true
+               || _coverQueue.indexOf(name)>=0) {
                 continue;
             }
             _coverQueue.push(name);
@@ -891,7 +1026,7 @@ Item {
     function _pumpCoverQueue() {
         while(_netLiveOf("B")<fetchLimitB && _coverQueue.length>0) {
             var name=_coverQueue.shift();
-            if(coverMiss[name]===true || _coverPending[name]===true) {
+            if(_missActive(coverMiss,name)===true || _coverPending[name]===true) {
                 continue;
             }
             /* 已有缓存的是过期刷新, 必须忽略缓存文件重新下载 */
@@ -945,12 +1080,24 @@ Item {
         return true;
     }
     /* ===== 已下载曲目的资产补全: 封面与歌词缺失时按退避节拍静默重试 ===== */
-    /* 待补全队列: 每项形如 {kind:"cover"|"lyrics", name, tries, nextAt, deadline, inflight} */
+    /* 待补全队列: 每项形如
+     * {kind:"cover"|"lyrics", owner:在线标识, name, tries, nextAt, deadline, deadlineCap, inflight} */
     property var _assetItems: []
     /* 每项最多尝试的次数 */
     readonly property int assetMaxTries: 3
     /* 失败后的退避节拍: 30 秒, 2 分钟, 10 分钟 */
     readonly property var assetBackoffMs: [30000,120000,600000]
+    /* 一次尝试的等待窗口: 请求仍在途(含排队等并发额度)时只延长等待, 不算一次失败;
+     * 从发起起超过三倍窗口仍未结算才判失败
+     */
+    readonly property int assetWaitMs: 60000
+    /* 资产的实际文件名: 歌词按当前增强档取变体名, 封面就是封面名;
+     * 补全队列里存的是这一档的实际名字, 与缓存落盘名一致
+     */
+    function assetNameOf(kind,name) {
+        var n=String(name===undefined || name===null? "":name);
+        return (kind==="lyrics"? lyricsVariantName(n):n);
+    }
     /* 某类资产是否已经就绪 */
     function assetReadyOf(kind,name) {
         if(typeof name!=="string" || name==="") {
@@ -958,23 +1105,36 @@ Item {
         }
         return (kind==="cover"? (coverPathOf(name)!==""):(lyricsPathOf(name)!==""));
     }
-    /* 把一个资产排进补全队列: 已就绪, 已在队列或名字为空时忽略 */
-    function enqueueAsset(kind,name) {
-        if(typeof name!=="string" || name==="") {
+    /* 某类资产的这次请求是否仍然在途: 在途包括已发起与排队等并发额度两种 */
+    function _assetLiveOf(kind,name) {
+        return (kind==="cover"? (_coverPending[name]===true):(_lyricsPending[name]===true));
+    }
+    /* 把一个资产排进补全队列: 已就绪, 已在队列或名字为空时忽略;
+     * 同一首的同类资产以在线标识为键去重, 名字以清单为准, 非在途时就地更新
+     */
+    function enqueueAsset(kind,name,owner) {
+        var real=assetNameOf(kind,name);
+        if(typeof real!=="string" || real==="") {
             return false;
         }
-        if(assetReadyOf(kind,name)===true) {
+        if(assetReadyOf(kind,real)===true) {
             return false;
         }
+        var key=(typeof owner==="string"? owner:"");
         for(var i=0;i<_assetItems.length;i++) {
             var one=_assetItems[i];
-            if(one["kind"]===kind && one["name"]===name) {
-                return false;
+            if(one["kind"]!==kind || one["owner"]!==key) {
+                continue;
             }
+            if(one["name"]!==real && one["inflight"]!==true) {
+                one["name"]=real;
+                one["nextAt"]=Date.now();
+            }
+            return false;
         }
         var v=_assetItems.slice();
-        v.push({"kind":kind,"name":name,"tries":0,"nextAt":Date.now(),
-                "deadline":0,"inflight":false});
+        v.push({"kind":kind,"owner":key,"name":real,"tries":0,"nextAt":Date.now(),
+                "deadline":0,"deadlineCap":0,"inflight":false});
         _assetItems=v;
         return true;
     }
@@ -988,7 +1148,8 @@ Item {
             var cover=(one["cover"]===undefined? "":String(one["cover"]));
             var lyrics=(one["lyrics"]===undefined? "":String(one["lyrics"]));
             /* 封面名与歌词名以当前清单为准: 记录里的名字可能来自旧结构, 清单查不到该条时才沿用记录值 */
-            var ent=onlineEntryOfId(typeof one["onlineId"]==="string"? one["onlineId"]:"");
+            var id=(typeof one["onlineId"]==="string"? one["onlineId"]:"");
+            var ent=onlineEntryOfId(id);
             if(ent!==null) {
                 if(String(ent["cover"])!=="") {
                     cover=String(ent["cover"]);
@@ -997,10 +1158,10 @@ Item {
                     lyrics=String(ent["lyrics"]);
                 }
             }
-            if(enqueueAsset("cover",cover)===true) {
+            if(enqueueAsset("cover",cover,id)===true) {
                 queued=queued+1;
             }
-            if(enqueueAsset("lyrics",lyrics)===true) {
+            if(enqueueAsset("lyrics",lyrics,id)===true) {
                 queued=queued+1;
             }
         }
@@ -1019,7 +1180,11 @@ Item {
                 continue;
             }
             if(one["inflight"]===true) {
-                if(now<one["deadline"]) {
+                /* 请求仍在途时只延长等待窗口: 排队等并发额度不算失败;
+                 * 超过总上限仍未结算才判一次失败
+                 */
+                if(_assetLiveOf(one["kind"],one["name"])===true && now<one["deadlineCap"]) {
+                    one["deadline"]=now+assetWaitMs;
                     continue;
                 }
                 one["inflight"]=false;
@@ -1040,8 +1205,11 @@ Item {
             if(now<one["nextAt"]) {
                 continue;
             }
+            /* 增强档可能在运行中被切换: 每次尝试前按当前档位重新归一歌词名 */
+            one["name"]=assetNameOf(one["kind"],one["name"]);
             one["inflight"]=true;
-            one["deadline"]=now+Define.onlineSourceTimeoutMs+2000;
+            one["deadline"]=now+assetWaitMs;
+            one["deadlineCap"]=now+assetWaitMs*3;
             _assetStart(one["kind"],one["name"]);
         }
         return true;
@@ -1059,11 +1227,9 @@ Item {
     function _assetStart(kind,name) {
         if(kind==="cover") {
             delete coverMiss[name];
-            delete _coverPending[name];
             return requestCover(name);
         }
         delete lyricsMiss[name];
-        delete _lyricsPending[name];
         return requestLyrics(name);
     }
     /* 启动引导: 先读磁盘缓存让曲库立即可用; 有缓存时再后台静默刷新, 失败不影响界面;
@@ -1246,8 +1412,10 @@ Item {
         return (AppFileHelper.writeFile(dir+"/"+GlobalFileStorage.onlinePlayedMetaFileName,
                                         JSON.stringify(playedMeta),"UTF-8")===true);
     }
-    /* 请求在线歌曲的字节数: 已有值或已探测失败时直接返回, 每首歌只探测一次 */
-    function ensureSize(key) {
+    /* 请求在线歌曲的字节数: key 是在线标识(记录用的键), url 是实际取用的地址, 缺省与 key 相同;
+     * 已有值或已探测失败时直接返回, 每首歌只探测一次
+     */
+    function ensureSize(key,url) {
         if(isOnlineKey(key)===false) {
             return false;
         }
@@ -1258,8 +1426,9 @@ Item {
         if(_sizeMiss[key]===true || _sizeProbing[key]===true) {
             return false;
         }
+        var target=(typeof url==="string" && isOnlineKey(url)===true? url:key);
         _sizeProbing[key]=true;
-        AppNetHelper.probeAudioSize(key,key);
+        AppNetHelper.probeAudioSize(target,key);
         return true;
     }
     /* 拉取在线曲库: 元信息就绪后再拉清单, 两者都成功才算就绪 */
@@ -1591,11 +1760,11 @@ Item {
             /* 歌词支持边下边显: 首个开始返回数据的源独占流式来源, 它的部分文本随到随发 */
             if(xhr.readyState===XMLHttpRequest.LOADING) {
                 if(group.kind==="lyrics") {
-                    if(serverRoot._lyricsStreamOwner==="") {
-                        serverRoot._lyricsStreamOwner=req.url;
+                    if(serverRoot._lyricsOwners[group.key]===undefined) {
+                        serverRoot._lyricsOwners[group.key]=req.url;
                         Assist.dlog("在线","歌词流式来源: ",req.url);
                     }
-                    if(serverRoot._lyricsStreamOwner===req.url && xhr.responseText!=="") {
+                    if(serverRoot._lyricsOwners[group.key]===req.url && xhr.responseText!=="") {
                         serverRoot.lyricsPartial(group.key,xhr.responseText);
                     }
                 }
@@ -1667,6 +1836,7 @@ Item {
         if(group.done===true) {
             return false;
         }
+        serverRoot.noteOriginLive(req.url);
         group.done=true;
         req.closed=true;
         _netDrop(req);

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="200" height="200">
+  <g stroke="#2c2c2c" stroke-width="128" stroke-linecap="round">
+    <!-- 柱1：原始 y1=384 → 最低 464，压缩 80，相位 1 -->
+    <line x1="128" y1="384" x2="128" y2="960">
+      <animate attributeName="y1"
+        values="384;464;384"
+        keyTimes="0;0.5;1"
+        calcMode="spline"
+        keySplines="0.42 0 0.58 1;0.42 0 0.58 1"
+        dur="1.2s" begin="0s" repeatCount="indefinite"/>
+    </line>
+
+    <!-- 柱2：原始 y1=832 → 最低 912，压缩 80，相位 3 -->
+    <line x1="384" y1="832" x2="384" y2="960">
+      <animate attributeName="y1"
+        values="832;912;832"
+        keyTimes="0;0.5;1"
+        calcMode="spline"
+        keySplines="0.42 0 0.58 1;0.42 0 0.58 1"
+        dur="1.2s" begin="-0.6s" repeatCount="indefinite"/>
+    </line>
+
+    <!-- 柱3：原始 y1=128 → 最低 208，压缩 80，相位 2 -->
+    <line x1="640" y1="128" x2="640" y2="960">
+      <animate attributeName="y1"
+        values="128;208;128"
+        keyTimes="0;0.5;1"
+        calcMode="spline"
+        keySplines="0.42 0 0.58 1;0.42 0 0.58 1"
+        dur="1.2s" begin="-0.9s" repeatCount="indefinite"/>
+    </line>
+
+    <!-- 柱4：原始 y1=512 → 最低 592，压缩 80，相位 4 -->
+    <line x1="896" y1="512" x2="896" y2="960">
+      <animate attributeName="y1"
+        values="512;592;512"
+        keyTimes="0;0.5;1"
+        calcMode="spline"
+        keySplines="0.42 0 0.58 1;0.42 0 0.58 1"
+        dur="1.2s" begin="-0.3s" repeatCount="indefinite"/>
+    </line>
+  </g>
+</svg>

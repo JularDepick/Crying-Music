@@ -150,12 +150,18 @@ ApplicationWindow {
                 Assist.derror("下载","下载目录不可用, 无法下载");
                 return false;
             }
+            /* 实际取用的地址按数据根健康度挑选: 在线标识不变, 只影响这次请求打到哪个根 */
+            var url=Server.mediaUrlOf(id,one["absfpath"]);
+            if(url==="") {
+                Assist.derror("下载","在线地址不可用, 无法下载");
+                return false;
+            }
             var task=({"onlineId":id,
                        "songname":one["songname"],
                        "singer":one["singer"],
                        "cover":(one["cover"]===undefined? "":one["cover"]),
                        "lyrics":(one["lyrics"]===undefined? "":one["lyrics"]),
-                       "url":one["absfpath"],
+                       "url":url,
                        "dst":dst,
                        "progress":0,
                        "received":0,
@@ -164,7 +170,7 @@ ApplicationWindow {
             v.push(task);
             downloadTasks=v;
             Assist.dlog("下载","开始下载: ",id," -> ",dst);
-            AppNetHelper.downloadAudio(one["absfpath"],dst,id);
+            AppNetHelper.downloadAudio(url,dst,id);
             /* 顺带把这首曲目的封面与歌词一并取回: 已缓存或已放弃的请求会直接返回 */
             Server.requestCover((one["cover"]===undefined? "":String(one["cover"])));
             Server.requestLyrics((one["lyrics"]===undefined? "":String(one["lyrics"])));
@@ -226,19 +232,52 @@ ApplicationWindow {
             Assist.dlog("下载","下载完成: ",t["onlineId"]);
             memStorage.showDownloadTip("已下载: "+t["songname"]);
         }
-        /* 下载失败或取消: 移除任务并提示 */
+        /* 下载失败后换数据根重试: 判掉当前根并换到下一个候选, 进度与文件从头再来;
+         * 没有可换的候选时返回 false, 由调用方收尾
+         */
+        function retryDownloadOnNextRoot(t) {
+            if(t===null || t===undefined) {
+                return false;
+            }
+            var from=String(t["url"]);
+            Server.markMediaDead(from);
+            var next=Server.mediaUrlAfter(t["onlineId"],from);
+            if(next==="") {
+                return false;
+            }
+            t["url"]=next;
+            t["progress"]=0;
+            t["received"]=0;
+            t["total"]=-1;
+            downloadTasks=downloadTasks.slice();
+            Assist.dwarn("下载","换数据根重试下载: ",t["onlineId"]," -> ",next);
+            AppNetHelper.downloadAudio(next,t["dst"],t["onlineId"]);
+            return true;
+        }
+        /* 下载失败或取消: 失败先换数据根再试一次, 取消与候选用尽才移除任务并提示 */
         function onDownloadFailed(taskKey,reason) {
             var t=memStorage.downloadTaskOf(taskKey);
-            memStorage.removeDownloadTask(taskKey);
             if(t===null) {
                 return;
             }
             if(reason==="已取消") {
+                memStorage.removeDownloadTask(taskKey);
                 Assist.dlog("下载","已取消: ",t["onlineId"]);
-            } else {
-                Assist.dwarn("下载","下载失败: ",t["songname"],", ",reason);
-                memStorage.showDownloadTip("下载失败: "+t["songname"]);
+                return;
             }
+            /* 本地写盘问题与数据根无关: 换根重试没有意义, 直接按失败收尾 */
+            if(reason==="目标文件无法写入" || reason==="目标路径无效" || reason==="参数不完整") {
+                memStorage.removeDownloadTask(taskKey);
+                Assist.derror("下载","下载失败: ",t["songname"],", ",reason);
+                memStorage.showDownloadTip("下载失败: "+t["songname"]);
+                return;
+            }
+            if(memStorage.retryDownloadOnNextRoot(t)===true) {
+                return;
+            }
+            memStorage.removeDownloadTask(taskKey);
+            Assist.dwarn("下载","下载失败: ",t["songname"],", ",reason);
+            memStorage.showDownloadTip("下载失败: "+t["songname"]);
         }
         /* 播放策略: 边播放边下载时, 把正在播放且尚未下载的在线曲目顺带入队;
          * 不下载策略与本地曲目都直接跳过 */
@@ -275,12 +314,21 @@ ApplicationWindow {
         source: "";
         onErrorOccurred: (error, errorString)=>{
             Assist.derror("播放","音频播放错误:",error,errorString);
+            /* 解码失败与数据根无关: 只有取不到数据才换根 */
+            if(error===MediaPlayer.FormatError) {
+                return;
+            }
+            if(followMediaRootFailover()===true) {
+                return;
+            }
         }
         /* 在线音频开始加载时探测一次字节数: 作为元数据就绪前的临时显示数据 */
         onSourceChanged: {
-            if(Server.isOnlineKey(source)===true) {
-                Server.ensureSize(source);
+            /* 字节数按在线标识记录, 实际探测走真正取用的地址; 回退到本地文件时不探测 */
+            if(Server.isOnlineKey(playingWhich)===false || Server.isOnlineKey(source)===false) {
+                return;
             }
+            Server.ensureSize(playingWhich,source);
         }
         onMediaStatusChanged: {
             if(mediaStatus===MediaPlayer.LoadedMedia && pendingRestore===true) {
@@ -296,16 +344,46 @@ ApplicationWindow {
         }
         property var id2obj: new Map();
         property var songobjs: ([]);
-        /* 播放目标: 在线条目已下载到本地时复用本地文件, 否则直接流式播放远端地址 */
+        /* 播放目标: 在线条目已下载到本地时复用本地文件, 否则按数据根健康度取实际地址流式播放;
+         * 在线标识仍然是条目自带的规范地址, 换根只影响本次请求打到哪个数据根
+         */
         function playbackTarget(one) {
             if(one===undefined || one===null) {
                 return "";
             }
             if(one["online"]===true) {
                 var p=GlobalFileStorage.downloadedPathOf(one["onlineId"]);
-                return (p!==""? p:one["absfpath"]);
+                return (p!==""? p:Server.mediaUrlOf(one["onlineId"],one["absfpath"]));
             }
             return (one["absfpath"]===undefined? "":one["absfpath"]);
+        }
+        /* 在线曲目的媒体地址失败时换数据根重试一次: 判掉当前根后取下一个候选,
+         * 队列里的条目与在线标识都不动; 已下载回退到本地文件与本地曲目不换源
+         */
+        function followMediaRootFailover() {
+            if(Server.isOnlineKey(playingWhich)===false) {
+                return false;
+            }
+            var from=String(source);
+            if(Server.isOnlineKey(from)===false) {
+                return false;
+            }
+            Server.markMediaDead(from);
+            var next=Server.mediaUrlAfter(playingWhich,from);
+            if(next==="") {
+                Assist.derror("播放","在线地址已没有可换的数据根: ",playingWhich);
+                return false;
+            }
+            var pos=Math.max(0,Math.floor(position));
+            Assist.dwarn("播放","换数据根重试在线播放: ",from," -> ",next,", 进度 ",pos);
+            if(pos>0) {
+                /* 已经播过一段: 换根后按上次进度续播 */
+                GlobalFileStorage.setPlayPosition(pos);
+                pendingRestore=true;
+            }
+            source=next;
+            player.play();
+            return true;
         }
         /* 播放前置校验: 在线条目无法离线校验, 交给播放器在失败时报告 */
         function playbackOk(one) {
