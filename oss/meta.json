@@ -1,0 +1,8 @@
+{
+    "audio_base_url": "https://julardepick-crying-music.uxiyu.xyz/",
+    "audio_manifest_file": "manifest.json",
+    "audio_file_folder": "file/",
+    "audio_cover_folder": "cover/",
+    "audio_lyrics_lrc_folder": "lyrics/lrc/",
+    "audio_lyrics_elrc_folder": "lyrics/elrc/"
+}
