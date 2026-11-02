@@ -66,6 +66,12 @@ Item {
      * 只更新缓存文件, 不打断本次运行已生效的数据; 缓存指向的对象存储失效时改为立即重取
      */
     property int onlineMetaPollMs: 60000;
+    /* 在线曲库整组失败后的重试退避: 首次按下限等待, 每失败一次加一个步长, 到上限封顶, 成功后复位;
+     * 缓存模式下的元信息轮询不受它影响, 仍按 onlineMetaPollMs 的固定节拍
+     */
+    property int onlineRetryBaseMs: 60000;
+    property int onlineRetryMaxMs: 300000;
+    property int onlineRetryStepMs: 60000;
     /* 在线封面缓存的生命周期: 默认天数与设置页可选档位;
      * 生命周期在缓存写入那一刻定下, 之后改档位不影响已经缓存的封面 */
     property int coverCacheTtlDefaultDays: 28;

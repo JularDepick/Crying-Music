@@ -270,7 +270,7 @@ MainAreaFatherPage {
                 }
             }
         }
-        /* 曲库为空时的提示: 拉取失败不做视觉反馈, 由拉取层每分钟自动重试 */
+        /* 曲库为空时的提示: 拉取失败不做视觉反馈, 由拉取层按退避节拍自动重试 */
         Rectangle {
             id: onlineTipArea;
             anchors.centerIn: parent;
@@ -388,7 +388,7 @@ MainAreaFatherPage {
         return rebuild();
     }
     /* 手动刷新在线曲库: 已有拉取在途时不再发起, 保证同一时刻只有一个拉取;
-     * 拉取在后台进行, 失败不做视觉反馈, 由拉取层每分钟自动重试 */
+     * 拉取在后台进行, 失败不做视觉反馈, 由拉取层按退避节拍自动重试 */
     function refreshCatalog() {
         if(Server.fetching===true) {
             Assist.dlog("在线","手动刷新被忽略: 已有拉取在途");

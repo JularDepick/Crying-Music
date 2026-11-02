@@ -100,20 +100,24 @@ Item {
     signal lyricsUpdated(string lyricsName);
     /* 是否处于失败后的自动重试中 */
     property bool _retryOn: false;
+    /* 当前的重试间隔: 每失败一次加一个步长, 到上限封顶, 成功后复位 */
+    property int _retryGapMs: Define.onlineRetryBaseMs;
     /* 本次运行的元信息是否来自本地缓存: 该模式下失败不切换界面状态, 改为后台轮询 */
     property bool _metaFromCache: false;
     /* 缓存模式下的后台轮询开关: meta 源已全部失败, 轮询只更新缓存文件, 不打断本次运行 */
     property bool _metaPollOn: false;
     /* 缓存指向的对象存储是否已确认不可用(404): 置位后立即重取元信息, 拿到即启用 */
     property bool _ossDead: false;
-    /* 是否已升级为立即重取: 升级期间的失败按固定节拍继续重试 */
+    /* 是否已升级为立即重取: 升级期间的失败按退避节拍继续重试 */
     property bool _escalateOn: false;
     /* 元信息声明的数据根基址, 用于识别 404 是否来自元信息指向的数据根 */
     property var _ossRoots: [];
-    /* 失败后的重试节拍: 每分钟一次, 直到拉取成功; 成功即停表 */
+    /* 失败后的重试节拍: 首次按退避下限等待, 每次重试先把间隔拉长一个步长, 到上限封顶;
+     * 拉取成功即停表并复位
+     */
     Timer {
         id: retryTimer;
-        interval: 60000;
+        interval: serverRoot._retryGapMs;
         repeat: true;
         running: serverRoot._retryOn;
         onTriggered: {
@@ -1149,6 +1153,7 @@ Item {
         if(_fetching===true || loadState===1 || loadState===2) {
             return false;
         }
+        _retryReset();
         _silent=false;
         loadState=1;
         loadError="";
@@ -1164,16 +1169,29 @@ Item {
     }
     /* 手动刷新: 按静默刷新处理, 有数据时不动加载状态, 失败也不做视觉反馈 */
     function refreshNow() {
+        _retryReset();
         return refreshSilently();
     }
-    /* 重试节拍: 后台静默重拉, 成功即停表并覆写缓存 */
+    /* 重试节拍: 后台静默重拉, 成功即停表并覆写缓存; 每次触发先把下一次的等待拉长一个步长 */
     function _retryTick() {
         if(_fetching===true) {
             return false;
         }
-        Assist.dlog("在线","后台重试拉取在线曲库");
+        _retryAdvance();
+        Assist.dlog("在线","后台重试拉取在线曲库, 下一次间隔 ",Math.round(_retryGapMs/1000)," 秒");
         _silent=true;
         return _startFetch();
+    }
+    /* 重试退避: 每失败一次把间隔加一个步长, 到上限即封顶 */
+    function _retryAdvance() {
+        var next=_retryGapMs+Define.onlineRetryStepMs;
+        _retryGapMs=(next>Define.onlineRetryMaxMs? Define.onlineRetryMaxMs:next);
+        return _retryGapMs;
+    }
+    /* 重试退避复位: 拉取成功与用户手动触发时回到下限 */
+    function _retryReset() {
+        _retryGapMs=Define.onlineRetryBaseMs;
+        return _retryGapMs;
     }
     /* 缓存模式下的后台轮询节拍: 对象存储已失效时改为立即重取并启用 */
     function _metaPollTick() {
@@ -1301,6 +1319,7 @@ Item {
     function _finishOk() {
         _fetching=false;
         _retryOn=false;
+        _retryReset();
         /* 元信息与清单都已由在线数据生效: 退出缓存模式与轮询/升级状态 */
         _metaFromCache=false;
         _metaPollOn=false;
@@ -1317,7 +1336,7 @@ Item {
         _silent=false;
     }
     /* 加载失败: 有缓存可用时不进入失败态, 改为后台轮询元信息;
-     * 已升级为立即重取时按固定节拍继续重试; 没有缓存可用时才进入失败态 */
+     * 已升级为立即重取时按退避节拍继续重试; 没有缓存可用时才进入失败态 */
     function _fail(reason) {
         _netAbortFetch();
         _fetching=false;
@@ -1325,7 +1344,7 @@ Item {
             _silent=false;
             if(_escalateOn===true) {
                 _retryOn=true;
-                Assist.dwarn("在线","立即重取元信息失败, 继续按节拍重试: ",reason);
+                Assist.dwarn("在线","立即重取元信息失败, 继续按退避节拍重试: ",reason);
                 return;
             }
             _metaPollOn=true;
