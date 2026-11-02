@@ -261,6 +261,8 @@ Rectangle {
         }
         var tagRe=/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
         var stripRe=/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
+        /* 增强歌词(elrc)在行内还带词级时间戳标签, 显示前一并去掉 */
+        var wordRe=/<(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?>/g;
         var rows=text.split(/\r?\n/);
         for(var i=0;i<rows.length;i++) {
             var line=String(rows[i]);
@@ -274,7 +276,7 @@ Rectangle {
                 stamps.push(mm*60+ss+frac);
                 m=tagRe.exec(line);
             }
-            var body=line.replace(stripRe,"").trim();
+            var body=line.replace(stripRe,"").replace(wordRe,"").trim();
             if(body==="") {
                 continue;
             }
