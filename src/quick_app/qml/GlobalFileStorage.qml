@@ -32,6 +32,8 @@ Item {
     property string lyricsCacheDirName: "lyrics";
     /* 封面缓存索引: 记录每个封面的缓存时刻与该条目自己的生命周期 */
     property string coverCacheIndexFileName: "index.json";
+    /* 歌词缓存索引: 记录每份歌词的偏移量(毫秒), 键为歌词缓存文件名 */
+    property string lyricsCacheIndexFileName: "index.json";
     /* 在线曲库的元信息与清单缓存放在 <storageDirPath>/cache/online 下:
      * 启动时先读缓存让曲库立即可用, 再在后台静默刷新并覆写缓存 */
     property string onlineCacheDirName: "online";
@@ -87,7 +89,9 @@ Item {
         onlinePlayStrategy: "nodownload",
         downloadsDir: "",
         themeId: "",
-        coverCacheTtlDays: 0
+        coverCacheTtlDays: 0,
+        lyricsEnhanced: false,
+        lyricsFontSize: 0
     });
     /* 目录决策: 指针优先, 其次 A, 再 B, 最后兜底 C; 三个候选都不可用时退出应用。
      * 全过程输出 [存储目录] 前缀的日志, 便于在运行控制台里追决策路径 */
@@ -739,7 +743,9 @@ Item {
                                        ? Define.playStrategyDownloadWhilePlaying:Define.playStrategyNoDownload),
                  "downloadsDir":(uiState.downloadsDir===undefined? "":uiState.downloadsDir),
                  "themeId":(uiState.themeId===undefined? "":String(uiState.themeId)),
-                 "coverCacheTtlDays":(typeof uiState.coverCacheTtlDays!=="number"? 0:uiState.coverCacheTtlDays)});
+                 "coverCacheTtlDays":(typeof uiState.coverCacheTtlDays!=="number"? 0:uiState.coverCacheTtlDays),
+                 "lyricsEnhanced":(uiState.lyricsEnhanced===true),
+                 "lyricsFontSize":(typeof uiState.lyricsFontSize!=="number"? 0:uiState.lyricsFontSize)});
         for(var k in overrides) {
             st[k]=overrides[k];
         }
@@ -796,6 +802,35 @@ Item {
         }
         Assist.dlog("落盘","写入封面缓存生命周期: ",n," 天");
         uiState=_uiStateWith({"coverCacheTtlDays":n});
+        return saveUIState();
+    }
+    /* 歌词增强开关: 关闭时用普通歌词(lrc), 开启时用增强歌词(elrc) */
+    function lyricsEnhanced() {
+        return (uiState.lyricsEnhanced===true);
+    }
+    /* 写入歌词增强开关: 只改这一项, 其余界面状态保持不变 */
+    function setLyricsEnhanced(on) {
+        Assist.dlog("落盘","写入歌词增强开关: ",(on===true));
+        uiState=_uiStateWith({"lyricsEnhanced":(on===true)});
+        return saveUIState();
+    }
+    /* 歌词页字号: 未设置或越界时取设计常量里的默认值 */
+    function lyricsFontSize() {
+        var s=uiState.lyricsFontSize;
+        if(typeof s!=="number" || s<Define.lyricsFontSizeMin || s>Define.lyricsFontSizeMax) {
+            return Define.lyricsFontSizeDefault;
+        }
+        return Math.floor(s);
+    }
+    /* 写入歌词页字号: 限制在设计常量给出的上下限内 */
+    function setLyricsFontSize(px) {
+        var n=Math.floor(Number(px));
+        if(!(n>=Define.lyricsFontSizeMin && n<=Define.lyricsFontSizeMax)) {
+            Assist.dwarn("落盘","写入歌词字号失败: 非法字号 ",px);
+            return false;
+        }
+        Assist.dlog("落盘","写入歌词字号: ",n," px");
+        uiState=_uiStateWith({"lyricsFontSize":n});
         return saveUIState();
     }
     /* 下载目录: 用户指定过目录时用指定的, 否则用存储目录下的默认目录;

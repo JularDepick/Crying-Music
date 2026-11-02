@@ -60,6 +60,8 @@ Item {
     /* 歌词缓存: 歌词文件名 -> 本地缓存路径, 整体替换以便界面绑定能收到通知;
      * 歌词是纯文本且体积很小, 不做生命周期, 落盘后长期复用 */
     property var lyricsCache: ({})
+    /* 歌词偏移索引: 键为歌词缓存文件名, 值形如 {offsetMs: 毫秒}; 正值表示歌词提前显示 */
+    property var lyricsIndex: ({})
     /* 拉取失败的歌词: 本进程内不再重试 */
     property var lyricsMiss: ({})
     /* 正在拉取的歌词: 同一份歌词同一时刻只保留一组对冲请求 */
@@ -519,52 +521,81 @@ Item {
         var p=lyricsCache[lyricsName];
         return (typeof p==="string"? p:"");
     }
-    /* 歌词的候选地址: 先普通歌词, 各数据根依次排开; 全部不可用时再用增强歌词兜底,
-     * 增强歌词的行级时间戳与普通歌词一致, 词级标签由歌词页解析时去掉;
-     * 无论实际取到哪一种, 缓存一律按普通歌词的名字落盘 */
-    function lyricsUrlCandidates(lyricsName) {
-        var res=_urlsOf(oss.audio_lyrics_lrc_base_url,lyricsName);
-        if(typeof lyricsName!=="string" || lyricsName==="") {
-            return res;
+    /* 按歌词增强开关取这一档实际使用的歌词名: 关闭时用普通歌词(lrc), 开启时用增强歌词(elrc);
+     * 入参是清单给出的普通歌词名, 出参是这一档要缓存与显示的文件名 */
+    function lyricsVariantName(lyricsName) {
+        var name=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        if(name==="") {
+            return "";
         }
         var lrcExt=String(oss.audio_lyrics_lrc_ext);
-        var main=lyricsName;
+        var main=name;
         if(lrcExt!=="" && main.length>lrcExt.length
            && main.substring(main.length-lrcExt.length)===lrcExt) {
             main=main.substring(0,main.length-lrcExt.length);
         }
         var elrcExt=String(oss.audio_lyrics_elrc_ext);
-        if(elrcExt==="") {
+        if(GlobalFileStorage.lyricsEnhanced()!==true || elrcExt==="") {
+            return main+lrcExt;
+        }
+        return main+elrcExt;
+    }
+    /* 歌词的候选地址: 增强开启时先按数据根试增强歌词, 再退回普通歌词(仍可显示, 只是没有逐字进度);
+     * 增强关闭时只试普通歌词; 无论实际取到哪一种, 缓存一律按这一档的歌词名落盘 */
+    function lyricsUrlCandidates(lyricsName) {
+        var res=[];
+        var name=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        if(name==="") {
             return res;
         }
-        var more=_urlsOf(oss.audio_lyrics_elrc_base_url,main+elrcExt);
-        for(var i=0;i<more.length;i++) {
-            res.push(more[i]);
+        var lrcExt=String(oss.audio_lyrics_lrc_ext);
+        var elrcExt=String(oss.audio_lyrics_elrc_ext);
+        var main=name;
+        if(lrcExt!=="" && main.length>lrcExt.length
+           && main.substring(main.length-lrcExt.length)===lrcExt) {
+            main=main.substring(0,main.length-lrcExt.length);
+        }
+        if(elrcExt!=="" && main.length>elrcExt.length
+           && main.substring(main.length-elrcExt.length)===elrcExt) {
+            main=main.substring(0,main.length-elrcExt.length);
+        }
+        if(elrcExt!=="") {
+            var enh=_urlsOf(oss.audio_lyrics_elrc_base_url,main+elrcExt);
+            for(var i=0;i<enh.length;i++) {
+                res.push(enh[i]);
+            }
+        }
+        if(lrcExt!=="") {
+            var lrc=_urlsOf(oss.audio_lyrics_lrc_base_url,main+lrcExt);
+            for(var j=0;j<lrc.length;j++) {
+                res.push(lrc[j]);
+            }
         }
         return res;
     }
     /* 请求一份歌词: 已缓存或已失败时直接返回; 歌词按当前播放项单条拉取, 不做后台补全 */
     function requestLyrics(lyricsName) {
-        if(typeof lyricsName!=="string" || lyricsName==="") {
+        var name=lyricsVariantName(lyricsName);
+        if(name==="") {
             return false;
         }
-        if(lyricsPathOf(lyricsName)!=="") {
+        if(lyricsPathOf(name)!=="") {
             return true;
         }
-        if(lyricsMiss[lyricsName]===true || _lyricsPending[lyricsName]===true) {
+        if(lyricsMiss[name]===true || _lyricsPending[name]===true) {
             return false;
         }
-        var urls=lyricsUrlCandidates(lyricsName);
+        var urls=lyricsUrlCandidates(name);
         if(GlobalFileStorage.lyricsCacheDir()==="" || urls.length<=0) {
             return false;
         }
-        _lyricsPending[lyricsName]=true;
-        var started=_netStart("lyrics",lyricsName,urls,
+        _lyricsPending[name]=true;
+        var started=_netStart("lyrics",name,urls,
                               {"validate":function(text) { return (typeof text==="string" && text!==""); },
-                               "ok":function(text) { serverRoot._lyricsDone(lyricsName,text); },
-                               "fail":function(reason) { serverRoot._lyricsFailed(lyricsName,reason); }});
+                               "ok":function(text) { serverRoot._lyricsDone(name,text); },
+                               "fail":function(reason) { serverRoot._lyricsFailed(name,reason); }});
         if(started!==true) {
-            delete _lyricsPending[lyricsName];
+            delete _lyricsPending[name];
         }
         return started;
     }
@@ -622,13 +653,94 @@ Item {
             } catch(e) {
                 ;
             }
+            /* 索引文件不是歌词, 不参与接管 */
+            if(name===GlobalFileStorage.lyricsCacheIndexFileName) {
+                continue;
+            }
             m[name]=url;
         }
         lyricsCache=m;
         Assist.dlog("在线","恢复歌词缓存: ",Object.keys(m).length," 份");
         return true;
     }
-    /* 立即清空歌词缓存: 删除缓存目录里的文件并清空内存索引 */
+    /* 歌词缓存索引的落盘路径: 缓存目录未确定时为空字符串 */
+    function lyricsIndexPath() {
+        var dir=GlobalFileStorage.lyricsCacheDir();
+        if(dir==="") {
+            return "";
+        }
+        return dir+"/"+GlobalFileStorage.lyricsCacheIndexFileName;
+    }
+    /* 读盘歌词偏移索引: 缺失或解析失败时按全部零偏移处理 */
+    function loadLyricsIndex() {
+        var path=lyricsIndexPath();
+        var m=({});
+        if(path!=="") {
+            var txt=AppFileHelper.readFile(path,"UTF-8");
+            if(txt!=="") {
+                try {
+                    var obj=JSON.parse(txt);
+                    if(obj!==null && typeof obj==="object") {
+                        for(var k in obj) {
+                            var one=obj[k];
+                            var ms=(one!==null && one!==undefined && typeof one==="object"
+                                    && typeof one["offsetMs"]==="number"? Math.round(one["offsetMs"]):0);
+                            m[k]=({"offsetMs":ms});
+                        }
+                    }
+                } catch(e) {
+                    Assist.dwarn("在线","歌词偏移索引解析失败, 按零偏移处理: ",e);
+                }
+            }
+        }
+        lyricsIndex=m;
+        Assist.dlog("在线","恢复歌词偏移索引: ",Object.keys(m).length," 项");
+        return true;
+    }
+    /* 写盘歌词偏移索引 */
+    function saveLyricsIndex() {
+        var path=lyricsIndexPath();
+        if(path==="") {
+            return false;
+        }
+        return AppFileHelper.writeFile(path,JSON.stringify(lyricsIndex),"UTF-8");
+    }
+    /* 某份歌词的偏移量(毫秒): 无记录时为零 */
+    function lyricsOffsetMs(lyricsName) {
+        var name=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        var one=lyricsIndex[name];
+        if(one===null || one===undefined || typeof one["offsetMs"]!=="number") {
+            return 0;
+        }
+        return Math.round(one["offsetMs"]);
+    }
+    /* 写入某份歌词的偏移量: 绝对值限制在设计常量给出的上限内, 零偏移不保留记录 */
+    function setLyricsOffsetMs(lyricsName,ms) {
+        var name=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        if(name==="") {
+            return false;
+        }
+        var v=Math.round(Number(ms));
+        if(isNaN(v)===true) {
+            return false;
+        }
+        var lim=Define.lyricsOffsetMaxMs;
+        v=(v>lim? lim:(v<-lim? -lim:v));
+        var m=({});
+        for(var k in lyricsIndex) {
+            m[k]=lyricsIndex[k];
+        }
+        if(v===0) {
+            delete m[name];
+        } else {
+            m[name]=({"offsetMs":v});
+        }
+        lyricsIndex=m;
+        var ok=saveLyricsIndex();
+        Assist.dlog("在线","写入歌词偏移: ",name,", ",v," 毫秒, 落盘 ",ok);
+        return ok;
+    }
+    /* 立即清空歌词缓存: 删除缓存目录里的文件并清空内存索引与偏移索引 */
     function clearLyricsCache() {
         var dir=GlobalFileStorage.lyricsCacheDir();
         if(dir==="") {
@@ -645,7 +757,8 @@ Item {
         lyricsMiss=({});
         _lyricsPending=({});
         _lyricsStreamOwner="";
-        Assist.dlog("在线","歌词缓存已清空");
+        lyricsIndex=({});
+        Assist.dlog("在线","歌词缓存与偏移索引已清空");
         return true;
     }
     /* 当前封面缓存生命周期(毫秒) */
@@ -960,6 +1073,7 @@ Item {
         var had=loadCache();
         bootstrapCoverCache();
         loadLyricsCache();
+        loadLyricsIndex();
         ensureDownloadedAssets();
         if(had===true) {
             refreshSilently();

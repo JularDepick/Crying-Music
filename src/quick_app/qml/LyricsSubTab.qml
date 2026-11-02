@@ -19,6 +19,8 @@ Rectangle {
     property var lyricLines: [];
     /* 当前播放位置对应的行下标, 无时间戳或未播放时为 -1 */
     property int currentLine: -1;
+    /* 当前行内已唱到的词下标: 只有增强歌词(elrc)带词级时间戳, 其它情况为 -1 */
+    property int currentWord: -1;
 
     /* 控件可见性: 鼠标静止一段时间后淡出, 移动即恢复 */
     property bool chromeVisible: true;
@@ -43,13 +45,7 @@ Rectangle {
             if(mouse.button!==Qt.LeftButton) {
                 return;
             }
-            /* 点面板之外的空白处先收起播放列表面板 */
-            if(playerBarSubone.listVisible===true) {
-                var sp=pageDrag.mapToItem(null,mouse.x,mouse.y);
-                if(Assist.hitItem(listPanel,sp)!==true) {
-                    playerBarSubone.sub_hideList();
-                }
-            }
+            /* 收起子面板统一走 subsHide: 主界面在每次按下时把场景坐标传进来 */
             var mx=mouse.x;
             var my=mouse.y;
             var d=Define.windowPadding-Define.edgeMouseAreaD;
@@ -144,10 +140,20 @@ Rectangle {
             width: lyricView.width;
             horizontalAlignment: Text.AlignHCenter;
             wrapMode: Text.Wrap;
-            text: (modelData===undefined || modelData===null? "":String(modelData["text"]));
-            font.pixelSize: (index===root.currentLine? 22:16);
+            /* 当前行且已唱到某个词时改用富文本, 已唱部分单独着色 */
+            textFormat: (root.wordHighlightOn(index)? Text.StyledText:Text.PlainText);
+            text: root.lineTextOf(index);
+            font.pixelSize: (index===root.currentLine? root.currentFontSize:root.baseFontSize);
             font.bold: (index===root.currentLine);
             color: (index===root.currentLine? Define.btnIconColor:Define.forbdDarkColor);
+        }
+        /* 右键歌词区呼出调节菜单: 用 TapHandler, 不打断左键拖动与滚轮 */
+        TapHandler {
+            acceptedButtons: Qt.RightButton;
+            onSingleTapped: (eventPoint)=> {
+                var p=lyricView.mapToItem(root,eventPoint.position.x,eventPoint.position.y);
+                root.openMenu(p.x,p.y);
+            }
         }
     }
 
@@ -196,12 +202,152 @@ Rectangle {
         }
     }
 
+    /* 歌词右键菜单: 字号与偏移调节; 点击菜单外或按 Esc 收起, 不用系统弹窗 */
+    Rectangle {
+        id: lyricMenu;
+        visible: false;
+        width: 250;
+        height: menuColumn.implicitHeight+24;
+        radius: Define.mainAreaRaduis;
+        color: Define.mainAreaColor;
+        border.color: Define.subGrey;
+        border.width: 1;
+        z: 10;
+        /* 菜单自身的空白处也吃掉点击: 不穿透到下面的页面拖动区, 点空白处收起菜单 */
+        MouseArea {
+            anchors.fill: parent;
+            onClicked: {
+                root.closeMenu();
+            }
+        }
+        Column {
+            id: menuColumn;
+            anchors {left:parent.left; right:parent.right; top:parent.top;}
+            anchors.leftMargin: 12;
+            anchors.rightMargin: 12;
+            anchors.topMargin: 12;
+            spacing: 10;
+            Row {
+                spacing: 8;
+                Text {
+                    width: 62;
+                    text: "歌词字号";
+                    font.pixelSize: 13;
+                    anchors.verticalCenter: parent.verticalCenter;
+                }
+                CustomButtonA {
+                    id: fontMinusBtn;
+                    width: 26;
+                    height: 24;
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 12;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Text { anchors.centerIn: parent; text: "-"; font.pixelSize: 13; }
+                    }
+                    onClicked: { root.adjustFontSize(-Define.lyricsFontSizeStep); }
+                }
+                Text {
+                    width: 52;
+                    text: root.baseFontSize+" px";
+                    font.pixelSize: 13;
+                    horizontalAlignment: Text.AlignHCenter;
+                    anchors.verticalCenter: parent.verticalCenter;
+                }
+                CustomButtonA {
+                    id: fontPlusBtn;
+                    width: 26;
+                    height: 24;
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 12;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 13; }
+                    }
+                    onClicked: { root.adjustFontSize(Define.lyricsFontSizeStep); }
+                }
+            }
+            Row {
+                spacing: 8;
+                Text {
+                    width: 62;
+                    text: "歌词偏移";
+                    font.pixelSize: 13;
+                    anchors.verticalCenter: parent.verticalCenter;
+                }
+                CustomButtonA {
+                    id: offsetMinusBtn;
+                    width: 26;
+                    height: 24;
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 12;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Text { anchors.centerIn: parent; text: "-"; font.pixelSize: 13; }
+                    }
+                    onClicked: { root.adjustOffsetMs(-Define.lyricsOffsetStepMs); }
+                }
+                Text {
+                    width: 66;
+                    text: root.offsetText();
+                    font.pixelSize: 13;
+                    horizontalAlignment: Text.AlignHCenter;
+                    anchors.verticalCenter: parent.verticalCenter;
+                }
+                CustomButtonA {
+                    id: offsetPlusBtn;
+                    width: 26;
+                    height: 24;
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 12;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 13; }
+                    }
+                    onClicked: { root.adjustOffsetMs(Define.lyricsOffsetStepMs); }
+                }
+            }
+            Row {
+                spacing: 8;
+                CustomButtonA {
+                    id: offsetResetBtn;
+                    width: 70;
+                    height: 24;
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 12;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Text { anchors.centerIn: parent; text: "偏移复位"; font.pixelSize: 12; }
+                    }
+                    onClicked: { root.resetOffsetMs(); }
+                }
+                Text {
+                    text: (GlobalFileStorage.lyricsEnhanced()? "增强歌词(elrc)":"普通歌词(lrc)");
+                    font.pixelSize: 12;
+                    color: Define.btnIconColor;
+                    anchors.verticalCenter: parent.verticalCenter;
+                }
+            }
+        }
+    }
     /* 当前播放项的封面: 条目自带封面优先, 其次在线封面缓存, 都没有时回退应用图标 */
     readonly property var playingEntryData: ((thePlayer===null || typeof thePlayer.playingEntry!=="function")
                                              ? null:thePlayer.playingEntry());
     readonly property string playingLyricsName: ((playingEntryData===null
                                                   || playingEntryData["lyrics"]===undefined)
                                                  ? "":String(playingEntryData["lyrics"]));
+    /* 实际使用的歌词名: 关闭歌词增强时为普通歌词, 开启时为增强歌词 */
+    readonly property string activeLyricsName: Server.lyricsVariantName(playingLyricsName);
+    /* 歌词字号: 取界面偏好, 当前行在字号基础上加固定差值 */
+    readonly property int baseFontSize: GlobalFileStorage.lyricsFontSize();
+    readonly property int currentFontSize: baseFontSize+Define.lyricsCurrentLineExtra;
+    /* 当前歌词的偏移量(毫秒): 正值让歌词提前, 按歌词名落进歌词缓存的偏移索引 */
+    readonly property int lyricsOffsetMs: (activeLyricsName===""? 0:Server.lyricsOffsetMs(activeLyricsName));
     readonly property string coverSource: ((playingEntryData!==null && playingEntryData["absipath"])
                                            ? String(playingEntryData["absipath"])
                                            : coverOfEntry(playingEntryData));
@@ -227,22 +373,31 @@ Rectangle {
         if(playingLyricsName==="") {
             lyricLines=[];
             currentLine=-1;
+            currentWord=-1;
             return;
         }
         Server.requestLyrics(playingLyricsName);
         loadLyricText();
     }
+    /* 歌词增强开关变化会换掉实际使用的歌词名: 页面可见时按新的一档重新同步 */
+    onActiveLyricsNameChanged: {
+        if(root.visible===true) {
+            root.syncLyrics();
+        }
+    }
     /* 读盘并解析歌词: 没有缓存时清空显示, 缓存就绪时由 lyricsUpdated 再次触发 */
     function loadLyricText() {
-        if(playingLyricsName==="") {
+        if(activeLyricsName==="") {
             lyricLines=[];
             currentLine=-1;
+            currentWord=-1;
             return false;
         }
-        var path=Server.lyricsPathOf(playingLyricsName);
+        var path=Server.lyricsPathOf(activeLyricsName);
         if(path==="") {
             lyricLines=[];
             currentLine=-1;
+            currentWord=-1;
             return false;
         }
         var text=AppFileHelper.readFile(path,"UTF-8");
@@ -250,7 +405,7 @@ Rectangle {
         syncCurrentLine();
         /* 模型刚替换时列表还没完成布局, 延后一帧再锚定 */
         Qt.callLater(root.anchorToCurrentLine);
-        Assist.dlog("界面","歌词已载入: ",playingLyricsName,", 行数 ",lyricLines.length);
+        Assist.dlog("界面","歌词已载入: ",activeLyricsName,", 行数 ",lyricLines.length);
         return true;
     }
     /* 解析歌词文本: 取出每行的时间戳, 一行多个时间戳时拆成多条; 无时间戳的整行保留为普通文本 */
@@ -261,8 +416,6 @@ Rectangle {
         }
         var tagRe=/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
         var stripRe=/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
-        /* 增强歌词(elrc)在行内还带词级时间戳标签, 显示前一并去掉 */
-        var wordRe=/<(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?>/g;
         var rows=text.split(/\r?\n/);
         for(var i=0;i<rows.length;i++) {
             var line=String(rows[i]);
@@ -276,16 +429,16 @@ Rectangle {
                 stamps.push(mm*60+ss+frac);
                 m=tagRe.exec(line);
             }
-            var body=line.replace(stripRe,"").replace(wordRe,"").trim();
-            if(body==="") {
+            var body=parseWords(line.replace(stripRe,""));
+            if(body["text"]==="") {
                 continue;
             }
             if(stamps.length<=0) {
-                out.push({"t":-1,"text":body});
+                out.push({"t":-1,"text":body["text"],"words":body["words"]});
                 continue;
             }
             for(var j=0;j<stamps.length;j++) {
-                out.push({"t":stamps[j],"text":body});
+                out.push({"t":stamps[j],"text":body["text"],"words":body["words"]});
             }
         }
         /* 有带时间戳的行时: 带时间戳的按时间升序排在前, 无时间戳的按原顺序接在后面,
@@ -325,9 +478,13 @@ Rectangle {
     function syncCurrentLine() {
         if(thePlayerBar===null || lyricLines.length<=0) {
             currentLine=-1;
+            currentWord=-1;
             return;
         }
-        currentLine=lineIndexAt(thePlayerBar.barPosition);
+        /* 偏移量正值让歌词提前: 用播放位置加偏移去匹配时间戳 */
+        var sec=thePlayerBar.barPosition+lyricsOffsetMs/1000;
+        currentLine=lineIndexAt(sec);
+        currentWord=(currentLine<0? -1:wordIndexAt(lyricLines[currentLine],sec));
     }
     /* 流式歌词的节流提交: 每个节拍只提交一次最新文本, 避免逐块重建列表 */
     property string _partialText: "";
@@ -364,6 +521,111 @@ Rectangle {
             root.commitPartialLyrics();
         }
     }
+    /* 解析一行的词级时间戳: 增强歌词(elrc)在行内用 <mm:ss.xx> 标出每个词的起点,
+     * 每个标记后到下一个标记前算一段词; 没有词级标记时 words 为空, 只保留整行文本 */
+    function parseWords(text) {
+        var raw=String(text);
+        var wordRe=/<(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?>/g;
+        var marks=[];
+        var m=wordRe.exec(raw);
+        while(m!==null) {
+            marks.push({"start":m.index, "end":m.index+m[0].length,
+                        "t":Number(m[1])*60+Number(m[2])+(m[3]===undefined? 0:Number("0."+m[3]))});
+            m=wordRe.exec(raw);
+        }
+        if(marks.length<=0) {
+            return ({"text":raw.trim(), "words":[]});
+        }
+        var head=raw.substring(0,marks[0]["start"]).trim();
+        var words=[];
+        var plain="";
+        for(var i=0;i<marks.length;i++) {
+            var from=marks[i]["end"];
+            var to=(i+1<marks.length? marks[i+1]["start"]:raw.length);
+            var seg=raw.substring(from,to);
+            if(seg==="") {
+                continue;
+            }
+            words.push({"t":marks[i]["t"], "text":seg});
+            plain=plain+seg;
+        }
+        return ({"text":(head+plain).trim(), "words":words});
+    }
+    /* 行内已唱到的词下标: 取最后一个不晚于当前秒数的词; 没有词级时间戳时为 -1 */
+    function wordIndexAt(line, sec) {
+        var ws=(line===null || line===undefined? null:line["words"]);
+        if(ws===null || ws===undefined || ws.length<=0) {
+            return -1;
+        }
+        var idx=-1;
+        for(var i=0;i<ws.length;i++) {
+            if(ws[i]["t"]>sec) {
+                break;
+            }
+            idx=i;
+        }
+        return idx;
+    }
+    /* 是否按逐字进度着色: 当前行且已经唱到某个词 */
+    function wordHighlightOn(index) {
+        return (index===root.currentLine && root.currentWord>=0);
+    }
+    /* 行文本: 非当前行给纯文本, 当前行把已唱部分与未唱部分分开着色 */
+    function lineTextOf(index) {
+        var one=(index>=0 && index<lyricLines.length? lyricLines[index]:null);
+        if(one===null || one===undefined) {
+            return "";
+        }
+        var plain=String(one["text"]);
+        if(index!==root.currentLine || root.currentWord<0) {
+            return plain;
+        }
+        var ws=one["words"];
+        if(ws===undefined || ws===null || ws.length<=0) {
+            return plain;
+        }
+        var sung=Assist.hexOf(Define.choseCyanColor);
+        var res="";
+        for(var i=0;i<ws.length;i++) {
+            var t=String(ws[i]["text"]).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+            res=(i<=root.currentWord? res+"<font color=\""+sung+"\">"+t+"</font>":res+t);
+        }
+        return res;
+    }
+    /* 字号调节: 限制在设计常量的上下限内, 结果落盘为界面偏好 */
+    function adjustFontSize(delta) {
+        var next=root.baseFontSize+Number(delta);
+        if(!(next>=Define.lyricsFontSizeMin && next<=Define.lyricsFontSizeMax)) {
+            return false;
+        }
+        return GlobalFileStorage.setLyricsFontSize(next);
+    }
+    /* 偏移调节: 正值让歌词提前, 结果按歌词名落进歌词缓存的偏移索引 */
+    function adjustOffsetMs(delta) {
+        if(root.activeLyricsName==="") {
+            return false;
+        }
+        var ok=Server.setLyricsOffsetMs(root.activeLyricsName,root.lyricsOffsetMs+Number(delta));
+        root.syncCurrentLine();
+        root.anchorToCurrentLine();
+        return ok;
+    }
+    /* 偏移复位 */
+    function resetOffsetMs() {
+        if(root.activeLyricsName==="") {
+            return false;
+        }
+        var ok=Server.setLyricsOffsetMs(root.activeLyricsName,0);
+        root.syncCurrentLine();
+        root.anchorToCurrentLine();
+        return ok;
+    }
+    /* 偏移量的显示文本: 正值表示歌词提前 */
+    function offsetText() {
+        var ms=root.lyricsOffsetMs;
+        var v=(Math.abs(ms)/1000).toFixed(1);
+        return (ms>0? "+"+v+" 秒":(ms<0? "-"+v+" 秒":"0.0 秒"));
+    }
     /* 鼠标在页面内移动即恢复控件并重新计时 */
     HoverHandler {
         id: pageHover;
@@ -387,7 +649,10 @@ Rectangle {
         sequence: "Esc";
         enabled: root.visible;
         onActivated: {
-            root.hide();
+            /* 菜单开着时 Esc 只收菜单, 再按一次才退出歌词页 */
+            if(root.closeMenu()!==true) {
+                root.hide();
+            }
         }
     }
     /* 把当前行钉到锚定线: 先按顶部对齐定位, 再上移一个锚定高度, 首尾由列表的首尾留白兜底;
@@ -414,13 +679,13 @@ Rectangle {
         target: Server;
         /* 边下边显: 服务端把已收到的部分文本发过来, 这里只取完整行, 末尾半行丢弃 */
         function onLyricsPartial(lyricsName,text) {
-            if(lyricsName!==root.playingLyricsName) {
+            if(lyricsName!==root.activeLyricsName) {
                 return;
             }
             root.applyPartialLyrics(text);
         }
         function onLyricsUpdated(lyricsName) {
-            if(lyricsName===root.playingLyricsName) {
+            if(lyricsName===root.activeLyricsName) {
                 root.loadLyricText();
             }
         }
@@ -440,10 +705,42 @@ Rectangle {
         visible=true;
     }
     function hide() {
+        root.closeMenu();
         playerBarSubone.sub_hideList();
         visible=false;
     }
     function tshow() {
         visible=!visible;
+    }
+    /* 右键菜单: 定位到点击处并夹在页面内 */
+    function openMenu(x,y) {
+        var w=lyricMenu.width;
+        var h=lyricMenu.height;
+        var mx=Math.max(Define.windowPadding,Math.min(Number(x),root.width-w-Define.windowPadding));
+        var my=Math.max(Define.windowPadding,Math.min(Number(y),root.height-h-Define.windowPadding));
+        lyricMenu.x=mx;
+        lyricMenu.y=my;
+        lyricMenu.visible=true;
+        Assist.dlog("界面","歌词菜单: 打开");
+        return true;
+    }
+    /* 收起右键菜单: 未打开时返回 false */
+    function closeMenu() {
+        if(lyricMenu.visible!==true) {
+            return false;
+        }
+        lyricMenu.visible=false;
+        Assist.dlog("界面","歌词菜单: 收起");
+        return true;
+    }
+    /* 点击传播: 点击落在歌词页时收起本页的右键菜单与该页播放条的子面板,
+     * 播放列表面板按落点判断, 与 canvas 层的口径一致 */
+    function subsHide(scenePos) {
+        var closed=root.closeMenu();
+        playerBarSubone.subsHide(scenePos);
+        if(playerBarSubone.listVisible===true && Assist.hitItem(listPanel,scenePos)!==true) {
+            playerBarSubone.sub_hideList();
+        }
+        return closed;
     }
 }

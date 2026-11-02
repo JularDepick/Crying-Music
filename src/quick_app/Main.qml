@@ -1396,6 +1396,10 @@ ApplicationWindow {
         }
     }
     function subsHide(scenePos) {
+        /* 歌词页盖住画布时, 它自己的菜单与播放条子面板也要按同一次点击收起 */
+        if(lyricsSubTab.visible===true) {
+            lyricsSubTab.subsHide(scenePos);
+        }
         /* 播放栏自己的子面板由它自己判断与收起; 播放列表面板在画布层, 落点判断留在主界面 */
         playerBar.subsHide(scenePos);
         if(!Assist.hitItem(playingListArea, scenePos)) {

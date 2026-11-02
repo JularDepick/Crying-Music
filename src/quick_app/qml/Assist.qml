@@ -117,6 +117,14 @@ Item {
              ", 精确 ",r["exact"],", 模糊 ",r["fuzzy"],", 命中 ",res.length);
         return res;
     }
+    /* 颜色转 #RRGGBB 文本: 供富文本着色时使用 */
+    function hexOf(c) {
+        var r=Math.max(0,Math.min(255,Math.round(c.r*255)));
+        var g=Math.max(0,Math.min(255,Math.round(c.g*255)));
+        var b=Math.max(0,Math.min(255,Math.round(c.b*255)));
+        var t=((1<<24)+(r<<16)+(g<<8)+b).toString(16);
+        return "#"+t.substring(1);
+    }
     /* 命中判定: 场景坐标是否落在该可见项的矩形内 */
     function hitItem(item, scenePos) {
         if(item===null || !item.visible || scenePos===undefined) {

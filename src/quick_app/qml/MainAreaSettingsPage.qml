@@ -7,8 +7,8 @@ import AppHelper 1.0
 
 import "./"
 
-/* 设置页: 在线播放策略, 下载文件命名与下载目录;
- * 三组偏好都写成界面状态, 重启后保持; 换挡统一用可复用的 CustomChoose */
+/* 设置页: 在线播放策略, 下载文件命名与下载目录, 封面缓存与歌词增强;
+ * 偏好都写成界面状态, 重启后保持; 换挡统一用可复用的 CustomChoose, 开关统一用 CustomSwitch */
 MainAreaFatherPage {
     id: mainArea_SettingsPage;
     visible: false;
@@ -300,6 +300,32 @@ MainAreaFatherPage {
             text: mainArea_SettingsPage.cacheTip;
             font.pixelSize: 13;
             color: (mainArea_SettingsPage.cacheTipOk? Define.choseCyanColor:Define.btnIconRed);
+        }
+        Rectangle {
+            width: parent.width;
+            height: 1;
+            color: Define.subGrey;
+        }
+        /* 歌词增强 */
+        Text {
+            text: "歌词增强";
+            font.pixelSize: 15;
+            font.weight: 500;
+        }
+        Text {
+            text: "关闭时使用普通歌词(lrc); 开启时优先使用增强歌词(elrc), 歌词页按逐字进度高亮, 取不到增强歌词时退回普通歌词";
+            font.pixelSize: 13;
+            color: Define.btnIconColor;
+            wrapMode: Text.WordWrap;
+            width: parent.width;
+        }
+        CustomSwitch {
+            id: lyricsEnhancedSwitch;
+            checked: GlobalFileStorage.lyricsEnhanced();
+            onToggled: (on)=> {
+                GlobalFileStorage.setLyricsEnhanced(on);
+                Assist.dlog("界面","歌词增强: ",on);
+            }
         }
     }
     /* 系统文件夹选择框: 选中后写入界面状态, 目录不可写时保留原值 */

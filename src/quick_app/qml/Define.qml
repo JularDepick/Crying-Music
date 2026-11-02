@@ -72,6 +72,15 @@ Item {
     property int onlineRetryBaseMs: 60000;
     property int onlineRetryMaxMs: 300000;
     property int onlineRetryStepMs: 60000;
+    /* 歌词页字号: 默认值与调节步长, 当前行在字号基础上加一个固定差值 */
+    property int lyricsFontSizeDefault: 16;
+    property int lyricsFontSizeMin: 12;
+    property int lyricsFontSizeMax: 32;
+    property int lyricsFontSizeStep: 2;
+    property int lyricsCurrentLineExtra: 6;
+    /* 歌词偏移: 调节步长与上下限(毫秒), 正值表示歌词提前显示; 偏移量按歌词名落盘 */
+    property int lyricsOffsetStepMs: 100;
+    property int lyricsOffsetMaxMs: 5000;
     /* 在线封面缓存的生命周期: 默认天数与设置页可选档位;
      * 生命周期在缓存写入那一刻定下, 之后改档位不影响已经缓存的封面 */
     property int coverCacheTtlDefaultDays: 28;
