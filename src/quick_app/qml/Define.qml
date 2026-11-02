@@ -47,6 +47,8 @@ Item {
     /* 首页推荐卡片: 封面边长(卡片宽度同此值)与卡片间距 */
     property int homeCardWidth: 150;
     property int homeCardSpacing: 18;
+    /* 设置页下载目录路径的最大显示宽度: 超出即截断, 悬停给出完整路径 */
+    property int settingsPathMaxWidth: 360;
     /* 在线音乐的下载文件命名模板: {songname} 与 {singer} 为占位符,
      * 默认取"歌曲名-歌手", 可在设置页修改, 修改结果落盘为界面偏好 */
     property string downloadNameTemplate: "{songname}-{singer}";

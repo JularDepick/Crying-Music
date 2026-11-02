@@ -7,11 +7,19 @@ import AppHelper 1.0
 
 import "./"
 
-/* 设置页: 在线播放策略, 下载文件命名与下载目录, 封面缓存与歌词增强;
- * 偏好都写成界面状态, 重启后保持; 换挡统一用可复用的 CustomChoose, 开关统一用 CustomSwitch */
+/* 设置页: 顶部按分类 tab 分成播放与下载, 歌词与缓存两组子页;
+ * 每个子页的正文放在可滚动区域里, 窗口变矮时由右侧细滚动条与滚轮承接;
+ * 偏好都写成界面状态, 重启后保持; 换挡统一用 CustomChoose, 开关统一用 CustomSwitch */
 MainAreaFatherPage {
     id: mainArea_SettingsPage;
     visible: false;
+    /* 当前分类: play 为播放与下载, cache 为歌词与缓存 */
+    property string tabId: "play";
+    /* 分类候选 */
+    property var tabOptions: [
+        {"id":"play","label":"播放与下载"},
+        {"id":"cache","label":"歌词与缓存"}
+    ];
     /* 下载目录操作的即时提示: 空字符串表示不显示 */
     property string dirTip: "";
     property bool dirTipOk: true;
@@ -39,6 +47,17 @@ MainAreaFatherPage {
         {"label":"歌手-歌名","value":Define.downloadNameTemplates[1]},
         {"label":"歌名","value":Define.downloadNameTemplates[2]}
     ];
+    /* 切换分类: 同时把滚动位置复位, 新的一页从顶部开始 */
+    function setTab(id) {
+        var next=String(id===undefined? "":id);
+        if(next===tabId) {
+            return false;
+        }
+        tabId=next;
+        settingsFlick.contentY=0;
+        Assist.dlog("界面","设置分类: ",tabId);
+        return true;
+    }
     /* 落盘的命名模板不在候选里时(例如更早版本手填过)回到默认候选 */
     function normalizeNameTemplate() {
         var cur=GlobalFileStorage.downloadNameTemplate();
@@ -85,11 +104,13 @@ MainAreaFatherPage {
         mainArea_SettingsPage.dirTip=(ok===true? "已恢复默认下载目录":"恢复失败, 请查看控制台日志");
         Assist.dlog("界面","恢复默认下载目录: ",ok);
     }
+    /* 页头: 标题与分类 tab, 固定不随正文滚动 */
     Column {
+        id: pageHeader;
         anchors {left:parent.left; right:parent.right; top:parent.top;}
         anchors.leftMargin: 40;
         anchors.rightMargin: 40;
-        topPadding: 40;
+        topPadding: 32;
         spacing: 14;
         Text {
             text: "设置";
@@ -101,231 +122,279 @@ MainAreaFatherPage {
             height: 1;
             color: Define.subGrey;
         }
-        /* 在线播放策略 */
-        Text {
-            text: "在线播放策略";
-            font.pixelSize: 15;
-            font.weight: 500;
-        }
-        Text {
-            text: "选择边播放边下载时, 播放尚未下载的在线歌曲会顺带把它加入下载队列; 选择不下载时只做流式播放";
-            font.pixelSize: 13;
-            color: Define.btnIconColor;
-            wrapMode: Text.WordWrap;
-            width: parent.width;
-        }
-        CustomChoose {
-            id: playChoose;
-            options: mainArea_SettingsPage.playOptions;
-            currentValue: GlobalFileStorage.onlinePlayStrategy();
-            onChosen: (value, index)=> {
-                GlobalFileStorage.setOnlinePlayStrategy(value);
-                Assist.dlog("界面","在线播放策略: ",value);
-            }
-        }
-        Rectangle {
-            width: parent.width;
-            height: 1;
-            color: Define.subGrey;
-        }
-        /* 下载文件命名 */
-        Text {
-            text: "下载文件命名";
-            font.pixelSize: 15;
-            font.weight: 500;
-        }
-        Text {
-            text: "下载在线歌曲时按该换挡生成文件名; 非法字符会自动替换为下划线, 重名时追加序号";
-            font.pixelSize: 13;
-            color: Define.btnIconColor;
-            wrapMode: Text.WordWrap;
-            width: parent.width;
-        }
-        CustomChoose {
-            id: nameChoose;
-            options: mainArea_SettingsPage.nameOptions;
-            currentValue: GlobalFileStorage.downloadNameTemplate();
-            onChosen: (value, index)=> {
-                GlobalFileStorage.setDownloadNameTemplate(value);
-                Assist.dlog("界面","下载文件命名: ",value);
-            }
-        }
-        Rectangle {
-            width: parent.width;
-            height: 1;
-            color: Define.subGrey;
-        }
-        /* 下载目录 */
-        Text {
-            text: "下载目录";
-            font.pixelSize: 15;
-            font.weight: 500;
-        }
-        /* 下载目录: 路径单行显示并限制在可用宽度内, 超出即截断, 悬停用提示展示完整路径 */
         Row {
-            id: dirTextRow;
-            width: parent.width;
-            spacing: 8;
+            id: tabBar;
+            spacing: 26;
+            Repeater {
+                id: tabRepeater;
+                model: mainArea_SettingsPage.tabOptions;
+                delegate: Item {
+                    width: tabLabel.implicitWidth;
+                    height: 28;
+                    Text {
+                        id: tabLabel;
+                        anchors.verticalCenter: parent.verticalCenter;
+                        text: (modelData===undefined || modelData===null? "":String(modelData["label"]));
+                        font.pixelSize: 15;
+                        font.weight: (mainArea_SettingsPage.tabId===modelData["id"]? 600:400);
+                        color: (mainArea_SettingsPage.tabId===modelData["id"]? Define.choseCyanColor
+                                :(tabHover.hovered? Define.btnHoverColor:"black"));
+                    }
+                    Rectangle {
+                        anchors {left:parent.left; right:parent.right; bottom:parent.bottom;}
+                        height: 2;
+                        radius: 1;
+                        color: Define.choseCyanColor;
+                        visible: (mainArea_SettingsPage.tabId===modelData["id"]);
+                    }
+                    HoverHandler {
+                        id: tabHover;
+                        cursorShape: Qt.PointingHandCursor;
+                    }
+                    TapHandler {
+                        onSingleTapped: {
+                            mainArea_SettingsPage.setTab(modelData["id"]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    /* 正文: 可滚动区域, 两组子页各自一列, 同一时刻只显示当前分类那一列 */
+    Flickable {
+        id: settingsFlick;
+        anchors {left:parent.left; right:parent.right; top:pageHeader.bottom; bottom:parent.bottom;}
+        anchors.topMargin: 16;
+        clip: true;
+        boundsBehavior: Flickable.StopAtBounds;
+        contentWidth: width;
+        contentHeight: ((mainArea_SettingsPage.tabId==="play"? playTab.height:cacheTab.height)+48);
+        /* 播放与下载 */
+        Column {
+            id: playTab;
+            visible: (mainArea_SettingsPage.tabId==="play");
+            x: 40;
+            width: settingsFlick.width-88;
+            spacing: 14;
+            /* 在线播放策略 */
             Text {
-                id: dirPathText;
-                width: Math.min(implicitWidth,
-                                Math.max(0,dirTextRow.width-dirTagText.implicitWidth-dirTextRow.spacing));
-                text: mainArea_SettingsPage.downloadsDirText();
-                font.pixelSize: 13;
-                color: Define.btnIconColor;
-                elide: Text.ElideRight;
-                wrapMode: Text.NoWrap;
-                HoverHandler {
-                    id: dirPathHh;
+                text: "在线播放策略";
+                font.pixelSize: 15;
+                font.weight: 500;
+            }
+            CustomChoose {
+                id: playChoose;
+                options: mainArea_SettingsPage.playOptions;
+                currentValue: GlobalFileStorage.onlinePlayStrategy();
+                onChosen: (value, index)=> {
+                    GlobalFileStorage.setOnlinePlayStrategy(value);
+                    Assist.dlog("界面","在线播放策略: ",value);
                 }
-                ToolTip.visible: dirPathHh.hovered&&truncated;
-                ToolTip.text: text;
-                ToolTip.delay: 500;
+            }
+            Rectangle {
+                width: parent.width;
+                height: 1;
+                color: Define.subGrey;
+            }
+            /* 下载文件命名 */
+            Text {
+                text: "下载文件命名";
+                font.pixelSize: 15;
+                font.weight: 500;
+            }
+            CustomChoose {
+                id: nameChoose;
+                options: mainArea_SettingsPage.nameOptions;
+                currentValue: GlobalFileStorage.downloadNameTemplate();
+                onChosen: (value, index)=> {
+                    GlobalFileStorage.setDownloadNameTemplate(value);
+                    Assist.dlog("界面","下载文件命名: ",value);
+                }
+            }
+            Rectangle {
+                width: parent.width;
+                height: 1;
+                color: Define.subGrey;
+            }
+            /* 下载目录 */
+            Text {
+                text: "下载目录";
+                font.pixelSize: 15;
+                font.weight: 500;
+            }
+            /* 下载目录: 路径单行显示并限制在可用宽度内, 超出即截断, 悬停用提示展示完整路径 */
+            Row {
+                id: dirTextRow;
+                width: parent.width;
+                spacing: 8;
+                Text {
+                    id: dirPathText;
+                    width: Math.min(implicitWidth,
+                                    Math.min(Define.settingsPathMaxWidth,
+                                             Math.max(0,dirTextRow.width-dirTagText.implicitWidth-dirTextRow.spacing)));
+                    text: mainArea_SettingsPage.downloadsDirText();
+                    font.pixelSize: 13;
+                    color: Define.btnIconColor;
+                    elide: Text.ElideRight;
+                    wrapMode: Text.NoWrap;
+                    HoverHandler {
+                        id: dirPathHh;
+                    }
+                    ToolTip.visible: dirPathHh.hovered&&truncated;
+                    ToolTip.text: text;
+                    ToolTip.delay: 500;
+                }
+                Text {
+                    id: dirTagText;
+                    anchors.verticalCenter: dirPathText.verticalCenter;
+                    text: (mainArea_SettingsPage.downloadsDirIsCustom()? "(自定义)":"(默认)");
+                    font.pixelSize: 13;
+                    color: Define.btnIconColor;
+                }
+            }
+            Row {
+                id: dirButtons;
+                spacing: 10;
+                CustomButtonA {
+                    id: chooseDirBtn;
+                    width: 100;
+                    height: 30;
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 15;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Text {
+                            anchors.centerIn: parent;
+                            text: "选择目录";
+                            font.pixelSize: 13;
+                        }
+                    }
+                    onClicked: {
+                        mainArea_SettingsPage.chooseDownloadsDir();
+                    }
+                }
+                CustomButtonA {
+                    id: resetDirBtn;
+                    width: 90;
+                    height: 30;
+                    transEnabled: false;
+                    enabled: mainArea_SettingsPage.downloadsDirIsCustom();
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 15;
+                        color: (!resetDirBtn.enabled? Define.nocolor
+                                :(parent.hovered? Define.choseDarkColor:Define.hoverDarkColor));
+                        Text {
+                            anchors.centerIn: parent;
+                            text: "恢复默认";
+                            font.pixelSize: 13;
+                            color: (resetDirBtn.enabled? "black":Define.forbdDarkColor);
+                        }
+                    }
+                    onClicked: {
+                        mainArea_SettingsPage.resetDownloadsDir();
+                    }
+                }
             }
             Text {
-                id: dirTagText;
-                anchors.verticalCenter: dirPathText.verticalCenter;
-                text: (mainArea_SettingsPage.downloadsDirIsCustom()? "(自定义)":"(默认)");
+                visible: (mainArea_SettingsPage.dirTip!=="");
+                text: mainArea_SettingsPage.dirTip;
                 font.pixelSize: 13;
-                color: Define.btnIconColor;
+                color: (mainArea_SettingsPage.dirTipOk? Define.choseCyanColor:Define.btnIconRed);
             }
         }
-        Row {
-            id: dirButtons;
-            spacing: 10;
-            CustomButtonA {
-                id: chooseDirBtn;
-                width: 100;
-                height: 30;
-                transEnabled: false;
-                background: Rectangle {
-                    anchors.fill: parent;
-                    radius: 15;
-                    color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                    Text {
-                        anchors.centerIn: parent;
-                        text: "选择目录";
-                        font.pixelSize: 13;
+        /* 歌词与缓存 */
+        Column {
+            id: cacheTab;
+            visible: (mainArea_SettingsPage.tabId==="cache");
+            x: 40;
+            width: settingsFlick.width-88;
+            spacing: 14;
+            /* 封面缓存 */
+            Text {
+                text: "封面缓存";
+                font.pixelSize: 15;
+                font.weight: 500;
+            }
+            CustomChoose {
+                id: ttlChoose;
+                options: mainArea_SettingsPage.ttlOptions;
+                currentValue: GlobalFileStorage.coverCacheTtlDays();
+                onChosen: (value, index)=> {
+                    GlobalFileStorage.setCoverCacheTtlDays(value);
+                    Assist.dlog("界面","封面缓存生命周期: ",value," 天");
+                }
+            }
+            Row {
+                spacing: 10;
+                CustomButtonA {
+                    id: clearCacheBtn;
+                    width: 100;
+                    height: 30;
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 15;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Text {
+                            anchors.centerIn: parent;
+                            text: "立即清理";
+                            font.pixelSize: 13;
+                        }
                     }
-                }
-                onClicked: {
-                    mainArea_SettingsPage.chooseDownloadsDir();
-                }
-            }
-            CustomButtonA {
-                id: resetDirBtn;
-                width: 90;
-                height: 30;
-                transEnabled: false;
-                enabled: mainArea_SettingsPage.downloadsDirIsCustom();
-                background: Rectangle {
-                    anchors.fill: parent;
-                    radius: 15;
-                    color: (!resetDirBtn.enabled? Define.nocolor
-                            :(parent.hovered? Define.choseDarkColor:Define.hoverDarkColor));
-                    Text {
-                        anchors.centerIn: parent;
-                        text: "恢复默认";
-                        font.pixelSize: 13;
-                        color: (resetDirBtn.enabled? "black":Define.forbdDarkColor);
+                    onClicked: {
+                        mainArea_SettingsPage.clearCoverCache();
                     }
-                }
-                onClicked: {
-                    mainArea_SettingsPage.resetDownloadsDir();
-                }
-            }
-        }
-        Text {
-            visible: (mainArea_SettingsPage.dirTip!=="");
-            text: mainArea_SettingsPage.dirTip;
-            font.pixelSize: 13;
-            color: (mainArea_SettingsPage.dirTipOk? Define.choseCyanColor:Define.btnIconRed);
-        }
-        Rectangle {
-            width: parent.width;
-            height: 1;
-            color: Define.subGrey;
-        }
-        /* 封面缓存 */
-        Text {
-            text: "封面缓存";
-            font.pixelSize: 15;
-            font.weight: 500;
-        }
-        Text {
-            text: "启动时先用本地封面, 之后在后台补全未缓存或已过期的封面; 生命周期只对之后缓存下来的封面生效, 已经缓存的不受影响";
-            font.pixelSize: 13;
-            color: Define.btnIconColor;
-            wrapMode: Text.WordWrap;
-            width: parent.width;
-        }
-        Text {
-            text: mainArea_SettingsPage.cacheStatsText();
-            font.pixelSize: 13;
-            color: Define.btnIconColor;
-        }
-        CustomChoose {
-            id: ttlChoose;
-            options: mainArea_SettingsPage.ttlOptions;
-            currentValue: GlobalFileStorage.coverCacheTtlDays();
-            onChosen: (value, index)=> {
-                GlobalFileStorage.setCoverCacheTtlDays(value);
-                Assist.dlog("界面","封面缓存生命周期: ",value," 天");
-            }
-        }
-        Row {
-            spacing: 10;
-            CustomButtonA {
-                id: clearCacheBtn;
-                width: 100;
-                height: 30;
-                transEnabled: false;
-                background: Rectangle {
-                    anchors.fill: parent;
-                    radius: 15;
-                    color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                    Text {
-                        anchors.centerIn: parent;
-                        text: "立即清理";
-                        font.pixelSize: 13;
+                    HoverHandler {
+                        id: clearCacheHh;
                     }
+                    ToolTip.visible: clearCacheHh.hovered;
+                    ToolTip.text: mainArea_SettingsPage.cacheStatsText();
+                    ToolTip.delay: 600;
                 }
-                onClicked: {
-                    mainArea_SettingsPage.clearCoverCache();
+            }
+            Text {
+                visible: (mainArea_SettingsPage.cacheTip!=="");
+                text: mainArea_SettingsPage.cacheTip;
+                font.pixelSize: 13;
+                color: (mainArea_SettingsPage.cacheTipOk? Define.choseCyanColor:Define.btnIconRed);
+            }
+            Rectangle {
+                width: parent.width;
+                height: 1;
+                color: Define.subGrey;
+            }
+            /* 歌词增强 */
+            Text {
+                text: "歌词增强";
+                font.pixelSize: 15;
+                font.weight: 500;
+            }
+            CustomSwitch {
+                id: lyricsEnhancedSwitch;
+                checked: GlobalFileStorage.lyricsEnhanced();
+                onToggled: (on)=> {
+                    GlobalFileStorage.setLyricsEnhanced(on);
+                    Assist.dlog("界面","歌词增强: ",on);
                 }
             }
         }
-        Text {
-            visible: (mainArea_SettingsPage.cacheTip!=="");
-            text: mainArea_SettingsPage.cacheTip;
-            font.pixelSize: 13;
-            color: (mainArea_SettingsPage.cacheTipOk? Define.choseCyanColor:Define.btnIconRed);
-        }
-        Rectangle {
-            width: parent.width;
-            height: 1;
-            color: Define.subGrey;
-        }
-        /* 歌词增强 */
-        Text {
-            text: "歌词增强";
-            font.pixelSize: 15;
-            font.weight: 500;
-        }
-        Text {
-            text: "关闭时使用普通歌词(lrc); 开启时优先使用增强歌词(elrc), 歌词页按逐字进度高亮, 取不到增强歌词时退回普通歌词";
-            font.pixelSize: 13;
-            color: Define.btnIconColor;
-            wrapMode: Text.WordWrap;
-            width: parent.width;
-        }
-        CustomSwitch {
-            id: lyricsEnhancedSwitch;
-            checked: GlobalFileStorage.lyricsEnhanced();
-            onToggled: (on)=> {
-                GlobalFileStorage.setLyricsEnhanced(on);
-                Assist.dlog("界面","歌词增强: ",on);
-            }
+    }
+    /* 正文的细滚动条: 与其它列表共用同一个组件, 内容不超出时自动隐藏 */
+    CustomSliderC {
+        id: settingsScrollBar;
+        anchors {top:settingsFlick.top; bottom:settingsFlick.bottom; right:settingsFlick.right;}
+        width: 4;
+        visible: (settingsFlick.contentHeight>settingsFlick.height);
+        handleRatio: Math.max(0.1,settingsFlick.height/Math.max(1,settingsFlick.contentHeight));
+        hoverHandlerEnabled: false;
+        value: from*(settingsFlick.contentY/Math.max(1,settingsFlick.contentHeight-settingsFlick.height));
+        onMoved: {
+            settingsFlick.contentY=(value/from)*Math.max(0,settingsFlick.contentHeight-settingsFlick.height);
+            value=Qt.binding(function() {
+                return from*(settingsFlick.contentY/Math.max(1,settingsFlick.contentHeight-settingsFlick.height));
+            });
         }
     }
     /* 系统文件夹选择框: 选中后写入界面状态, 目录不可写时保留原值 */
