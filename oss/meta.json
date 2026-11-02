@@ -1,8 +1,18 @@
 {
-    "audio_base_url": "https://julardepick-crying-music.uxiyu.xyz/",
-    "audio_manifest_file": "manifest.json",
-    "audio_file_folder": "file/",
-    "audio_cover_folder": "cover/",
-    "audio_lyrics_lrc_folder": "lyrics/lrc/",
-    "audio_lyrics_elrc_folder": "lyrics/elrc/"
+    "audio_base_url": [
+        "https://raw.githubusercontent.com/JularDepick/Crying-Music/online-data/audio/",
+        "https://JularDepick.github.io/Crying-Music/audio/",
+        "https://julardepick-crying-music.uxiyu.xyz/"
+    ],
+    "audio": {
+        "manifest_file": "manifest.json",
+        "file_folder": "file/",
+        "file_ext": ".mp3",
+        "cover_folder": "cover/",
+        "cover_ext": ".jpg",
+        "lyrics_lrc_folder": "lyrics/lrc/",
+        "lyrics_lrc_ext": ".lrc",
+        "lyrics_elrc_folder": "lyrics/elrc/",
+        "lyrics_elrc_ext": ".elrc"
+    }
 }
