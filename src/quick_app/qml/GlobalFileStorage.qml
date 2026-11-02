@@ -30,10 +30,14 @@ Item {
     property string cacheDirName: "cache";
     property string coverCacheDirName: "covers";
     property string lyricsCacheDirName: "lyrics";
+    /* 在线音频缓存放在 <storageDirPath>/cache/audio 下, 超出上限按最近使用时间淘汰 */
+    property string audioCacheDirName: "audio";
     /* 封面缓存索引: 记录每个封面的缓存时刻与该条目自己的生命周期 */
     property string coverCacheIndexFileName: "index.json";
     /* 歌词缓存索引: 记录每份歌词的偏移量(毫秒), 键为歌词缓存文件名 */
     property string lyricsCacheIndexFileName: "index.json";
+    /* 音频缓存索引: 键为缓存文件名(即在线标识), 值形如 {size:字节, at:最近使用时刻} */
+    property string audioCacheIndexFileName: "index.json";
     /* 在线曲库的元信息与清单缓存放在 <storageDirPath>/cache/online 下:
      * 启动时先读缓存让曲库立即可用, 再在后台静默刷新并覆写缓存 */
     property string onlineCacheDirName: "online";
@@ -91,7 +95,8 @@ Item {
         themeId: "",
         coverCacheTtlDays: 0,
         lyricsEnhanced: false,
-        lyricsFontSize: 0
+        lyricsFontSize: 0,
+        audioCacheCapMb: 0
     });
     /* 目录决策: 指针优先, 其次 A, 再 B, 最后兜底 C; 三个候选都不可用时退出应用。
      * 全过程输出 [存储目录] 前缀的日志, 便于在运行控制台里追决策路径 */
@@ -519,7 +524,10 @@ Item {
                                              ? Define.playStrategyDownloadWhilePlaying:Define.playStrategyNoDownload),
                        "downloadsDir":(typeof us.downloadsDir==="string"? us.downloadsDir:""),
                        "themeId":(typeof us.themeId==="string"? us.themeId:""),
-                       "coverCacheTtlDays":(typeof us.coverCacheTtlDays==="number"? us.coverCacheTtlDays:0)});
+                       "coverCacheTtlDays":(typeof us.coverCacheTtlDays==="number"? us.coverCacheTtlDays:0),
+                       "lyricsEnhanced":(us.lyricsEnhanced===true),
+                       "lyricsFontSize":(typeof us.lyricsFontSize==="number"? us.lyricsFontSize:0),
+                       "audioCacheCapMb":(typeof us.audioCacheCapMb==="number"? us.audioCacheCapMb:0)});
         }
         Assist.dlog("落盘","读取完成: 手动歌曲 ",localScan.singleFiles.length,
                     " 项, 扫描文件夹 ",localScan.scanDirs.length,
@@ -745,7 +753,8 @@ Item {
                  "themeId":(uiState.themeId===undefined? "":String(uiState.themeId)),
                  "coverCacheTtlDays":(typeof uiState.coverCacheTtlDays!=="number"? 0:uiState.coverCacheTtlDays),
                  "lyricsEnhanced":(uiState.lyricsEnhanced===true),
-                 "lyricsFontSize":(typeof uiState.lyricsFontSize!=="number"? 0:uiState.lyricsFontSize)});
+                 "lyricsFontSize":(typeof uiState.lyricsFontSize!=="number"? 0:uiState.lyricsFontSize),
+                 "audioCacheCapMb":(typeof uiState.audioCacheCapMb!=="number"? 0:uiState.audioCacheCapMb)});
         for(var k in overrides) {
             st[k]=overrides[k];
         }
@@ -804,6 +813,35 @@ Item {
         uiState=_uiStateWith({"coverCacheTtlDays":n});
         return saveUIState();
     }
+    /* 在线音频缓存上限(MB): 未设置或不在可选档位内时取设计常量里的默认值 */
+    function audioCacheCapMb() {
+        var mb=uiState.audioCacheCapMb;
+        var opts=Define.audioCacheCapMbOptions;
+        for(var i=0;i<opts.length;i++) {
+            if(typeof mb==="number" && mb===opts[i]) {
+                return mb;
+            }
+        }
+        return Define.audioCacheCapDefaultMb;
+    }
+    /* 写入在线音频缓存上限: 只改这一项, 已经缓存的音频按到达上限时的最近使用时间淘汰 */
+    function setAudioCacheCapMb(mb) {
+        var n=Math.floor(Number(mb));
+        var opts=Define.audioCacheCapMbOptions;
+        var hit=false;
+        for(var i=0;i<opts.length;i++) {
+            if(n===opts[i]) {
+                hit=true;
+            }
+        }
+        if(hit!==true) {
+            Assist.dwarn("落盘","写入音频缓存上限失败: 非法档位 ",mb);
+            return false;
+        }
+        Assist.dlog("落盘","写入音频缓存上限: ",n," MB");
+        uiState=_uiStateWith({"audioCacheCapMb":n});
+        return saveUIState();
+    }
     /* 歌词增强开关: 关闭时用普通歌词(lrc), 开启时用增强歌词(elrc) */
     function lyricsEnhanced() {
         return (uiState.lyricsEnhanced===true);
@@ -855,6 +893,13 @@ Item {
             return "";
         }
         return storageDirPath+"/"+cacheDirName+"/"+lyricsCacheDirName;
+    }
+    /* 在线音频缓存目录: 存储目录未确定时返回空字符串 */
+    function audioCacheDir() {
+        if(storageDirPath==="") {
+            return "";
+        }
+        return storageDirPath+"/"+cacheDirName+"/"+audioCacheDirName;
     }
     /* 在线曲库元信息与清单的缓存目录: 存储目录未确定时返回空字符串 */
     function onlineCacheDir() {

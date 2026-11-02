@@ -18,6 +18,8 @@ Item {
     property color leftSidebarHeaderColor: "#f0f0f0";
     property color mainAreaColor: "#f6f6f6";
     property color topNavBarColor: "#f6f6f6";
+    /* 正文文字色: 亮色主题取近黑, 暗色主题取近白; 未显式指定颜色的文本都取它 */
+    property color textColor: "#1a1a1a";
     property int btnSize: 20;
     property int btnSpacing: 20;
     property int recentListSize: 200; /* 最近播放列表的条数上限 */
@@ -87,6 +89,9 @@ Item {
      * 生命周期在缓存写入那一刻定下, 之后改档位不影响已经缓存的封面 */
     property int coverCacheTtlDefaultDays: 28;
     property var coverCacheTtlDayOptions: [1,7,28,30];
+    /* 在线音频缓存: 默认上限(MB)与设置页可选档位, 超出上限按最近使用时间淘汰 */
+    property int audioCacheCapDefaultMb: 1024;
+    property var audioCacheCapMbOptions: [512,1024,2048,4096];
     /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;
      * 输出的统一格式为 [分类标签]<具体信息>, 由 Assist 的输出函数拼装 */
     property var debugCategoryOn:

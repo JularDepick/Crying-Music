@@ -12,6 +12,7 @@ Item {
         "leftSidebarHeaderColor",
         "mainAreaColor",
         "topNavBarColor",
+        "textColor",
         "btnIconColor",
         "btnHoverColor",
         "hoverDarkColor",
@@ -34,6 +35,7 @@ Item {
                 "leftSidebarHeaderColor": "#f0f0f0",
                 "mainAreaColor": "#f6f6f6",
                 "topNavBarColor": "#f6f6f6",
+                "textColor": "#1a1a1a",
                 "btnIconColor": "#434343",
                 "btnHoverColor": "#00eb81",
                 "hoverDarkColor": "#e8e8e8",
@@ -53,6 +55,7 @@ Item {
                 "leftSidebarHeaderColor": "#e9eef5",
                 "mainAreaColor": "#f4f8fc",
                 "topNavBarColor": "#f4f8fc",
+                "textColor": "#1a1a1a",
                 "btnIconColor": "#3a4a5c",
                 "btnHoverColor": "#2f9cf4",
                 "hoverDarkColor": "#dfe7f0",
@@ -72,6 +75,7 @@ Item {
                 "leftSidebarHeaderColor": "#f7edf0",
                 "mainAreaColor": "#fdf7f8",
                 "topNavBarColor": "#fdf7f8",
+                "textColor": "#1a1a1a",
                 "btnIconColor": "#4a3a3f",
                 "btnHoverColor": "#ff7fa8",
                 "hoverDarkColor": "#f1e1e5",
@@ -91,6 +95,7 @@ Item {
                 "leftSidebarHeaderColor": "#f4efe6",
                 "mainAreaColor": "#fbf7f0",
                 "topNavBarColor": "#fbf7f0",
+                "textColor": "#1a1a1a",
                 "btnIconColor": "#4a4034",
                 "btnHoverColor": "#e0a33c",
                 "hoverDarkColor": "#ebe2d4",
@@ -98,6 +103,46 @@ Item {
                 "choseCyanColor": "#c98a2e",
                 "forbdDarkColor": "#bfb2a0",
                 "subGrey": "#ece3d5"
+            })
+        }),
+        ({
+            "id": "ink",
+            "label": "墨黑",
+            "colors": ({
+                "windowBorderColor": "#3a3a3a",
+                "canvasColor": "#1e1e1e",
+                "leftSidebarColor": "#1e1e1e",
+                "leftSidebarHeaderColor": "#1e1e1e",
+                "mainAreaColor": "#252525",
+                "topNavBarColor": "#252525",
+                "textColor": "#e6e6e6",
+                "btnIconColor": "#dcdcdc",
+                "btnHoverColor": "#00eb81",
+                "hoverDarkColor": "#333333",
+                "choseDarkColor": "#3d3d3d",
+                "choseCyanColor": "#00cc65",
+                "forbdDarkColor": "#7a7a7a",
+                "subGrey": "#3a3a3a"
+            })
+        }),
+        ({
+            "id": "midnight",
+            "label": "夜蓝",
+            "colors": ({
+                "windowBorderColor": "#31404f",
+                "canvasColor": "#161c22",
+                "leftSidebarColor": "#161c22",
+                "leftSidebarHeaderColor": "#161c22",
+                "mainAreaColor": "#1c242c",
+                "topNavBarColor": "#1c242c",
+                "textColor": "#dde6ef",
+                "btnIconColor": "#c6d2dd",
+                "btnHoverColor": "#2f9cf4",
+                "hoverDarkColor": "#26313b",
+                "choseDarkColor": "#31404d",
+                "choseCyanColor": "#1f8ad9",
+                "forbdDarkColor": "#6d7d8c",
+                "subGrey": "#2b3742"
             })
         })
     ];

@@ -24,6 +24,7 @@ MainAreaFatherPage {
         rightPadding: 40;
         bottomPadding: 10;
         Text {
+            color: Define.textColor;
             id: titleText;
             text: "本地和下载";
             font.pixelSize: 32;
@@ -115,6 +116,7 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
+                            color: Define.textColor;
                             text: "播放";
                         }
                     }
@@ -146,6 +148,7 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
+                            color: Define.textColor;
                             text: "添加";
                         }
                     }
@@ -176,6 +179,7 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
+                            color: Define.textColor;
                             text: "批量";
                         }
                     }
@@ -208,6 +212,7 @@ MainAreaFatherPage {
                                 color: Define.btnIconColor;
                             }
                             Text {
+                                color: Define.textColor;
                                 text: (mainListView.allChecked? "取消全选":"全选");
                             }
                         }
@@ -236,6 +241,7 @@ MainAreaFatherPage {
                                 color: Define.btnIconColor;
                             }
                             Text {
+                                color: Define.textColor;
                                 text: "加入播放列表";
                             }
                         }
@@ -264,6 +270,7 @@ MainAreaFatherPage {
                                 color: Define.btnIconColor;
                             }
                             Text {
+                                color: Define.textColor;
                                 text: "移除选中";
                             }
                         }
@@ -326,6 +333,7 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
+                            color: Define.textColor;
                             text: "手动添加歌曲";
                         }
                     }
@@ -381,6 +389,7 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
+                            color: Define.textColor;
                             text: "自动扫描歌曲";
                         }
                     }
@@ -406,6 +415,7 @@ MainAreaFatherPage {
                 }
                 background: Row {
                     Text {
+                        color: Define.textColor;
                         text: mainListView.nameSortLabel();
                     }
                     ColorImage {
@@ -429,6 +439,7 @@ MainAreaFatherPage {
                 }
                 background: Row {
                     Text {
+                        color: Define.textColor;
                         text: "大小";
                     }
                     ColorImage {
@@ -452,6 +463,7 @@ MainAreaFatherPage {
                 }
                 background: Row {
                     Text {
+                        color: Define.textColor;
                         text: "时长";
                     }
                     ColorImage {
@@ -1097,6 +1109,7 @@ MainAreaFatherPage {
                 padding: 20;
                 spacing: 10;
                 Text {
+                    color: Define.textColor;
                     text: "自动扫描歌曲";
                     font.pixelSize: 18;
                     font.weight: 500;
@@ -1112,6 +1125,7 @@ MainAreaFatherPage {
                     height: 30;
                     color: Define.nocolor;
                     Text {
+                        color: Define.textColor;
                         anchors.verticalCenter: parent.verticalCenter;
                         text: "勾选自动扫描的文件夹(文件增删实时同步)";
                         font.pixelSize: 15;
@@ -1129,6 +1143,7 @@ MainAreaFatherPage {
                             border.color: Define.subGrey;
                             border.width: 1;
                             Text {
+                                color: Define.textColor;
                                 anchors.centerIn: parent;
                                 text: "添加文件夹";
                             }
@@ -1191,6 +1206,7 @@ MainAreaFatherPage {
                                         }
                                     }
                                     Text {
+                                        color: Define.textColor;
                                         anchors.verticalCenter: parent.verticalCenter;
                                         width: parent.width*0.85;
                                         elide: Text.ElideRight;
@@ -1254,6 +1270,7 @@ MainAreaFatherPage {
                     }
                 }
                 Text {
+                    color: Define.textColor;
                     text: "扫描规则";
                     font.pixelSize: 15;
                     font.weight: 400;
@@ -1261,6 +1278,7 @@ MainAreaFatherPage {
                 Row {
                     spacing: 10;
                     Text {
+                        color: Define.textColor;
                         anchors.verticalCenter: parent.verticalCenter;
                         text: "文件时长";
                         font.pixelSize: 14;
@@ -1306,7 +1324,7 @@ MainAreaFatherPage {
                             contentItem: Text {
                                 text: durationRadio1.text;
                                 font: durationRadio1.font;
-                                color: "black";
+                                color: Define.textColor;
                                 verticalAlignment: Text.AlignVCenter;
                                 leftPadding: durationRadio1.indicator.width+durationRadio1.spacing;
                             }
@@ -1316,6 +1334,7 @@ MainAreaFatherPage {
                 Row {
                     spacing: 10;
                     Text {
+                        color: Define.textColor;
                         anchors.verticalCenter: parent.verticalCenter;
                         text: "文件格式";
                         font.pixelSize: 14;
@@ -1384,7 +1403,7 @@ MainAreaFatherPage {
                             contentItem: Text {
                                 text: formatCheck.text;
                                 font: formatCheck.font;
-                                color: "black";
+                                color: Define.textColor;
                                 verticalAlignment: Text.AlignVCenter;
                                 leftPadding: formatCheck.indicator.width+formatCheck.spacing;
                             }

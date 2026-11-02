@@ -43,6 +43,7 @@ Rectangle {
             height: 30;
             color: Define.nocolor;
             Text {
+                color: Define.textColor;
                 id: playingListTitle;
                 anchors.verticalCenter: parent.verticalCenter;
                 text: "播放列表";
@@ -68,6 +69,7 @@ Rectangle {
                     border.color: Define.subGrey;
                     border.width: 1;
                     Text {
+                        color: Define.textColor;
                         anchors.centerIn: parent;
                         text: "清空列表";
                     }

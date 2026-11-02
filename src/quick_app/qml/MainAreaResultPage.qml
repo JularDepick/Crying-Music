@@ -23,6 +23,7 @@ MainAreaFatherPage {
         rightPadding: 40;
         bottomPadding: 10;
         Text {
+            color: Define.textColor;
             id: titleText;
             text: "搜索结果";
             font.pixelSize: 32;
@@ -59,6 +60,7 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
+                            color: Define.textColor;
                             text: "播放";
                         }
                     }

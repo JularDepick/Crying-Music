@@ -20,10 +20,10 @@ A desktop music player built as an implementation of mainstream players, with th
 
 - Music library: add files by hand or scan a local folder, read title, artist, duration and cover, then list them
 - Playback: play/pause, previous/next, seek, volume, play modes, queue and resume from the last position
-- Online library: recommendation grid on the home page, streaming playback and download, covers and lyrics cached on disk
+- Online library: recommendation grid on the home page, streaming playback and download, covers and lyrics cached on disk, played tracks cached whole for reuse when downloading
 - Search: top bar keyword search with exact and fuzzy matching, results can be played directly
 - Lyrics page: full screen lyrics, line highlight, per word progress for enhanced lyrics, adjustable font size and offset
-- Settings and themes: online play strategy, download naming and folder, cache lifetime, lyrics enhancement switch, four preset color schemes
+- Settings and themes: online play strategy, download naming and folder, cover and audio cache limits and cleanup, lyrics enhancement switch, six preset color schemes (four light and two dark)
 
 
 ## Architecture and Technology

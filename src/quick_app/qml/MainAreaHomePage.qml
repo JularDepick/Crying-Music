@@ -22,6 +22,7 @@ MainAreaFatherPage {
         rightPadding: 40;
         bottomPadding: 10;
         Text {
+            color: Define.textColor;
             id: titleText;
             text: "首页推荐";
             font.pixelSize: 32;
@@ -58,6 +59,7 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
+                            color: Define.textColor;
                             text: "播放全部";
                         }
                     }
@@ -79,6 +81,7 @@ MainAreaFatherPage {
                         anchors.centerIn: parent;
                         spacing: 5;
                         Text {
+                            color: Define.textColor;
                             text: mainArea_HomePage.sortLabel();
                         }
                         ColorImage {
@@ -117,6 +120,7 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
+                            color: Define.textColor;
                             text: "刷新";
                         }
                     }

@@ -20,6 +20,7 @@ MainAreaFatherPage {
         rightPadding: 40;
         bottomPadding: 10;
         Text {
+            color: Define.textColor;
             id: titleText;
             text: "我的喜欢";
             font.pixelSize: 32;
@@ -55,6 +56,7 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
+                            color: Define.textColor;
                             text: "播放";
                         }
                     }
@@ -83,6 +85,7 @@ MainAreaFatherPage {
                             color: Define.btnIconColor;
                         }
                         Text {
+                            color: Define.textColor;
                             text: "批量";
                         }
                     }
@@ -115,6 +118,7 @@ MainAreaFatherPage {
                                 color: Define.btnIconColor;
                             }
                             Text {
+                                color: Define.textColor;
                                 text: (mainListView.allChecked? "取消全选":"全选");
                             }
                         }
@@ -143,6 +147,7 @@ MainAreaFatherPage {
                                 color: Define.btnIconColor;
                             }
                             Text {
+                                color: Define.textColor;
                                 text: "取消喜欢";
                             }
                         }
@@ -169,6 +174,7 @@ MainAreaFatherPage {
                 }
                 background: Row {
                     Text {
+                        color: Define.textColor;
                         text: mainListView.nameSortLabel();
                     }
                     ColorImage {
@@ -192,6 +198,7 @@ MainAreaFatherPage {
                 }
                 background: Row {
                     Text {
+                        color: Define.textColor;
                         text: "大小";
                     }
                     ColorImage {
@@ -215,6 +222,7 @@ MainAreaFatherPage {
                 }
                 background: Row {
                     Text {
+                        color: Define.textColor;
                         text: "时长";
                     }
                     ColorImage {

@@ -234,6 +234,7 @@ Rectangle {
             Row {
                 spacing: 8;
                 Text {
+                    color: Define.textColor;
                     width: 62;
                     text: "歌词字号";
                     font.pixelSize: 13;
@@ -248,11 +249,12 @@ Rectangle {
                         anchors.fill: parent;
                         radius: 12;
                         color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Text { anchors.centerIn: parent; text: "-"; font.pixelSize: 13; }
+                        Text { anchors.centerIn: parent; text: "-"; font.pixelSize: 13; color: Define.textColor; }
                     }
                     onClicked: { root.adjustFontSize(-Define.lyricsFontSizeStep); }
                 }
                 Text {
+                    color: Define.textColor;
                     width: 52;
                     text: root.baseFontSize+" px";
                     font.pixelSize: 13;
@@ -268,7 +270,7 @@ Rectangle {
                         anchors.fill: parent;
                         radius: 12;
                         color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 13; }
+                        Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 13; color: Define.textColor; }
                     }
                     onClicked: { root.adjustFontSize(Define.lyricsFontSizeStep); }
                 }
@@ -276,6 +278,7 @@ Rectangle {
             Row {
                 spacing: 8;
                 Text {
+                    color: Define.textColor;
                     width: 62;
                     text: "歌词偏移";
                     font.pixelSize: 13;
@@ -290,11 +293,12 @@ Rectangle {
                         anchors.fill: parent;
                         radius: 12;
                         color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Text { anchors.centerIn: parent; text: "-"; font.pixelSize: 13; }
+                        Text { anchors.centerIn: parent; text: "-"; font.pixelSize: 13; color: Define.textColor; }
                     }
                     onClicked: { root.adjustOffsetMs(-Define.lyricsOffsetStepMs); }
                 }
                 Text {
+                    color: Define.textColor;
                     width: 66;
                     text: root.offsetText();
                     font.pixelSize: 13;
@@ -310,7 +314,7 @@ Rectangle {
                         anchors.fill: parent;
                         radius: 12;
                         color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 13; }
+                        Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 13; color: Define.textColor; }
                     }
                     onClicked: { root.adjustOffsetMs(Define.lyricsOffsetStepMs); }
                 }

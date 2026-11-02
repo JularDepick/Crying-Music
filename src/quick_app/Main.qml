@@ -150,6 +150,21 @@ ApplicationWindow {
                 Assist.derror("下载","下载目录不可用, 无法下载");
                 return false;
             }
+            /* 音频缓存里已有整曲时直接复制过去, 不再从数据根重下一遍 */
+            var cachedAudio=Server.audioCachePathOf(id);
+            if(cachedAudio!=="") {
+                if(AppFileHelper.copyFile(cachedAudio,dst)===true) {
+                    Server.touchAudioCache(id);
+                    Assist.dlog("下载","复用音频缓存: ",id," -> ",dst);
+                    memStorage.finishDownloadTask({"onlineId":id,
+                                                   "songname":one["songname"],
+                                                   "singer":one["singer"],
+                                                   "cover":(one["cover"]===undefined? "":one["cover"]),
+                                                   "lyrics":(one["lyrics"]===undefined? "":one["lyrics"])},dst);
+                    return true;
+                }
+                Assist.dwarn("下载","音频缓存复制失败, 改为重新下载: ",id);
+            }
             /* 实际取用的地址按数据根健康度挑选: 在线标识不变, 只影响这次请求打到哪个根 */
             var url=Server.mediaUrlOf(id,one["absfpath"]);
             if(url==="") {
@@ -211,12 +226,10 @@ ApplicationWindow {
                 downloadTasks=downloadTasks.slice();
             }
         }
-        /* 下载完成: 写入下载记录并提示 */
-        function onDownloadFinished(taskKey,localPath) {
-            var t=memStorage.downloadTaskOf(taskKey);
-            memStorage.removeDownloadTask(taskKey);
-            if(t===null) {
-                return;
+        /* 下载收尾: 写入下载记录, 体检资产并提示; 正常下载与复用音频缓存共用这一份 */
+        function finishDownloadTask(t,localPath) {
+            if(t===null || t===undefined) {
+                return false;
             }
             GlobalFileStorage.addDownloaded({"onlineId":t["onlineId"],
                                              "absfpath":localPath,
@@ -231,6 +244,13 @@ ApplicationWindow {
             Server.ensureDownloadedAssets();
             Assist.dlog("下载","下载完成: ",t["onlineId"]);
             memStorage.showDownloadTip("已下载: "+t["songname"]);
+            return true;
+        }
+        /* 下载完成: 取出任务并收尾 */
+        function onDownloadFinished(taskKey,localPath) {
+            var t=memStorage.downloadTaskOf(taskKey);
+            memStorage.removeDownloadTask(taskKey);
+            memStorage.finishDownloadTask(t,localPath);
         }
         /* 下载失败后换数据根重试: 判掉当前根并换到下一个候选, 进度与文件从头再来;
          * 没有可换的候选时返回 false, 由调用方收尾
@@ -353,7 +373,19 @@ ApplicationWindow {
             }
             if(one["online"]===true) {
                 var p=GlobalFileStorage.downloadedPathOf(one["onlineId"]);
-                return (p!==""? p:Server.mediaUrlOf(one["onlineId"],one["absfpath"]));
+                if(p!=="") {
+                    return p;
+                }
+                /* 已缓存过整曲时直接播缓存文件, 不再走网络 */
+                var c=Server.audioCachePathOf(one["onlineId"]);
+                if(c!=="") {
+                    Server.touchAudioCache(one["onlineId"]);
+                    return c;
+                }
+                var u=Server.mediaUrlOf(one["onlineId"],one["absfpath"]);
+                /* 没缓存就边播边缓存: 缓存走后台, 播放仍按实际取用地址拉流 */
+                Server.enqueueAudioCache(one["onlineId"],u);
+                return u;
             }
             return (one["absfpath"]===undefined? "":one["absfpath"]);
         }
@@ -977,10 +1009,12 @@ ApplicationWindow {
                         Row {
                             spacing: 4;
                             Text {
+                                color: Define.textColor;
                                 id: userName;
                                 text: "用户名";
                             }
                             Text {
+                                color: Define.textColor;
                                 id: userLevel;
                                 text: "Lv.100";
                             }
@@ -1038,6 +1072,7 @@ ApplicationWindow {
                                         color: Define.btnIconColor;
                                     }
                                     Text {
+                                        color: Define.textColor;
                                         anchors.verticalCenter: parent.verticalCenter;
                                         text: title;
                                         font.pixelSize: 14;
@@ -1172,7 +1207,7 @@ ApplicationWindow {
                     width: 200;
                     height: 30;
                     background: Rectangle {
-                        color: "#d5d5d5";
+                        color: Define.forbdDarkColor;
                         topLeftRadius: 8;
                         bottomLeftRadius: 8;
                         anchors.fill: parent;
@@ -1192,7 +1227,7 @@ ApplicationWindow {
                         window.doSearch();
                     }
                     background: Rectangle {
-                        color: "#d5d5d5";
+                        color: Define.forbdDarkColor;
                         width: 25;
                         height: 30;
                         topRightRadius: 8;
@@ -1458,6 +1493,7 @@ ApplicationWindow {
             loadingTipTimer.restart();
         }
         Text {
+            color: Define.textColor;
             id: loadingTipText;
             anchors.centerIn: parent;
             text: loadingTip.tipText;

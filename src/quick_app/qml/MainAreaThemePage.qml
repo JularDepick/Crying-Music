@@ -29,6 +29,7 @@ MainAreaFatherPage {
         topPadding: 40;
         spacing: 14;
         Text {
+            color: Define.textColor;
             text: "主题";
             font.pixelSize: 32;
             font.weight: 700;

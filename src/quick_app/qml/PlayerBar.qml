@@ -205,6 +205,7 @@ Rectangle {
                     ToolTip.text: playingTitleText.text;
                     ToolTip.delay: 500;
                     Text {
+                        color: Define.textColor;
                         id: playingTitleText;
                         text: `${song} - ${singer}`;
                         font.pixelSize: 14;
@@ -393,6 +394,7 @@ Rectangle {
                                             source: `qrc:/assets/iconfont/playerbar/${svgname}.svg`;
                                         }
                                         Text {
+                                            color: Define.textColor;
                                             anchors.verticalCenter: parent.verticalCenter;
                                             text: name;
                                         }
@@ -479,6 +481,7 @@ Rectangle {
                         anchors.topMargin: 8;
                         spacing: 3;
                         Text {
+                            color: Define.textColor;
                             text: `${soundSlider.value}%`;
                             anchors.horizontalCenter: parent.horizontalCenter;
                         }
@@ -527,6 +530,7 @@ Rectangle {
             height: 20;
             spacing: 10;
             Text {
+                color: Define.textColor;
                 id: nowStamp;
                 text: Assist.int2mmss(stampSlider.showedValue);
                 anchors.verticalCenter: parent.verticalCenter;
@@ -548,6 +552,7 @@ Rectangle {
                 }
             }
             Text {
+                color: Define.textColor;
                 id: endStamp;
                 text: Assist.int2mmss(stampSlider.maxStamp);
                 anchors.verticalCenter: parent.verticalCenter;

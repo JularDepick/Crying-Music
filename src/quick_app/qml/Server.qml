@@ -64,6 +64,18 @@ Item {
     property var lyricsCache: ({})
     /* 歌词偏移索引: 键为歌词缓存文件名, 值形如 {offsetMs: 毫秒}; 正值表示歌词提前显示 */
     property var lyricsIndex: ({})
+    /* 音频缓存索引: 键为缓存文件名(即在线标识), 值形如 {size:字节, at:最近使用时刻};
+     * 缓存文件落在 <存储目录>/cache/audio 下, 超出上限时按最近使用时间淘汰 */
+    property var audioCacheIndex: ({})
+    /* 待缓存的在线标识队列与正在缓存中的标识 */
+    property var _audioCacheQueue: []
+    property var _audioCachePending: ({})
+    /* 音频缓存索引是否需要写盘 */
+    property bool _audioIndexDirty: false;
+    /* 音频缓存任务的键前缀: 与下载队列共用 C++ 的下载回调, 靠前缀区分归属 */
+    readonly property string audioCacheTag: "acache:"
+    /* 同时只跑一份缓存: 缓存是后台行为, 不挤占播放与下载 */
+    readonly property int audioCacheParallel: 1
     /* 拉取失败的歌词: 本进程内不再重试 */
     property var lyricsMiss: ({})
     /* 正在拉取的歌词: 同一份歌词同一时刻只保留一组对冲请求 */
@@ -166,6 +178,26 @@ Item {
             serverRoot.saveCoverIndex();
         }
     }
+    /* 音频缓存索引写盘: 连续缓存时合并成一次写入 */
+    Timer {
+        id: audioIndexTimer;
+        interval: 2000;
+        repeat: false;
+        running: serverRoot._audioIndexDirty;
+        onTriggered: {
+            serverRoot.saveAudioCacheIndex();
+        }
+    }
+    /* 音频缓存的节拍: 有排队任务时按 300ms 检查是否还有空闲位置 */
+    Timer {
+        id: audioCacheTimer;
+        interval: 300;
+        repeat: true;
+        running: (serverRoot._audioCacheQueue.length>0);
+        onTriggered: {
+            serverRoot._audioCacheTick();
+        }
+    }
     /* 对冲拉取的心跳: 有在途或排队请求时按 50ms 检查对冲与硬超时, 并给排队的分组补位 */
     Timer {
         id: netTimer;
@@ -211,6 +243,26 @@ Item {
             if(status===404) {
                 serverRoot._noteOssStatus(url);
             }
+        }
+        /* 音频缓存任务完成: 只处理带缓存前缀的键, 下载队列的任务归主界面 */
+        function onDownloadFinished(taskKey,localPath) {
+            var tag=String(serverRoot.audioCacheTag);
+            if(String(taskKey).indexOf(tag)!==0) {
+                return;
+            }
+            var id=String(taskKey).substring(tag.length);
+            delete serverRoot._audioCachePending[id];
+            serverRoot._audioCacheAdd(id,localPath);
+        }
+        /* 音频缓存任务失败: 未完成的文件由 C++ 侧清理, 这里只记账 */
+        function onDownloadFailed(taskKey,reason) {
+            var tag=String(serverRoot.audioCacheTag);
+            if(String(taskKey).indexOf(tag)!==0) {
+                return;
+            }
+            var id=String(taskKey).substring(tag.length);
+            delete serverRoot._audioCachePending[id];
+            Assist.dwarn("在线","音频缓存失败: ",id,", 原因 ",reason);
         }
     }
     /* 数据根基址归一: 单组节点用 base_url 声明本组的备用数据根, 也容忍旧结构的 audio_base_url,
@@ -846,9 +898,11 @@ Item {
         }
         return res;
     }
-    /* 请求一份歌词: 已缓存或已失败时直接返回; 歌词按当前播放项单条拉取, 不做后台补全 */
-    function requestLyrics(lyricsName) {
-        var name=lyricsVariantName(lyricsName);
+    /* 请求一份已经定好档位的歌词: 入参是最终的歌词文件名, 不再按增强开关归一;
+     * 已缓存或已失败时直接返回
+     */
+    function requestLyricsFor(lyricsName) {
+        var name=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
         if(name==="") {
             return false;
         }
@@ -871,6 +925,10 @@ Item {
             delete _lyricsPending[name];
         }
         return started;
+    }
+    /* 请求一份歌词: 入参是清单里的普通歌词名, 先按当前增强档归一, 再按档位请求 */
+    function requestLyrics(lyricsName) {
+        return requestLyricsFor(lyricsVariantName(lyricsName));
     }
     /* 歌词拿到: 写盘并记进内存索引 */
     function _lyricsDone(lyricsName,text,src) {
@@ -1240,12 +1298,31 @@ Item {
      * 从发起起超过三倍窗口仍未结算才判失败
      */
     readonly property int assetWaitMs: 60000
-    /* 资产的实际文件名: 歌词按当前增强档取变体名, 封面就是封面名;
+    /* 资产的实际文件名: 歌词按入参档位取变体名(档位缺省时按当前增强档), 封面就是封面名;
      * 补全队列里存的是这一档的实际名字, 与缓存落盘名一致
      */
-    function assetNameOf(kind,name) {
+    function assetNameOf(kind,name,tier) {
         var n=String(name===undefined || name===null? "":name);
-        return (kind==="lyrics"? lyricsVariantName(n):n);
+        if(n==="" || kind!=="lyrics") {
+            return n;
+        }
+        var t=String(tier===undefined || tier===null? "":tier);
+        if(t!=="lrc" && t!=="elrc") {
+            return lyricsVariantName(n);
+        }
+        var lrcExt=String(oss.audio_lyrics_lrc_ext);
+        var elrcExt=String(oss.audio_lyrics_elrc_ext);
+        var main=n;
+        if(lrcExt!=="" && main.length>lrcExt.length
+           && main.substring(main.length-lrcExt.length)===lrcExt) {
+            main=main.substring(0,main.length-lrcExt.length);
+        }
+        if(elrcExt!=="" && main.length>elrcExt.length
+           && main.substring(main.length-elrcExt.length)===elrcExt) {
+            main=main.substring(0,main.length-elrcExt.length);
+        }
+        var ext=(t==="elrc"? elrcExt:lrcExt);
+        return (ext===""? "":main+ext);
     }
     /* 某类资产是否已经就绪 */
     function assetReadyOf(kind,name) {
@@ -1261,8 +1338,9 @@ Item {
     /* 把一个资产排进补全队列: 已就绪, 已在队列或名字为空时忽略;
      * 同一首的同类资产以在线标识为键去重, 名字以清单为准, 非在途时就地更新
      */
-    function enqueueAsset(kind,name,owner) {
-        var real=assetNameOf(kind,name);
+    function enqueueAsset(kind,name,owner,tier) {
+        var t=(typeof tier==="string"? tier:"");
+        var real=assetNameOf(kind,name,t);
         if(typeof real!=="string" || real==="") {
             return false;
         }
@@ -1272,7 +1350,7 @@ Item {
         var key=(typeof owner==="string"? owner:"");
         for(var i=0;i<_assetItems.length;i++) {
             var one=_assetItems[i];
-            if(one["kind"]!==kind || one["owner"]!==key) {
+            if(one["kind"]!==kind || one["owner"]!==key || one["tier"]!==t) {
                 continue;
             }
             if(one["name"]!==real && one["inflight"]!==true) {
@@ -1282,7 +1360,7 @@ Item {
             return false;
         }
         var v=_assetItems.slice();
-        v.push({"kind":kind,"owner":key,"name":real,"tries":0,"nextAt":Date.now(),
+        v.push({"kind":kind,"owner":key,"tier":t,"name":real,"tries":0,"nextAt":Date.now(),
                 "deadline":0,"deadlineCap":0,"inflight":false});
         _assetItems=v;
         return true;
@@ -1291,6 +1369,8 @@ Item {
     function ensureDownloadedAssets() {
         var list=GlobalFileStorage.downloads;
         var queued=0;
+        /* 增强歌词档是否有候选源: 没有时不排这一档, 免得白跑三次重试 */
+        var elrcSrcCount=(Array.isArray(oss.audio_lyrics_elrc_src)? oss.audio_lyrics_elrc_src.length:0);
         var n=(list===undefined || list===null? 0:list.length);
         for(var i=0;i<n;i++) {
             var one=list[i];
@@ -1310,7 +1390,11 @@ Item {
             if(enqueueAsset("cover",cover,id)===true) {
                 queued=queued+1;
             }
-            if(enqueueAsset("lyrics",lyrics,id)===true) {
+            /* 普通与增强两档一起补齐: 运行中切换档位不必再等一次下载 */
+            if(enqueueAsset("lyrics",lyrics,id,"lrc")===true) {
+                queued=queued+1;
+            }
+            if(lyrics!=="" && elrcSrcCount>0 && enqueueAsset("lyrics",lyrics,id,"elrc")===true) {
                 queued=queued+1;
             }
         }
@@ -1354,8 +1438,8 @@ Item {
             if(now<one["nextAt"]) {
                 continue;
             }
-            /* 增强档可能在运行中被切换: 每次尝试前按当前档位重新归一歌词名 */
-            one["name"]=assetNameOf(one["kind"],one["name"]);
+            /* 队列项自带档位: 每次尝试前按它重新归一歌词名, 切档不影响已排队的项 */
+            one["name"]=assetNameOf(one["kind"],one["name"],one["tier"]);
             one["inflight"]=true;
             one["deadline"]=now+assetWaitMs;
             one["deadlineCap"]=now+assetWaitMs*3;
@@ -1379,12 +1463,257 @@ Item {
             return requestCover(name);
         }
         delete lyricsMiss[name];
-        return requestLyrics(name);
+        return requestLyricsFor(name);
+    }
+    /* 在线音频缓存目录: 存储目录未确定时返回空字符串 */
+    function audioCacheDir() {
+        return GlobalFileStorage.audioCacheDir();
+    }
+    /* 音频缓存上限(字节) */
+    function audioCacheCapBytes() {
+        return GlobalFileStorage.audioCacheCapMb()*1024*1024;
+    }
+    /* 某首在线歌曲的缓存文件路径: 未缓存或文件已丢失时返回空字符串 */
+    function audioCachePathOf(onlineId) {
+        var id=String(onlineId===undefined || onlineId===null? "":onlineId);
+        if(id==="") {
+            return "";
+        }
+        if(audioCacheIndex[id]===undefined || audioCacheIndex[id]===null) {
+            return "";
+        }
+        var dir=audioCacheDir();
+        if(dir==="") {
+            return "";
+        }
+        var p=dir+"/"+id;
+        if(AppFileHelper.existsFile(p)!==true) {
+            _audioCacheForget(id);
+            return "";
+        }
+        return p;
+    }
+    /* 记一次使用: 刷新最近使用时刻, 供超出上限时淘汰排序 */
+    function touchAudioCache(onlineId) {
+        var id=String(onlineId===undefined || onlineId===null? "":onlineId);
+        if(id==="" || audioCacheIndex[id]===undefined || audioCacheIndex[id]===null) {
+            return false;
+        }
+        var one=audioCacheIndex[id];
+        var m=({});
+        for(var k in audioCacheIndex) {
+            m[k]=audioCacheIndex[k];
+        }
+        m[id]=({"size":(typeof one["size"]==="number"? one["size"]:0),"at":Date.now()});
+        audioCacheIndex=m;
+        _audioIndexDirty=true;
+        return true;
+    }
+    /* 缓存概况: 已缓存的份数, 占用字节与当前上限, 供设置页显示 */
+    function audioCacheStats() {
+        var n=0;
+        var bytes=0;
+        for(var k in audioCacheIndex) {
+            n=n+1;
+            var one=audioCacheIndex[k];
+            bytes=bytes+(one!==null && typeof one==="object" && typeof one["size"]==="number"? one["size"]:0);
+        }
+        return ({"cached":n,"bytes":bytes,"cap":audioCacheCapBytes()});
+    }
+    /* 读缓存索引: 文件已丢失的条目直接剔除, 读完做一次容量约束 */
+    function loadAudioCache() {
+        var dir=audioCacheDir();
+        if(dir==="") {
+            return false;
+        }
+        var p=dir+"/"+GlobalFileStorage.audioCacheIndexFileName;
+        var m=({});
+        var n=0;
+        if(AppFileHelper.existsFile(p)===true) {
+            var obj=null;
+            try {
+                obj=JSON.parse(AppFileHelper.readFile(p,"UTF-8"));
+            } catch(e) {
+                obj=null;
+            }
+            if(obj!==null && typeof obj==="object") {
+                for(var k in obj) {
+                    var one=obj[k];
+                    if(one===null || typeof one!=="object") {
+                        continue;
+                    }
+                    if(AppFileHelper.existsFile(dir+"/"+k)!==true) {
+                        continue;
+                    }
+                    m[k]=({"size":(typeof one["size"]==="number"? one["size"]:0),
+                          "at":(typeof one["at"]==="number"? one["at"]:0)});
+                    n=n+1;
+                }
+            }
+        }
+        audioCacheIndex=m;
+        _audioIndexDirty=false;
+        var s=audioCacheStats();
+        Assist.dlog("在线","音频缓存接管: ",n," 份, 占用 ",s["bytes"]," 字节");
+        _audioCacheTrim();
+        return true;
+    }
+    /* 写缓存索引 */
+    function saveAudioCacheIndex() {
+        var dir=audioCacheDir();
+        if(dir==="") {
+            return false;
+        }
+        _audioIndexDirty=false;
+        var ok=AppFileHelper.writeFile(dir+"/"+GlobalFileStorage.audioCacheIndexFileName,
+                                       JSON.stringify(audioCacheIndex),"UTF-8");
+        if(ok!==true) {
+            Assist.dwarn("在线","音频缓存索引写盘失败");
+        }
+        return ok;
+    }
+    /* 从索引里剔除一项 */
+    function _audioCacheForget(onlineId) {
+        if(audioCacheIndex[onlineId]===undefined) {
+            return false;
+        }
+        var m=({});
+        for(var k in audioCacheIndex) {
+            if(k!==onlineId) {
+                m[k]=audioCacheIndex[k];
+            }
+        }
+        audioCacheIndex=m;
+        _audioIndexDirty=true;
+        return true;
+    }
+    /* 登记一份缓存完成的音频, 并做一次容量约束 */
+    function _audioCacheAdd(onlineId,path) {
+        var size=AppFileHelper.fileSize(path);
+        var m=({});
+        for(var k in audioCacheIndex) {
+            m[k]=audioCacheIndex[k];
+        }
+        m[onlineId]=({"size":(size>0? size:0),"at":Date.now()});
+        audioCacheIndex=m;
+        _audioIndexDirty=true;
+        _audioCacheTrim();
+        Assist.dlog("在线","音频已缓存: ",onlineId,", 大小 ",size);
+        return true;
+    }
+    /* 超出上限时按最近使用时间淘汰, 直到不超限; 上限为 0 表示不约束 */
+    function _audioCacheTrim() {
+        var cap=audioCacheCapBytes();
+        if(cap<=0) {
+            return false;
+        }
+        var keys=[];
+        var total=0;
+        for(var k in audioCacheIndex) {
+            keys.push(k);
+            var one=audioCacheIndex[k];
+            total=total+(one!==null && typeof one==="object" && typeof one["size"]==="number"? one["size"]:0);
+        }
+        if(total<=cap) {
+            return false;
+        }
+        keys.sort(function(a,b) {
+            var at=audioCacheIndex[a];
+            var bt=audioCacheIndex[b];
+            var x=(at!==null && typeof at==="object" && typeof at["at"]==="number"? at["at"]:0);
+            var y=(bt!==null && typeof bt==="object" && typeof bt["at"]==="number"? bt["at"]:0);
+            return x-y;
+        });
+        var dir=audioCacheDir();
+        var drop=0;
+        for(var i=0;i<keys.length && total>cap;i++) {
+            var id=keys[i];
+            var cur=audioCacheIndex[id];
+            var sz=(cur!==null && typeof cur==="object" && typeof cur["size"]==="number"? cur["size"]:0);
+            AppFileHelper.removeFile(dir+"/"+id);
+            _audioCacheForget(id);
+            total=total-sz;
+            drop=drop+1;
+        }
+        if(drop>0) {
+            Assist.dlog("在线","音频缓存超限, 淘汰 ",drop," 份");
+        }
+        return (drop>0);
+    }
+    /* 设置页改档位后立即按新上限做一次淘汰 */
+    function trimAudioCache() {
+        var r=_audioCacheTrim();
+        _audioIndexDirty=true;
+        return r;
+    }
+    /* 把一首在线歌曲排进缓存队列: 已缓存, 已在队列或正在缓存时忽略 */
+    function enqueueAudioCache(onlineId,url) {
+        var id=String(onlineId===undefined || onlineId===null? "":onlineId);
+        var u=String(url===undefined || url===null? "":url);
+        if(id==="" || u==="" || audioCacheDir()==="") {
+            return false;
+        }
+        if(audioCachePathOf(id)!=="") {
+            return false;
+        }
+        if(_audioCachePending[id]===true) {
+            return false;
+        }
+        for(var i=0;i<_audioCacheQueue.length;i++) {
+            if(_audioCacheQueue[i]["id"]===id) {
+                return false;
+            }
+        }
+        var q=_audioCacheQueue.slice();
+        q.push({"id":id,"url":u});
+        _audioCacheQueue=q;
+        return true;
+    }
+    /* 节拍: 有空闲位置就发起下一首的缓存下载 */
+    function _audioCacheTick() {
+        if(Object.keys(_audioCachePending).length>=audioCacheParallel) {
+            return false;
+        }
+        if(_audioCacheQueue.length<=0) {
+            return false;
+        }
+        var one=_audioCacheQueue[0];
+        _audioCacheQueue=_audioCacheQueue.slice(1);
+        var id=one["id"];
+        var dir=audioCacheDir();
+        if(dir==="") {
+            return false;
+        }
+        if(AppFileHelper.existsDir(dir)!==true && AppFileHelper.makeDir(dir,true)!==true) {
+            Assist.dwarn("在线","音频缓存目录不可用: ",dir);
+            return false;
+        }
+        var p=dir+"/"+id;
+        AppFileHelper.removeFile(p);
+        _audioCachePending[id]=true;
+        AppNetHelper.downloadAudio(one["url"],p,audioCacheTag+id);
+        Assist.dlog("在线","开始缓存音频: ",id);
+        return true;
+    }
+    /* 清空音频缓存: 删缓存文件与索引, 不动播放与下载相关数据 */
+    function clearAudioCache() {
+        var dir=audioCacheDir();
+        if(dir==="") {
+            return false;
+        }
+        var removed=AppFileHelper.removeDir(dir,true);
+        audioCacheIndex=({});
+        _audioCacheQueue=[];
+        _audioIndexDirty=false;
+        var ready=AppFileHelper.makeDir(dir,true);
+        Assist.dlog("在线","清空音频缓存: 删除 ",removed,", 重建 ",ready);
+        return (removed===true && ready===true);
     }
     /* 启动引导: 先读磁盘缓存让曲库立即可用; 有缓存时再后台静默刷新, 失败不影响界面;
      * 没有缓存时按普通流程拉取, 界面照常显示加载态 */
     function bootstrap() {
         loadPlayedMeta();
+        loadAudioCache();
         /* 封面缓存先于曲库装载: 曲库一就绪首页立刻重建, 那时索引必须已经可用,
          * 否则已缓存的封面会被当成未缓存再请求一轮
          */

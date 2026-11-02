@@ -36,6 +36,18 @@ MainAreaFatherPage {
         }
         return res;
     }
+    /* 音频缓存上限候选: 值即 MB, 档位来自设计常量 */
+    property var audioCapOptions: buildAudioCapOptions();
+    function buildAudioCapOptions() {
+        var src=Define.audioCacheCapMbOptions;
+        var res=[];
+        for(var i=0;i<src.length;i++) {
+            var mb=src[i];
+            var text=(mb>=1024? String(mb/1024)+" GB":String(mb)+" MB");
+            res.push({"label":text,"value":mb});
+        }
+        return res;
+    }
     /* 播放策略候选 */
     property var playOptions: [
         {"label":"不下载","value":Define.playStrategyNoDownload},
@@ -93,6 +105,21 @@ MainAreaFatherPage {
                                           :"清理失败, 请查看控制台日志");
         Assist.dlog("界面","清理封面与歌词缓存: ",ok);
     }
+    /* 音频缓存概况文本: 已缓存份数与占用大小 */
+    function audioCacheStatsText() {
+        var s=Server.audioCacheStats();
+        var mb=Math.round(s["bytes"]/1048576);
+        var capMb=Math.round(s["cap"]/1048576);
+        return ("已缓存 "+s["cached"]+" 首音频, 占用约 "+mb+" MB, 上限 "+capMb+" MB");
+    }
+    /* 立即清理音频缓存: 只删本地缓存文件, 不动下载记录与播放数据 */
+    function clearAudioCache() {
+        var ok=(Server.clearAudioCache()===true);
+        mainArea_SettingsPage.cacheTipOk=ok;
+        mainArea_SettingsPage.cacheTip=(ok? "已清理音频缓存, 会在再次播放时重新缓存"
+                                          :"清理失败, 请查看控制台日志");
+        Assist.dlog("界面","清理音频缓存: ",ok);
+    }
     /* 选择下载目录: 走系统文件夹选择框, 不允许直接改路径文本 */
     function chooseDownloadsDir() {
         downloadDirDialog.open();
@@ -113,6 +140,7 @@ MainAreaFatherPage {
         topPadding: 32;
         spacing: 14;
         Text {
+            color: Define.textColor;
             text: "设置";
             font.pixelSize: 32;
             font.weight: 700;
@@ -178,6 +206,7 @@ MainAreaFatherPage {
             spacing: 14;
             /* 在线播放策略 */
             Text {
+                color: Define.textColor;
                 text: "在线播放策略";
                 font.pixelSize: 15;
                 font.weight: 500;
@@ -198,6 +227,7 @@ MainAreaFatherPage {
             }
             /* 下载文件命名 */
             Text {
+                color: Define.textColor;
                 text: "下载文件命名";
                 font.pixelSize: 15;
                 font.weight: 500;
@@ -218,6 +248,7 @@ MainAreaFatherPage {
             }
             /* 下载目录 */
             Text {
+                color: Define.textColor;
                 text: "下载目录";
                 font.pixelSize: 15;
                 font.weight: 500;
@@ -265,6 +296,7 @@ MainAreaFatherPage {
                         radius: 15;
                         color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
                         Text {
+                            color: Define.textColor;
                             anchors.centerIn: parent;
                             text: "选择目录";
                             font.pixelSize: 13;
@@ -313,6 +345,7 @@ MainAreaFatherPage {
             spacing: 14;
             /* 封面缓存 */
             Text {
+                color: Define.textColor;
                 text: "封面缓存";
                 font.pixelSize: 15;
                 font.weight: 500;
@@ -338,6 +371,7 @@ MainAreaFatherPage {
                         radius: 15;
                         color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
                         Text {
+                            color: Define.textColor;
                             anchors.centerIn: parent;
                             text: "立即清理";
                             font.pixelSize: 13;
@@ -365,8 +399,59 @@ MainAreaFatherPage {
                 height: 1;
                 color: Define.subGrey;
             }
+            /* 音频缓存: 播放时后台落盘, 超出上限按最近使用时间淘汰 */
+            Text {
+                color: Define.textColor;
+                text: "音频缓存上限";
+                font.pixelSize: 15;
+                font.weight: 500;
+            }
+            CustomChoose {
+                id: audioCapChoose;
+                options: mainArea_SettingsPage.audioCapOptions;
+                currentValue: GlobalFileStorage.audioCacheCapMb();
+                onChosen: (value, index)=> {
+                    GlobalFileStorage.setAudioCacheCapMb(value);
+                    Server.trimAudioCache();
+                    Assist.dlog("界面","音频缓存上限: ",value," MB");
+                }
+            }
+            Row {
+                spacing: 10;
+                CustomButtonA {
+                    width: 100;
+                    height: 30;
+                    transEnabled: false;
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        radius: 15;
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                        Text {
+                            color: Define.textColor;
+                            anchors.centerIn: parent;
+                            text: "立即清理";
+                            font.pixelSize: 13;
+                        }
+                    }
+                    onClicked: {
+                        mainArea_SettingsPage.clearAudioCache();
+                    }
+                    HoverHandler {
+                        id: audioClearHh;
+                    }
+                    ToolTip.visible: audioClearHh.hovered;
+                    ToolTip.text: mainArea_SettingsPage.audioCacheStatsText();
+                    ToolTip.delay: 600;
+                }
+            }
+            Rectangle {
+                width: parent.width;
+                height: 1;
+                color: Define.subGrey;
+            }
             /* 歌词增强 */
             Text {
+                color: Define.textColor;
                 text: "歌词增强";
                 font.pixelSize: 15;
                 font.weight: 500;
