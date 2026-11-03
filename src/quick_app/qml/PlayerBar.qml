@@ -30,6 +30,13 @@ Rectangle {
     signal volumeMoved(int value);
     /* 供宿主绑定的播放列表面板开关状态 */
     readonly property bool listVisible: playingListBtn.subVisible;
+    /* 本组件内部的三个弹层是否展开: 播放顺序, 更多, 音量; 加上播放列表面板共四处 */
+    readonly property bool subPanelsOpen: (playerSort.subTabVisible || moreFunBtn.subTabVisible
+                                           || soundCtrl.sliderVisible);
+    /* 交互锁: 四处弹层任一处展开, 或进度与音量滑块正在被按住时成立;
+     * 宿主据此让整条播放条保持常显, 不进入隐藏计时 */
+    readonly property bool interactionLocked: (subPanelsOpen || playingListBtn.subVisible
+                                               || stampSlider.pressed || soundSlider.pressed);
     /* 队列策略钩子: 转交给主界面的内存枢纽 */
     function followPlayStrategy(one) {
         if(theMemStorage!==null) {
@@ -51,6 +58,43 @@ Rectangle {
     /* 单独收起播放列表面板: 面板由宿主持有, 落点判断留给宿主 */
     function sub_hideList() {
         playingListBtn.sub_hide();
+    }
+    /* 收起本组件内部的三个弹层: 隐藏整条播放条前调用, 避免隐藏后弹层状态残留,
+     * 再次显示时弹层自己冒出来 */
+    function sub_hideAll() {
+        playerSort.subTabVisible=false;
+        moreFunBtn.subTabVisible=false;
+        soundCtrl.sliderVisible=false;
+    }
+    /* 隐藏前的统一收拾: 三个内部弹层与播放列表面板一起收起 */
+    function prepareHide() {
+        sub_hideAll();
+        sub_hideList();
+    }
+    /* 热区判定: 入参为本组件坐标系下的点, 覆盖播放条自身与它展开的任一弹层,
+     * 弹层都挂在播放条上方, 因此必须按实际几何取范围, 不能只看播放条矩形 */
+    function hotAreaContains(lx,ly,pad) {
+        var p=Number(pad);
+        if(isNaN(p)) {
+            p=0;
+        }
+        var x=Number(lx);
+        var y=Number(ly);
+        if(x>=-p && x<=(width+p) && y>=-p && y<=(height+p)) {
+            return true;
+        }
+        var subs=[sortSubTab,moreFunSubTab,soundSliderArea];
+        for(var i=0;i<subs.length;i++) {
+            var it=subs[i];
+            if(it===null || it===undefined || it.visible!==true) {
+                continue;
+            }
+            var tl=it.mapToItem(root,0,0);
+            if(x>=(tl.x-p) && x<=(tl.x+it.width+p) && y>=(tl.y-p) && y<=(tl.y+it.height+p)) {
+                return true;
+            }
+        }
+        return false;
     }
     /* 点击是否落在播放列表按钮上: 落在开启按钮时由按钮自己切换,
      * 宿主的区域外点击收起要让位, 否则按下先收起, 抬手又切换回打开 */
