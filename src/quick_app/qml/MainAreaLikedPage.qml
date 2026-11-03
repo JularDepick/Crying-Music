@@ -79,14 +79,14 @@ MainAreaFatherPage {
                         spacing: 5;
                         ColorImage {
                             anchors.verticalCenter: parent.verticalCenter;
-                            width: 15;
-                            height: 15;
+                            width: Define.batchIconSize;
+                            height: Define.batchIconSize;
                             source: `qrc:/assets/iconfont/function/batch.svg`;
                             color: Define.btnIconColor;
                         }
                         Text {
                             color: Define.textColor;
-                            text: "批量";
+                            text: (mainListView.batchMode? "取消":"批量");
                         }
                     }
                 }
@@ -112,8 +112,8 @@ MainAreaFatherPage {
                             spacing: 5;
                             ColorImage {
                                 anchors.verticalCenter: parent.verticalCenter;
-                                width: 15;
-                                height: 15;
+                                width: Define.batchIconSize;
+                                height: Define.batchIconSize;
                                 source: `qrc:/assets/iconfont/function/checked_stark.svg`;
                                 color: Define.btnIconColor;
                             }
@@ -141,9 +141,9 @@ MainAreaFatherPage {
                             spacing: 5;
                             ColorImage {
                                 anchors.verticalCenter: parent.verticalCenter;
-                                width: 15;
-                                height: 15;
-                                source: `qrc:/assets/iconfont/function/like.svg`;
+                                width: Define.batchIconSize;
+                                height: Define.batchIconSize;
+                                source: `qrc:/assets/iconfont/function/delete.svg`;
                                 color: Define.btnIconColor;
                             }
                             Text {
