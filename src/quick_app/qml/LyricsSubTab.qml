@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import "./"
 
 import AppHelper 1.0
@@ -23,8 +24,8 @@ Rectangle {
     property int currentWord: -1;
     /* 歌词增强开关: 关闭时用普通歌词且不做逐字着色, 开启时才按增强歌词显示逐字进度 */
     readonly property bool enhancedOn: GlobalFileStorage.lyricsEnhanced();
-    /* 当前词的着色进度 0 到 1: 在两次播放位置上报之间按真实时间外推, 只用来决定字符级分界落在哪,
-     * 颜色本身不插值, 已唱与未唱各是一档纯色 */
+    /* 当前词的推进比例 0 到 1: 在两次播放位置上报之间按真实时间外推,
+     * 用来决定已唱区域的右边界落在字内的哪个像素位置; 两侧各是一档纯色, 边界内不做颜色过渡 */
     property real wordProgress: 0;
     /* 用户手动把歌词滚离当前行: 为真时播放换行不强制锚定, 由复位计时器在 3 秒后拉回 */
     property bool userScrolled: false;
@@ -34,6 +35,8 @@ Rectangle {
     property double _animAnchorMs: 0;
     /* 上一次锚定后的内容偏移: 与当前偏移相比即可判断用户是否把歌词滚离了基准高度 */
     property real _anchorContentY: 0;
+    /* 上一行因断行口径不一致而放弃着色的行号: 只用来避免重复输出同一行日志 */
+    property int _maskFallbackLine: -1;
 
     /* 控件可见性: 指针在播放条等热区里时保持常显, 离开热区 3 秒没回来就淡出 */
     property bool chromeVisible: true;
@@ -41,8 +44,16 @@ Rectangle {
     readonly property real anchorRatio: (1.0/3.0);
     /* 封面边长: 封面取正方形, 边长 32% 窗口宽; 过宽的窗口按可用高度收一档, 避免压到播放条 */
     readonly property real coverSide: Math.min(root.width*0.32, root.height*0.6);
-    /* 基准高度范围半高: 当前行离基准线不超过这段高度即算仍在基准线上, 半高随歌词字号变化 */
-    readonly property real seekBandHalf: Math.max(10,root.currentFontSize*0.9);
+    /* 基准高度范围的度量: 单独一份, 只跟当前行字号绑定, 不与逐字测量的共享对象互相触发 */
+    FontMetrics {
+        id: bandFontMetrics;
+        font.pixelSize: root.currentFontSize;
+        font.bold: true;
+    }
+    /* 基准高度范围: 高度取当前行的行高, 因此"范围内"等价于这一行正好嵌在基准位置上, 随字号变化 */
+    readonly property real anchorBandHeight: bandFontMetrics.height;
+    /* 基准范围的容错: 不超过本身高度的十分之一 */
+    readonly property real anchorBandTol: Math.max(1,root.anchorBandHeight*0.1);
     topLeftRadius: Define.windowRadius;
     topRightRadius: Define.windowRadius;
     bottomLeftRadius: Define.windowRadius;
@@ -207,17 +218,67 @@ Rectangle {
                 reanchorTimer.restart();
             }
         }
-        delegate: Text {
+        delegate: Item {
             width: lyricView.width;
-            horizontalAlignment: Text.AlignHCenter;
-            wrapMode: Text.Wrap;
-            /* 文本与格式取自同一份渲染结果, 不会出现文本带标签而格式仍是纯文本的错配 */
-            readonly property var lineRender: root.renderOf(index);
-            textFormat: (lineRender["styled"]===true? Text.StyledText:Text.PlainText);
-            text: lineRender["text"];
-            font.pixelSize: (index===root.currentLine? root.currentFontSize:root.baseFontSize);
-            font.bold: (index===root.currentLine);
-            color: (index===root.currentLine? Define.btnIconColor:Define.forbdDarkColor);
+            height: lineText.implicitHeight;
+            /* 底色层: 整行按未唱色画一遍 */
+            Text {
+                id: lineText;
+                width: parent.width;
+                horizontalAlignment: Text.AlignHCenter;
+                wrapMode: Text.Wrap;
+                text: String(modelData["text"]);
+                font.pixelSize: (index===root.currentLine? root.currentFontSize:root.baseFontSize);
+                font.bold: (index===root.currentLine);
+                color: (index===root.currentLine? Define.btnIconColor:Define.forbdDarkColor);
+            }
+            /* 已唱层: 同一份文本, 同一套排版, 只换颜色; 露出多少由遮罩按像素决定,
+             * 因此边界可以停在字的中间而不是整字跳变 */
+            Text {
+                id: sungText;
+                anchors.fill: lineText;
+                horizontalAlignment: lineText.horizontalAlignment;
+                wrapMode: lineText.wrapMode;
+                text: lineText.text;
+                font: lineText.font;
+                color: Define.choseCyanColor;
+                visible: (maskGeom["ready"]===true);
+                layer.enabled: visible;
+                layer.effect: MultiEffect {
+                    maskEnabled: true;
+                    maskSource: sungMask;
+                }
+            }
+            /* 遮罩: 当前行之前的可视行整块铺白, 当前行只铺到边界, 其余透明;
+             * 遮罩不可见, 只作为纹理供 MultiEffect 取用 */
+            Item {
+                id: sungMask;
+                anchors.fill: lineText;
+                visible: false;
+                layer.enabled: true;
+                Rectangle {
+                    color: "white";
+                    x: 0;
+                    y: 0;
+                    width: sungMask.width;
+                    height: (maskGeom["ready"]===true? maskGeom["top"]:0);
+                }
+                Rectangle {
+                    color: "white";
+                    x: 0;
+                    y: (maskGeom["ready"]===true? maskGeom["top"]:0);
+                    width: (maskGeom["ready"]===true? maskGeom["width"]:0);
+                    height: (maskGeom["ready"]===true? maskGeom["row"]:0);
+                }
+            }
+            /* 可视行布局: 只有当前行需要, 断行与字宽在文本, 字号或列宽变化时重算, 进度变化不触发重排 */
+            readonly property var sungLayout: (index===root.currentLine
+                                               ? root.sungLayoutOf(lineText.text,lineText.font.pixelSize,
+                                                                   lineText.font.bold,lineText.width):null);
+            /* 遮罩几何: 随进度变化的只有当前行的右边界, 其它行直接不参与 */
+            readonly property var maskGeom: (index===root.currentLine
+                                             ? root.sungMaskOf(sungLayout,modelData,lineText.lineCount)
+                                             : ({"ready":false,"top":0,"width":0,"row":0}));
         }
         /* 右键歌词区呼出调节菜单: 用 TapHandler, 不打断左键拖动与滚轮 */
         TapHandler {
@@ -594,11 +655,11 @@ Rectangle {
             /* 增强关闭时只保留纯文本: 词级标记已经从文本里剥掉, 也不再保留逐字信息 */
             var words=(root.enhancedOn===true? body["words"]:[]);
             if(stamps.length<=0) {
-                out.push({"t":-1,"text":body["text"],"words":words});
+                out.push({"t":-1,"text":body["text"],"words":words,"headLength":body["headLength"]});
                 continue;
             }
             for(var j=0;j<stamps.length;j++) {
-                out.push({"t":stamps[j],"text":body["text"],"words":words});
+                out.push({"t":stamps[j],"text":body["text"],"words":words,"headLength":body["headLength"]});
             }
         }
         /* 有带时间戳的行时: 带时间戳的按时间升序排在前, 无时间戳的按原顺序接在后面,
@@ -721,7 +782,11 @@ Rectangle {
             words.push({"t":marks[i]["t"], "text":seg});
             plain=plain+seg;
         }
-        return ({"text":(head+plain).trim(), "words":words});
+        /* 首段在整行文本里的起始下标: 渲染时靠它把词下标换算成字符位置 */
+        var full=head+plain;
+        var trimmed=full.trim();
+        var leadTrim=full.length-full.replace(/^\s+/,"").length;
+        return ({"text":trimmed, "words":words, "headLength":Math.max(0,head.length-leadTrim)});
     }
     /* 行内已唱到的词下标: 取最后一个不晚于当前秒数的词; 没有词级时间戳时为 -1 */
     function wordIndexAt(line, sec) {
@@ -738,87 +803,140 @@ Rectangle {
         }
         return idx;
     }
-    /* 行渲染: 一次算出这一行要显示的文本与是否按富文本渲染, 供委托同时取用;
-     * 只有增强开启, 当前行且已经唱到某个词时才拼富文本;
-     * 着色不做渐变: 已唱的词整段取高亮色, 正在唱的词按进度切成已唱与未唱两段,
-     * 切点随进度连续前移, 两段各只有一档颜色 */
-    function renderOf(index) {
-        var one=(index>=0 && index<lyricLines.length? lyricLines[index]:null);
-        if(one===null || one===undefined) {
-            return ({"text":"", "styled":false});
+    /* 文本度量: 与委托里的 Text 用同一套字体, 边界位置按真实字宽算, 不按字数估算 */
+    TextMetrics {
+        id: lyricMetrics;
+    }
+    FontMetrics {
+        id: lyricFontMetrics;
+    }
+    function measureTextWidth(text,pixelSize,bold) {
+        lyricMetrics.font.pixelSize=pixelSize;
+        lyricMetrics.font.bold=bold;
+        lyricMetrics.text=String(text);
+        return lyricMetrics.advanceWidth;
+    }
+    /* 与 Text 的默认行距一致的行高: 遮罩按它定位当前行的上下边界 */
+    function rowHeightOf(pixelSize,bold) {
+        lyricFontMetrics.font.pixelSize=pixelSize;
+        lyricFontMetrics.font.bold=bold;
+        return lyricFontMetrics.height;
+    }
+    /* 可断行位置: 空白与中日韩字符(含全角标点)之后都可以断, 与 Text 的换行口径对齐 */
+    function isWrapPoint(ch) {
+        var c=String(ch).charCodeAt(0);
+        if(c===0x20 || c===0x09) {
+            return true;
         }
-        var plain=String(one["text"]);
-        if(root.enhancedOn!==true || index!==root.currentLine || root.currentWord<0) {
-            return ({"text":plain, "styled":false});
+        return (c>=0x2E80 && c<=0x9FFF)||(c>=0xF900 && c<=0xFAFF)
+               ||(c>=0x3000 && c<=0x303F)||(c>=0xFF00 && c<=0xFFEF);
+    }
+    /* 当前行的可视行切分: 按列宽贪心断行, 返回每行在整行文本里的起止下标与宽度,
+     * 以及逐字宽度与行高; 断行只在文本, 字号或列宽变化时重算 */
+    function sungLayoutOf(text,pixelSize,bold,columnWidth) {
+        var s=String(text);
+        var n=s.length;
+        var widths=[];
+        for(var i=0;i<n;i++) {
+            widths.push(root.measureTextWidth(s.charAt(i),pixelSize,bold));
+        }
+        var lines=[];
+        var from=0;
+        while(from<n) {
+            var sum=0;
+            var cur=from;
+            var brk=from;
+            while(cur<n) {
+                var cw=Number(widths[cur]);
+                if(sum+cw>Number(columnWidth) && cur>from) {
+                    break;
+                }
+                sum=sum+cw;
+                cur=cur+1;
+                if(root.isWrapPoint(s.charAt(cur-1))===true) {
+                    brk=cur;
+                }
+            }
+            var to=(brk>from && brk<cur? brk:cur);
+            var w=0;
+            for(var j=from;j<to;j++) {
+                w=w+Number(widths[j]);
+            }
+            lines.push({"from":from,"to":to,"w":w});
+            from=to;
+        }
+        if(lines.length<=0) {
+            lines.push({"from":0,"to":0,"w":0});
+        }
+        return ({"lines":lines,"widths":widths,"rowHeight":root.rowHeightOf(pixelSize,bold),
+                 "columnWidth":Number(columnWidth)});
+    }
+    /* 遮罩几何: top 是当前行之前的整块高度, width 是当前行已唱到的像素位置, row 是行高;
+     * 当前词落在哪一可视行由字符下标算出, 行内左偏移按居中排版补齐 */
+    function sungMaskOf(layout,one,textLineCount) {
+        var none={"ready":false,"top":0,"width":0,"row":0};
+        if(layout===null || layout===undefined || one===null || one===undefined) {
+            return none;
+        }
+        /* 自算断行与 Text 的行数对不上时不强行着色, 宁可这一行不上色也不要让边界落错行 */
+        if(textLineCount!==undefined && textLineCount>0
+           && layout["lines"].length!==textLineCount) {
+            if(root._maskFallbackLine!==root.currentLine) {
+                root._maskFallbackLine=root.currentLine;
+                Assist.dlog("界面","逐字进度: 自算断行与 Text 行数不一致, 第 ",
+                            root.currentLine," 行不上色");
+            }
+            return none;
         }
         var ws=one["words"];
-        if(ws===undefined || ws===null || ws.length<=0) {
-            return ({"text":plain, "styled":false});
+        if(ws===undefined || ws===null || ws.length<=0
+           || root.currentWord<0 || root.currentWord>=ws.length) {
+            return none;
         }
-        var res="";
-        for(var i=0;i<ws.length;i++) {
-            var seg=String(ws[i]["text"]);
-            if(i<root.currentWord) {
-                res=res+root.sungMarkup(seg);
-                continue;
+        var off=Number(one["headLength"]===undefined? 0:one["headLength"]);
+        var seg=String(ws[root.currentWord]["text"]);
+        for(var i=0;i<root.currentWord;i++) {
+            off=off+String(ws[i]["text"]).length;
+        }
+        var lines=layout["lines"];
+        var widths=layout["widths"];
+        var total=widths.length;
+        var k=-1;
+        for(var j=0;j<lines.length;j++) {
+            if(off>=lines[j]["from"] && off<lines[j]["to"]) {
+                k=j;
+                break;
             }
-            if(i>root.currentWord) {
-                res=res+root.escapeMarkup(seg);
-                continue;
+        }
+        if(k<0) {
+            /* 当前词正好落在换行处: 归到下一行的开头 */
+            for(var j2=0;j2<lines.length;j2++) {
+                if(lines[j2]["from"]===off) {
+                    k=j2;
+                    break;
+                }
             }
-            res=res+root.splitMarkup(seg,root.wordProgress);
         }
-        return ({"text":res, "styled":true});
-    }
-    /* 富文本转义: 只处理会破坏标签的三个字符 */
-    function escapeMarkup(text) {
-        return String(text).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    }
-    /* 已唱整段: 一律取高亮色, 唱完的词不再残留中间色 */
-    function sungMarkup(text) {
-        var t=root.escapeMarkup(text);
-        if(t==="") {
-            return t;
+        if(k<0) {
+            return none;
         }
-        return "<font color=\""+Assist.hexOf(Define.choseCyanColor)+"\">"+t+"</font>";
-    }
-    /* 正在唱的词: 按进度把字符切成已唱与未唱两段, 切点按字符数取整,
-     * 因此分界随进度连续前移, 两侧各只有一档颜色, 不做渐变 */
-    function splitMarkup(text,f) {
-        var src=String(text);
-        var total=0;
-        var p=0;
-        while(p<src.length) {
-            total=total+1;
-            p=p+((src.charCodeAt(p)>=0xD800 && src.charCodeAt(p)<=0xDBFF)? 2:1);
+        var line=lines[k];
+        var prefix=0;
+        for(var p=line["from"];p<off && p<total;p++) {
+            prefix=prefix+Number(widths[p]);
         }
-        if(total<=0) {
-            return "";
+        var segW=0;
+        var segEnd=Math.min(line["to"],off+seg.length);
+        for(var q=off;q<segEnd && q<total;q++) {
+            segW=segW+Number(widths[q]);
         }
-        var k=(f<0? 0:(f>1? 1:f));
-        var sung=Math.floor(total*k);
-        if(sung<=0) {
-            return root.escapeMarkup(src);
-        }
-        if(sung>=total) {
-            return root.sungMarkup(src);
-        }
-        var head="";
-        var tail="";
-        var n=0;
-        var i=0;
-        while(i<src.length) {
-            var step=((src.charCodeAt(i)>=0xD800 && src.charCodeAt(i)<=0xDBFF)? 2:1);
-            var piece=src.substring(i,i+step);
-            if(n<sung) {
-                head=head+piece;
-            } else {
-                tail=tail+piece;
-            }
-            n=n+1;
-            i=i+step;
-        }
-        return root.sungMarkup(head)+root.escapeMarkup(tail);
+        var column=Number(layout["columnWidth"]);
+        var lineLeft=Math.max(0,(column-Number(line["w"]))/2);
+        var f=(root.wordProgress<0? 0:(root.wordProgress>1? 1:root.wordProgress));
+        return ({"ready":true,
+                 "top":(k*Number(layout["rowHeight"])),
+                 "row":Number(layout["rowHeight"]),
+                 "width":Math.min(column,lineLeft+prefix+segW*f)});
     }
     /* 刷新平滑插值的锚点: 播放器每次上报位置时调用 */
     function rebaseAnim(sec) {
@@ -853,8 +971,8 @@ Rectangle {
         if(f>1) {
             f=1;
         }
-        /* 量化到 1/24, 避免每个节拍都产出新的富文本 */
-        return Math.round(f*24)/24;
+        /* 边界按像素定位, 不再量化到整字; 只留很小的量化, 避免亚像素抖动带来的重复刷新 */
+        return Math.round(f*96)/96;
     }
     /* 平滑节拍: 按真实时间外推播放位置, 再算出当前词的着色比例 */
     function tickWordProgress() {
@@ -998,25 +1116,30 @@ Rectangle {
         root._anchorContentY=lyricView.contentY;
         return true;
     }
-    /* 当前行是否已经落在锚定线上: 按锚定偏移与当前偏移的差判断, 与基准高度的口径一致 */
-    function isAnchoredAtCurrent() {
-        if(root.currentLine<0) {
-            return false;
-        }
-        return (Math.abs(lyricView.contentY-root._anchorContentY)<=Math.max(6,root.seekBandHalf));
-    }
-    /* 当前行是否仍在基准高度范围内: 用锚定偏移与当前偏移的差判断,
-     * 不依赖当前行是否还在实例化的委托里, 滚得再远也判得准 */
+    /* 当前行是否正好嵌在基准高度范围内: 锚定偏移与当前偏移之差不超过容错才算,
+     * 不是有重叠就算; 不依赖当前行是否还在实例化的委托里, 滚得再远也判得准 */
     function currentLineInBand() {
         if(root.currentLine<0) {
             return true;
         }
-        return (Math.abs(lyricView.contentY-root._anchorContentY)<=root.seekBandHalf);
+        return (Math.abs(lyricView.contentY-root._anchorContentY)<=root.anchorBandTol);
     }
-    /* 基准高度对准的歌词行: 按内容坐标顺序走过已实例化的委托, 第一个盖住基准线的行即结果 */
+    /* 当前行是否已经落在锚定线上: 与基准高度的判定同一口径 */
+    function isAnchoredAtCurrent() {
+        if(root.currentLine<0) {
+            return false;
+        }
+        return root.currentLineInBand();
+    }
+    /* 基准高度对准的歌词行: 优先取完全落在基准范围内的那一行(容许十分之一行高的误差),
+     * 没有行正好嵌进去时退回取盖住基准线的行, 再没有就取第一行可见行 */
     function anchorLineIndex() {
-        var target=lyricView.contentY+lyricView.height*root.anchorRatio;
+        var anchorY=lyricView.height*root.anchorRatio;
+        var bandH=root.anchorBandHeight;
+        var tol=root.anchorBandTol;
+        var target=lyricView.contentY+anchorY;
         var first=-1;
+        var covering=-1;
         for(var i=0;i<lyricLines.length;i++) {
             var it=lyricView.itemAtIndex(i);
             if(it===null || it===undefined) {
@@ -1028,9 +1151,17 @@ Rectangle {
             if(first<0) {
                 first=i;
             }
-            if(target<=it.y+it.height) {
+            var top=it.y-lyricView.contentY;
+            var h=(it.height>0? it.height:bandH);
+            if(top>=anchorY-tol && (top+h)<=(anchorY+bandH+tol)) {
                 return i;
             }
+            if(covering<0 && target<=it.y+it.height) {
+                covering=i;
+            }
+        }
+        if(covering>=0) {
+            return covering;
         }
         return first;
     }
