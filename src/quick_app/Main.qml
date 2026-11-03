@@ -23,6 +23,9 @@ ApplicationWindow {
     /* 画中画窗口的开关状态: 由窗口持有, 顶栏与歌词页两处操控栏副本共用同一个值, 保持状态链可被各处引用;
      * 画中画窗口本身尚未实现, 当前只用于副本之间的状态同步 */
     property bool flowCardShowed: false;
+    /* 由窗口操控栏自己按下的最小化: 置位后最小化保持到任务栏,
+     * 未置位时的最小化由可见性钩子改判为收起到托盘 */
+    property bool selfMinimized: false;
     /* 音频输出的音量百分比: 由播放栏的音量滑块实时驱动, 音频输出绑定它 */
     property real outputVolume: (GlobalFileStorage.playState.volume===undefined? 100:GlobalFileStorage.playState.volume);
 
@@ -831,17 +834,43 @@ ApplicationWindow {
            }
            MenuSeparator {}
        }
-       onActivated: (reason)=> {
-           if (reason === SystemTrayIcon.Trigger) {
-               if(window.visible === false) {
-                   window.show()
-                   window.raise()
-                   window.requestActivate()
-               } else {
-                   window.hide();
-               }
-           }
-       }
+        /* 左键单击切换收起与展开: 收起是隐藏到托盘, 展开时恢复上次的显示状态 */
+        onActivated: (reason)=> {
+            if(reason===SystemTrayIcon.Trigger || reason===SystemTrayIcon.DoubleClick
+               || reason===SystemTrayIcon.MiddleClick) {
+                window.toggleShown();
+            }
+        }
+    }
+    /* 收起与展开的唯一开关: 托盘图标与任务栏按钮都走这一条路径 */
+    function toggleShown() {
+        /* 展开前先清掉自己的最小化标记, 避免上一次标记残留影响下一次判断 */
+        selfMinimized=false;
+        if(window.visible===true && window.visibility!==Window.Minimized) {
+            window.hide();
+            return;
+        }
+        if(window.visibility===Window.Maximized) {
+            window.showMaximized();
+        } else if(window.visibility===Window.Minimized) {
+            window.showNormal();
+        } else {
+            window.show();
+        }
+        window.raise();
+        window.requestActivate();
+    }
+    /* 任务栏按钮在窗口已展开时按下会先最小化: 借这一步把窗口收起到托盘,
+     * 使任务栏按钮与托盘图标都成为收起与展开的开关;
+     * 操控栏自己按下的最小化会先把 selfMinimized 置位, 那种情况保持最小化到任务栏 */
+    onVisibilityChanged: {
+        if(visibility===Window.Minimized) {
+            if(selfMinimized===true) {
+                selfMinimized=false;
+            } else {
+                Qt.callLater(function() { window.hide(); });
+            }
+        }
     }
     onClosing: (close)=> {
         if (stIcon.visible) {

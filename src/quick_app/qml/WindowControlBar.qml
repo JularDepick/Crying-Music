@@ -45,6 +45,8 @@ Row {
         icon.source: "qrc:/assets/iconfont/topnavbar/minimized.svg";
         onClicked: {
             if(root.theWindow!==null) {
+                /* 先置位再最小化: 主界面的可见性钩子据此保持最小化到任务栏, 不把它收进托盘 */
+                root.theWindow.selfMinimized=true;
                 root.theWindow.showMinimized();
             }
         }

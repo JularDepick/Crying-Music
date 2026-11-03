@@ -23,9 +23,10 @@ Rectangle {
     property int currentWord: -1;
     /* 歌词增强开关: 关闭时用普通歌词且不做逐字着色, 开启时才按增强歌词显示逐字进度 */
     readonly property bool enhancedOn: GlobalFileStorage.lyricsEnhanced();
-    /* 当前词的着色进度 0 到 1: 在两次播放位置上报之间按真实时间插值, 逐字着色因此是渐变而不是硬切 */
+    /* 当前词的着色进度 0 到 1: 在两次播放位置上报之间按真实时间外推, 只用来决定字符级分界落在哪,
+     * 颜色本身不插值, 已唱与未唱各是一档纯色 */
     property real wordProgress: 0;
-    /* 用户手动把歌词滚离当前行: 为真时播放换行不强制锚定, 由复位计时器在 5 秒后拉回 */
+    /* 用户手动把歌词滚离当前行: 为真时播放换行不强制锚定, 由复位计时器在 3 秒后拉回 */
     property bool userScrolled: false;
     /* 平滑插值的锚点: 播放器每次上报位置时刷新, 节拍按真实时间外推 */
     property real _animSec: 0;
@@ -117,7 +118,9 @@ Rectangle {
             source: root.coverSource;
         }
     }
-    /* 歌词显示区: 封面右侧, 顶部操控栏与底部播放条之间 */
+    /* 歌词显示区: 封面右侧, 顶部操控栏与底部播放条之间;
+     * 列宽由参考图的 24.8% 增至 31%(1.25 倍), 左右一起外扩,
+     * 水平中轴线仍在窗口宽的 70% 处 */
     Item {
         id: lyricArea;
         anchors {top:parent.top; bottom:playerBarSubone.top;}
@@ -125,8 +128,8 @@ Rectangle {
         anchors.bottomMargin: 20;
         anchors.left: parent.left;
         anchors.right: parent.right;
-        anchors.leftMargin: root.width*0.576;
-        anchors.rightMargin: root.width*0.176;
+        anchors.leftMargin: root.width*0.545;
+        anchors.rightMargin: root.width*0.145;
     }
     ListView {
         id: lyricView;
@@ -144,7 +147,7 @@ Rectangle {
             width: lyricView.width;
             height: lyricView.height*(1-root.anchorRatio);
         }
-        /* 视口尺寸变化后重新锚定一次; 用户拖动时不打断, 滚离当前行则 5 秒后拉回 */
+        /* 视口尺寸变化后重新锚定一次; 用户拖动时不打断, 滚离当前行则 3 秒后拉回 */
         onHeightChanged: Qt.callLater(root.anchorToCurrentLine);
         onMovementStarted: {
             root.userScrolled=true;
@@ -546,7 +549,13 @@ Rectangle {
         }
         /* 偏移量正值让歌词提前: 用播放位置加偏移去匹配时间戳; 位置取小数秒, 逐字进度才有足够精度 */
         var sec=thePlayerBar.positionSec+lyricsOffsetMs/1000;
-        currentLine=lineIndexAt(sec);
+        var idx=lineIndexAt(sec);
+        /* 边界: 播放位置还没到第一行的时间戳时, 先把第一行当作当前行锚定住;
+         * 最后一行播完之后固定停在最后一个有时间戳的行, 歌词侧不再换行, 也不干预播放 */
+        if(idx<0 && Number(lyricLines[0]["t"])>=0) {
+            idx=0;
+        }
+        currentLine=idx;
         currentWord=(currentLine<0? -1:wordIndexAt(lyricLines[currentLine],sec));
         root.rebaseAnim(sec);
         root.wordProgress=root.wordProgressAt(sec);
@@ -633,7 +642,8 @@ Rectangle {
     }
     /* 行渲染: 一次算出这一行要显示的文本与是否按富文本渲染, 供委托同时取用;
      * 只有增强开启, 当前行且已经唱到某个词时才拼富文本;
-     * 当前词按 wordProgress 在底色调与高亮色之间插值, 逐字进度因此是渐变而不是硬切 */
+     * 着色不做渐变: 已唱的词整段取高亮色, 正在唱的词按进度切成已唱与未唱两段,
+     * 切点随进度连续前移, 两段各只有一档颜色 */
     function renderOf(index) {
         var one=(index>=0 && index<lyricLines.length? lyricLines[index]:null);
         if(one===null || one===undefined) {
@@ -649,23 +659,68 @@ Rectangle {
         }
         var res="";
         for(var i=0;i<ws.length;i++) {
-            var t=String(ws[i]["text"]).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-            var f=(i<root.currentWord? 1:(i>root.currentWord? 0:root.wordProgress));
-            if(f<=0) {
-                res=res+t;
+            var seg=String(ws[i]["text"]);
+            if(i<root.currentWord) {
+                res=res+root.sungMarkup(seg);
                 continue;
             }
-            res=res+"<font color=\""+root.blendHex(Define.btnIconColor,Define.choseCyanColor,f)+"\">"+t+"</font>";
+            if(i>root.currentWord) {
+                res=res+root.escapeMarkup(seg);
+                continue;
+            }
+            res=res+root.splitMarkup(seg,root.wordProgress);
         }
         return ({"text":res, "styled":true});
     }
-    /* 两个颜色之间按比例插值, 结果是 #rrggbb 文本, 供富文本着色使用 */
-    function blendHex(fromColor,toColor,f) {
+    /* 富文本转义: 只处理会破坏标签的三个字符 */
+    function escapeMarkup(text) {
+        return String(text).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+    /* 已唱整段: 一律取高亮色, 唱完的词不再残留中间色 */
+    function sungMarkup(text) {
+        var t=root.escapeMarkup(text);
+        if(t==="") {
+            return t;
+        }
+        return "<font color=\""+Assist.hexOf(Define.choseCyanColor)+"\">"+t+"</font>";
+    }
+    /* 正在唱的词: 按进度把字符切成已唱与未唱两段, 切点按字符数取整,
+     * 因此分界随进度连续前移, 两侧各只有一档颜色, 不做渐变 */
+    function splitMarkup(text,f) {
+        var src=String(text);
+        var total=0;
+        var p=0;
+        while(p<src.length) {
+            total=total+1;
+            p=p+((src.charCodeAt(p)>=0xD800 && src.charCodeAt(p)<=0xDBFF)? 2:1);
+        }
+        if(total<=0) {
+            return "";
+        }
         var k=(f<0? 0:(f>1? 1:f));
-        var r=fromColor.r+(toColor.r-fromColor.r)*k;
-        var g=fromColor.g+(toColor.g-fromColor.g)*k;
-        var b=fromColor.b+(toColor.b-fromColor.b)*k;
-        return Assist.hexOf(Qt.rgba(r,g,b,1.0));
+        var sung=Math.floor(total*k);
+        if(sung<=0) {
+            return root.escapeMarkup(src);
+        }
+        if(sung>=total) {
+            return root.sungMarkup(src);
+        }
+        var head="";
+        var tail="";
+        var n=0;
+        var i=0;
+        while(i<src.length) {
+            var step=((src.charCodeAt(i)>=0xD800 && src.charCodeAt(i)<=0xDBFF)? 2:1);
+            var piece=src.substring(i,i+step);
+            if(n<sung) {
+                head=head+piece;
+            } else {
+                tail=tail+piece;
+            }
+            n=n+1;
+            i=i+step;
+        }
+        return root.sungMarkup(head)+root.escapeMarkup(tail);
     }
     /* 刷新平滑插值的锚点: 播放器每次上报位置时调用 */
     function rebaseAnim(sec) {
@@ -835,10 +890,10 @@ Rectangle {
             root.tickWordProgress();
         }
     }
-    /* 用户把歌词滚离当前行后的复位计时: 5 秒内没有再滚动就拉回当前行 */
+    /* 用户把歌词滚离当前行后的复位计时: 3 秒内没有再滚动就拉回当前行 */
     Timer {
         id: reanchorTimer;
-        interval: 5000;
+        interval: 3000;
         repeat: false;
         onTriggered: {
             root.userScrolled=false;
