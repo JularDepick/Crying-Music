@@ -53,11 +53,10 @@ MainAreaFatherPage {
         {"label":"不下载","value":Define.playStrategyNoDownload},
         {"label":"边播放边下载","value":Define.playStrategyDownloadWhilePlaying}
     ];
-    /* 下载文件命名候选: 值就是落盘的命名模板 */
+    /* 下载文件命名候选: 值就是落盘的命名模板; 换挡只影响之后下载的文件, 已有的文件不改名 */
     property var nameOptions: [
         {"label":"歌名-歌手","value":Define.downloadNameTemplates[0]},
-        {"label":"歌手-歌名","value":Define.downloadNameTemplates[1]},
-        {"label":"歌名","value":Define.downloadNameTemplates[2]}
+        {"label":"歌手-歌名","value":Define.downloadNameTemplates[1]}
     ];
     /* 切换分类: 同时把滚动位置复位, 新的一页从顶部开始 */
     function setTab(id) {
@@ -131,58 +130,57 @@ MainAreaFatherPage {
         mainArea_SettingsPage.dirTip=(ok===true? "已恢复默认下载目录":"恢复失败, 请查看控制台日志");
         Assist.dlog("界面","恢复默认下载目录: ",ok);
     }
-    /* 页头: 标题与分类 tab, 固定不随正文滚动 */
+    /* 页头: 标题与分类 tab, 固定不随正文滚动; 内边距与子 tab 沿用兄弟页面的列表页写法 */
     Column {
         id: pageHeader;
         anchors {left:parent.left; right:parent.right; top:parent.top;}
-        anchors.leftMargin: 40;
-        anchors.rightMargin: 40;
-        topPadding: 32;
-        spacing: 14;
+        leftPadding: 40;
+        rightPadding: 40;
+        bottomPadding: 10;
         Text {
             color: Define.textColor;
             text: "设置";
             font.pixelSize: 32;
             font.weight: 700;
         }
-        Rectangle {
-            width: parent.width;
-            height: 1;
-            color: Define.subGrey;
-        }
         Row {
             id: tabBar;
-            spacing: 26;
+            topPadding: 5;
+            spacing: 0;
             Repeater {
                 id: tabRepeater;
                 model: mainArea_SettingsPage.tabOptions;
-                delegate: Item {
-                    width: tabLabel.implicitWidth;
-                    height: 28;
-                    Text {
-                        id: tabLabel;
-                        anchors.verticalCenter: parent.verticalCenter;
-                        text: (modelData===undefined || modelData===null? "":String(modelData["label"]));
-                        font.pixelSize: 15;
-                        font.weight: (mainArea_SettingsPage.tabId===modelData["id"]? 600:400);
-                        color: (mainArea_SettingsPage.tabId===modelData["id"]? Define.choseCyanColor
-                                :(tabHover.hovered? Define.btnHoverColor:"black"));
+                delegate: CustomButtonA {
+                    height: 24;
+                    width: 96;
+                    transEnabled: false;
+                    property bool selected: (mainArea_SettingsPage.tabId===modelData["id"]);
+                    onClicked: {
+                        mainArea_SettingsPage.setTab(modelData["id"]);
+                    }
+                    background: Rectangle {
+                        anchors.fill: parent;
+                        color: Define.nocolor;
+                        property bool selected: parent.selected;
+                        Text {
+                            anchors.centerIn: parent;
+                            text: (modelData===undefined || modelData===null? "":String(modelData["label"]));
+                            font.pixelSize: 14;
+                            color: (parent.selected||parent.parent.hovered? Define.choseCyanColor:"black");
+                            transform: Translate {
+                                x: (parent.pressed? 2:0);
+                                y: (parent.pressed? 2:0);
+                            }
+                        }
                     }
                     Rectangle {
-                        anchors {left:parent.left; right:parent.right; bottom:parent.bottom;}
+                        anchors.top: parent.bottom;
+                        anchors.topMargin: 5;
+                        anchors.horizontalCenter: parent.horizontalCenter;
                         height: 2;
+                        width: 25;
                         radius: 1;
-                        color: Define.choseCyanColor;
-                        visible: (mainArea_SettingsPage.tabId===modelData["id"]);
-                    }
-                    HoverHandler {
-                        id: tabHover;
-                        cursorShape: Qt.PointingHandCursor;
-                    }
-                    TapHandler {
-                        onSingleTapped: {
-                            mainArea_SettingsPage.setTab(modelData["id"]);
-                        }
+                        color: (parent.selected? Define.choseCyanColor:Define.nocolor);
                     }
                 }
             }
@@ -192,9 +190,13 @@ MainAreaFatherPage {
     Flickable {
         id: settingsFlick;
         anchors {left:parent.left; right:parent.right; top:pageHeader.bottom; bottom:parent.bottom;}
-        anchors.topMargin: 16;
+        anchors.topMargin: 5;
         clip: true;
         boundsBehavior: Flickable.StopAtBounds;
+        DragHandler {
+            acceptedDevices: PointerDevice.Mouse;
+            target: null;
+        }
         contentWidth: width;
         contentHeight: ((mainArea_SettingsPage.tabId==="play"? playTab.height:cacheTab.height)+48);
         /* 播放与下载 */
@@ -202,14 +204,14 @@ MainAreaFatherPage {
             id: playTab;
             visible: (mainArea_SettingsPage.tabId==="play");
             x: 40;
-            width: settingsFlick.width-88;
-            spacing: 14;
+            width: settingsFlick.width-80;
+            spacing: 10;
             /* 在线播放策略 */
             Text {
                 color: Define.textColor;
                 text: "在线播放策略";
                 font.pixelSize: 15;
-                font.weight: 500;
+                font.weight: 400;
             }
             CustomChoose {
                 id: playChoose;
@@ -222,7 +224,8 @@ MainAreaFatherPage {
             }
             Rectangle {
                 width: parent.width;
-                height: 1;
+                height: 2;
+                radius: 1;
                 color: Define.subGrey;
             }
             /* 下载文件命名 */
@@ -230,7 +233,7 @@ MainAreaFatherPage {
                 color: Define.textColor;
                 text: "下载文件命名";
                 font.pixelSize: 15;
-                font.weight: 500;
+                font.weight: 400;
             }
             CustomChoose {
                 id: nameChoose;
@@ -243,7 +246,8 @@ MainAreaFatherPage {
             }
             Rectangle {
                 width: parent.width;
-                height: 1;
+                height: 2;
+                radius: 1;
                 color: Define.subGrey;
             }
             /* 下载目录 */
@@ -251,7 +255,7 @@ MainAreaFatherPage {
                 color: Define.textColor;
                 text: "下载目录";
                 font.pixelSize: 15;
-                font.weight: 500;
+                font.weight: 400;
             }
             /* 下载目录: 路径单行显示并限制在可用宽度内, 超出即截断, 悬停用提示展示完整路径 */
             Row {
@@ -299,7 +303,6 @@ MainAreaFatherPage {
                             color: Define.textColor;
                             anchors.centerIn: parent;
                             text: "选择目录";
-                            font.pixelSize: 13;
                         }
                     }
                     onClicked: {
@@ -308,20 +311,20 @@ MainAreaFatherPage {
                 }
                 CustomButtonA {
                     id: resetDirBtn;
-                    width: 90;
+                    width: 100;
                     height: 30;
                     transEnabled: false;
                     enabled: mainArea_SettingsPage.downloadsDirIsCustom();
+                    /* 禁用时整体降透明, 底色与字色不另换一套, 与兄弟页面的按钮一致 */
+                    opacity: (enabled? 1:0.5);
                     background: Rectangle {
                         anchors.fill: parent;
                         radius: 15;
-                        color: (!resetDirBtn.enabled? Define.nocolor
-                                :(parent.hovered? Define.choseDarkColor:Define.hoverDarkColor));
+                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
                         Text {
                             anchors.centerIn: parent;
                             text: "恢复默认";
-                            font.pixelSize: 13;
-                            color: (resetDirBtn.enabled? "black":Define.forbdDarkColor);
+                            color: Define.textColor;
                         }
                     }
                     onClicked: {
@@ -341,14 +344,14 @@ MainAreaFatherPage {
             id: cacheTab;
             visible: (mainArea_SettingsPage.tabId==="cache");
             x: 40;
-            width: settingsFlick.width-88;
-            spacing: 14;
+            width: settingsFlick.width-80;
+            spacing: 10;
             /* 封面缓存 */
             Text {
                 color: Define.textColor;
                 text: "封面缓存";
                 font.pixelSize: 15;
-                font.weight: 500;
+                font.weight: 400;
             }
             CustomChoose {
                 id: ttlChoose;
@@ -374,7 +377,6 @@ MainAreaFatherPage {
                             color: Define.textColor;
                             anchors.centerIn: parent;
                             text: "立即清理";
-                            font.pixelSize: 13;
                         }
                     }
                     onClicked: {
@@ -396,7 +398,8 @@ MainAreaFatherPage {
             }
             Rectangle {
                 width: parent.width;
-                height: 1;
+                height: 2;
+                radius: 1;
                 color: Define.subGrey;
             }
             /* 音频缓存: 播放时后台落盘, 超出上限按最近使用时间淘汰 */
@@ -404,7 +407,7 @@ MainAreaFatherPage {
                 color: Define.textColor;
                 text: "音频缓存上限";
                 font.pixelSize: 15;
-                font.weight: 500;
+                font.weight: 400;
             }
             CustomChoose {
                 id: audioCapChoose;
@@ -430,7 +433,6 @@ MainAreaFatherPage {
                             color: Define.textColor;
                             anchors.centerIn: parent;
                             text: "立即清理";
-                            font.pixelSize: 13;
                         }
                     }
                     onClicked: {
@@ -446,7 +448,8 @@ MainAreaFatherPage {
             }
             Rectangle {
                 width: parent.width;
-                height: 1;
+                height: 2;
+                radius: 1;
                 color: Define.subGrey;
             }
             /* 歌词增强 */
@@ -454,7 +457,7 @@ MainAreaFatherPage {
                 color: Define.textColor;
                 text: "歌词增强";
                 font.pixelSize: 15;
-                font.weight: 500;
+                font.weight: 400;
             }
             CustomSwitch {
                 id: lyricsEnhancedSwitch;

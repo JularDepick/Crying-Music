@@ -22,43 +22,55 @@ MainAreaFatherPage {
         Assist.dlog("界面","切换预设主题: ",id,", 落盘结果 ",saved);
         return (saved===true);
     }
+    /* 页头: 标题与说明, 内边距沿用兄弟页面的页头写法; 说明随页头固定, 不跟随卡片滚动 */
     Column {
+        id: themeHeader;
         anchors {left:parent.left; right:parent.right; top:parent.top;}
-        anchors.leftMargin: 40;
-        anchors.rightMargin: 40;
-        topPadding: 40;
-        spacing: 14;
+        leftPadding: 40;
+        rightPadding: 40;
+        bottomPadding: 10;
+        spacing: 10;
         Text {
             color: Define.textColor;
             text: "主题";
             font.pixelSize: 32;
             font.weight: 700;
         }
-        Rectangle {
-            width: parent.width;
-            height: 1;
-            color: Define.subGrey;
-        }
         Text {
             text: "选择一套预设配色, 立即生效并记为界面偏好; 应用启动时按该偏好恢复配色";
             font.pixelSize: 13;
             color: Define.btnIconColor;
             wrapMode: Text.WordWrap;
-            width: parent.width;
+            width: parent.width-parent.leftPadding-parent.rightPadding;
         }
+    }
+    /* 预设卡片: 与首页推荐的滚动做法一致, 右侧细滚动条与滚轮承接, 底部留出滚动余量 */
+    Flickable {
+        id: themeFlick;
+        anchors {left:parent.left; right:parent.right; top:themeHeader.bottom; bottom:parent.bottom;}
+        anchors.topMargin: 5;
+        clip: true;
+        boundsBehavior: Flickable.StopAtBounds;
+        DragHandler {
+            acceptedDevices: PointerDevice.Mouse;
+            target: null;
+        }
+        contentWidth: width;
+        contentHeight: (themeFlow.height+56);
         Flow {
             id: themeFlow;
-            width: parent.width;
-            spacing: 16;
+            x: 40;
+            width: themeFlick.width-80;
+            spacing: Define.themeCardSpacing;
             Repeater {
                 model: Theme.presets;
                 delegate: Rectangle {
                     id: themeCard;
                     property var preset: modelData;
                     property bool isCurrent: (mainArea_ThemePage.currentId===String(preset["id"]));
-                    width: 220;
-                    height: 104;
-                    radius: 12;
+                    width: Define.themeCardWidth;
+                    height: Define.themeCardHeight;
+                    radius: 10;
                     color: String(preset["colors"]["mainAreaColor"]);
                     border.width: (isCurrent? 2:1);
                     border.color: (isCurrent? Define.choseCyanColor:String(preset["colors"]["subGrey"]));
@@ -127,12 +139,28 @@ MainAreaFatherPage {
                                 text: (themeCard.isCurrent? "使用中":"点击切换");
                                 font.pixelSize: 12;
                                 color: (themeCard.isCurrent? Define.choseCyanColor
-                                                            :String(themeCard.preset["colors"]["forbdDarkColor"]));
+                                                            :(cardMouse.containsMouse? Define.choseCyanColor:Define.btnIconColor));
                             }
                         }
                     }
                 }
             }
+        }
+    }
+    /* 卡片滚动条: 与列表页共用同一个组件, 轨道与视口等高以保证滑块比例正确 */
+    CustomSliderC {
+        id: themeScrollBar;
+        anchors {top:themeFlick.top; bottom:themeFlick.bottom; right:parent.right;}
+        width: 4;
+        visible: (themeFlick.contentHeight>themeFlick.height);
+        handleRatio: Math.max(0.1,themeFlick.height/themeFlick.contentHeight);
+        hoverHandlerEnabled: false;
+        value: from*(themeFlick.contentY/Math.max(1,themeFlick.contentHeight-themeFlick.height));
+        onMoved: {
+            themeFlick.contentY=(value/from)*Math.max(0,themeFlick.contentHeight-themeFlick.height);
+            value=Qt.binding(function() {
+                return from*(themeFlick.contentY/Math.max(1,themeFlick.contentHeight-themeFlick.height));
+            });
         }
     }
 }

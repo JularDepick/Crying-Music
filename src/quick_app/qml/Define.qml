@@ -49,13 +49,20 @@ Item {
     /* 首页推荐卡片: 封面边长(卡片宽度同此值)与卡片间距 */
     property int homeCardWidth: 150;
     property int homeCardSpacing: 18;
+    /* 歌曲列表功能行按钮内的图标边长: 批量按钮与它呼起的批量动作按钮共用同一个值 */
+    property int batchIconSize: 15;
+    /* 主题页预设卡片: 宽高与卡片间距, 与首页推荐卡片同一套做法 */
+    property int themeCardWidth: 220;
+    property int themeCardHeight: 104;
+    property int themeCardSpacing: 18;
     /* 设置页下载目录路径的最大显示宽度: 超出即截断, 悬停给出完整路径 */
     property int settingsPathMaxWidth: 360;
     /* 在线音乐的下载文件命名模板: {songname} 与 {singer} 为占位符,
-     * 默认取"歌曲名-歌手", 可在设置页修改, 修改结果落盘为界面偏好 */
+     * 默认取"歌曲名-歌手", 可在设置页修改, 修改结果落盘为界面偏好;
+     * 模板只在新建下载文件时用到, 换挡不会给已经下载好的文件改名 */
     property string downloadNameTemplate: "{songname}-{singer}";
-    /* 下载文件命名的三个换挡: 值就是命名模板, 顺序即界面上的顺序 */
-    property var downloadNameTemplates: ["{songname}-{singer}","{singer}-{songname}","{songname}"];
+    /* 下载文件命名的两个换挡: 值就是命名模板, 顺序即界面上的顺序 */
+    property var downloadNameTemplates: ["{songname}-{singer}","{singer}-{songname}"];
     /* 在线播放策略的两个取值: 不下载(纯流式) 与 边播放边下载 */
     property string playStrategyNoDownload: "nodownload";
     property string playStrategyDownloadWhilePlaying: "downloadwhileplaying";
