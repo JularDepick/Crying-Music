@@ -153,8 +153,9 @@ MainAreaFatherPage {
                             }
                             background: Item {
                                 anchors.fill: parent;
-                                Image {
+                                CoverImage {
                                     id: songAvatarImage;
+                                    cornerRadius: 10;
                                     anchors.fill: parent;
                                     /* 封面: 本地路径优先, 在线条目取在线封面缓存, 都没有时回退应用图标 */
                                     property string coverKey: (modelData["cover"]===undefined? "":modelData["cover"]);
@@ -162,24 +163,6 @@ MainAreaFatherPage {
                                         Server.requestCover(coverKey);
                                     }
                                     source: mainArea_ResultPage.coverOf(modelData);
-                                    fillMode: Image.PreserveAspectCrop;
-                                    layer.enabled: true;
-                                    layer.effect: MultiEffect {
-                                        maskEnabled: true;
-                                        maskSource: songAvatarMasker;
-                                    }
-                                    Item {
-                                        id: songAvatarMasker;
-                                        anchors.fill: parent;
-                                        visible: false;
-                                        layer.enabled: true;
-                                        Rectangle {
-                                            anchors.fill: parent;
-                                            radius: 10;
-                                            border.color: Define.subGrey;
-                                            border.width: 1;
-                                        }
-                                    }
                                 }
                                 Rectangle {
                                     anchors.fill: parent;

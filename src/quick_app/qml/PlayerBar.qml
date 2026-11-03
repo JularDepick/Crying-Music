@@ -121,8 +121,10 @@ Rectangle {
             anchors.margins: 12.5;
             width: height;
             radius: 5;
-            Image {
+            CoverImage {
                 id: lyricsOpenerImage;
+                cornerRadius: 5;
+                outlineWidth: 0;
                 anchors.fill: parent;
                 /* 封面跟随当前播放项: 优先条目自带的封面路径, 其次按封面名取在线封面缓存,
                  * 都没有时回退应用图标; 本地条目与未播放时都走回退 */
@@ -139,7 +141,6 @@ Rectangle {
                     }
                 }
                 source: coverSource;
-                fillMode: Image.PreserveAspectCrop;
             }
             CustomButtonA {
                 id: lyricsOpenerBtn;

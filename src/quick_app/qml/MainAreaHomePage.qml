@@ -169,8 +169,10 @@ MainAreaFatherPage {
                         radius: 10;
                         clip: true;
                         color: Define.hoverDarkColor;
-                        Image {
+                        CoverImage {
                             id: coverImage;
+                            cornerRadius: 10;
+                            outlineWidth: 0;
                             anchors.fill: parent;
                             /* 封面取在线封面缓存, 未命中或拉取失败时回退应用图标;
                              * 封面在卡片可见时按需请求, 避免整页一次性发起下载 */
@@ -179,7 +181,6 @@ MainAreaFatherPage {
                                 Server.requestCover(coverKey);
                             }
                             source: mainArea_HomePage.coverPathOf(modelData);
-                            fillMode: Image.PreserveAspectCrop;
                         }
                         /* 悬停暗层: 让浮出的播放按钮在任何封面上都清晰 */
                         Rectangle {
