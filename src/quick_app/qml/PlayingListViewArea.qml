@@ -124,9 +124,12 @@ Rectangle {
                     radius: 10;
                     property bool selectedRow: (playingListView.selectedWhich===modelData["absfpath"]);
                     property bool playingRow: (root.playingKey===modelData["absfpath"]);
-                    /* 悬停高亮: 除整行区域外还要或上内部各组件自己的悬停态,
-                     * 因为子组件会接收悬停事件, 此时整行区域的 containsMouse 会变成 false */
-                    property bool hoveredRow: (playingBoxClick.containsMouse||playingAvatarBtn.hovered||playingRemoveBtn.hovered||playingSongnameHh.hovered||playingSingerHh.hovered);
+                    /* 悬停高亮: 由挂在行容器上的 HoverHandler 判定, 它覆盖整行,
+                     * 子组件接收悬停时同样算在行内 */
+                    property bool hoveredRow: rowHover.hovered;
+                    HoverHandler {
+                        id: rowHover;
+                    }
                     /* 选中的行用深灰背景; 正在播放的行不用背景色区分, 只用下面那行青色文字标识, 两者可以同时成立 */
                     color: (selectedRow? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
                     MouseArea {
@@ -157,12 +160,32 @@ Rectangle {
                             width: height;
                             transEnabled: false;
                             hoverHandlerEnabled: false;
-                            icon.source: (playingBoxClick.containsMouse||hovered? "qrc:/assets/iconfont/playerbar/play.svg":"");
+                            /* 图标: 正在播放的行不悬停时显示播放中的状态图标, 悬停时按播放状态显示暂停或播放;
+                             * 其它行只在悬停时显示播放图标 */
+                            icon.source: {
+                                if(playingBox.hoveredRow!==true) {
+                                    return (playingBox.playingRow===true? "qrc:/assets/iconfont/listview/playingstatus.svg":"");
+                                }
+                                if(playingBox.playingRow===true) {
+                                    return ((root.thePlayer!==null && root.thePlayer.playing===true)
+                                            ? "qrc:/assets/iconfont/playerbar/pause.svg"
+                                            : "qrc:/assets/iconfont/playerbar/play.svg");
+                                }
+                                return "qrc:/assets/iconfont/playerbar/play.svg";
+                            }
                             icon.color: (hovered? Define.btnHoverColor:Define.mainAreaColor);
                             icon.width: 17;
                             icon.height: 17;
                             onClicked: {
-                                if(root.thePlayer===null || root.playingKey===modelData["absfpath"]) {
+                                if(root.thePlayer===null) {
+                                    return;
+                                }
+                                if(playingBox.playingRow===true) {
+                                    if(root.thePlayer.playing===true) {
+                                        root.thePlayer.pause();
+                                    } else {
+                                        root.thePlayer.play();
+                                    }
                                     return;
                                 }
                                 root.thePlayer.playItem(modelData);
@@ -186,7 +209,7 @@ Rectangle {
                                 Rectangle {
                                     anchors.fill: parent;
                                     radius: 10;
-                                    color: (playingAvatarBtn.hovered||playingBoxClick.containsMouse? Qt.rgba(0,0,0,0.3):Define.nocolor);
+                                    color: ((playingBox.playingRow||playingBox.hoveredRow)? Qt.rgba(0,0,0,0.3):Define.nocolor);
                                 }
                             }
                         }

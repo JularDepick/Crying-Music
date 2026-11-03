@@ -111,7 +111,12 @@ MainAreaFatherPage {
                     property bool playingRow: (GlobalFileStorage.playState.playingWhich===modelData["absfpath"]);
                     /* 行内可用内容宽度: 与三列列宽比例相乘得到列宽 */
                     property real rowContentW: (mainListView.width-anchors.leftMargin-anchors.rightMargin);
-                    property bool hoveredRow: (boxClick.containsMouse||songAvatarBtn.hovered||songLikeBtn.hovered||songAddIntoBtn.hovered||songnameHh.hovered||singerHh.hovered);
+                    /* 悬停高亮: 由挂在行容器上的 HoverHandler 判定, 它覆盖整行,
+                     * 子组件接收悬停时同样算在行内 */
+                    property bool hoveredRow: rowHover.hovered;
+                    HoverHandler {
+                        id: rowHover;
+                    }
                     color: (selectedRow? Define.choseDarkColor:(hoveredRow? Define.hoverDarkColor:(index%2===1? Define.canvasColor:Define.mainAreaColor)));
                     MouseArea {
                         id: boxClick;
@@ -141,12 +146,29 @@ MainAreaFatherPage {
                             width: height;
                             transEnabled: false;
                             hoverHandlerEnabled: false;
-                            icon.source: (boxClick.containsMouse||hovered? "qrc:/assets/iconfont/playerbar/play.svg":"");
+                            /* 图标: 正在播放的行不悬停时显示播放中的状态图标, 悬停时按播放状态显示暂停或播放;
+                             * 其它行只在悬停时显示播放图标 */
+                            icon.source: {
+                                if(box.hoveredRow!==true) {
+                                    return (box.playingRow===true? "qrc:/assets/iconfont/listview/playingstatus.svg":"");
+                                }
+                                if(box.playingRow===true) {
+                                    return ((thePlayer!==null && thePlayer.playing===true)
+                                            ? "qrc:/assets/iconfont/playerbar/pause.svg"
+                                            : "qrc:/assets/iconfont/playerbar/play.svg");
+                                }
+                                return "qrc:/assets/iconfont/playerbar/play.svg";
+                            }
                             icon.color: (hovered? Define.btnHoverColor:Define.mainAreaColor);
                             icon.width: 17;
                             icon.height: 17;
                             onClicked: {
-                                if(GlobalFileStorage.playState.playingWhich===modelData["absfpath"]) {
+                                if(box.playingRow===true) {
+                                    if(thePlayer!==null && thePlayer.playing===true) {
+                                        thePlayer.pause();
+                                    } else if(thePlayer!==null) {
+                                        thePlayer.play();
+                                    }
                                     return;
                                 }
                                 mainArea_ResultPage.playRow(modelData);
@@ -167,7 +189,7 @@ MainAreaFatherPage {
                                 Rectangle {
                                     anchors.fill: parent;
                                     radius: 10;
-                                    color: ((songAvatarBtn.hovered||boxClick.containsMouse)? Qt.rgba(0,0,0,0.3):Define.nocolor);
+                                    color: ((box.playingRow||box.hoveredRow)? Qt.rgba(0,0,0,0.3):Define.nocolor);
                                 }
                             }
                         }
