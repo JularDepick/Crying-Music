@@ -111,7 +111,9 @@ ApplicationWindow {
             return "";
         }
         /* 下载目标路径: 按命名模板拼主文件名, 重名时追加序号;
-         * 扩展名沿用在线文件的扩展名, 保证音频格式不变 */
+         * 扩展名沿用在线文件的扩展名, 保证音频格式不变;
+         * 只对新建文件生效, 换挡不给已经下载好的文件改名, 记录按在线标识取路径, 因此文件名格式
+         * 不参与曲目映射, 链接, 分类与标记 */
         function downloadDstOf(one) {
             var dir=GlobalFileStorage.downloadsDir();
             if(dir==="") {

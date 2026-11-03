@@ -1032,15 +1032,19 @@ Item {
         }
         return storageDirPath+"/"+cacheDirName+"/"+onlineCacheDirName;
     }
-    /* 下载文件命名模板: 界面偏好未设置时取设计常量里的默认值 */
+    /* 下载文件命名模板: 只认设计常量里的候选模板, 未设置或已不再提供的旧模板(例如旧的只取歌名一档)
+     * 一律回到默认值; 读出来只用于新建下载文件, 已下载的文件名不会因此改变 */
     function downloadNameTemplate() {
         var t=uiState.downloadNameTemplate;
-        return (typeof t==="string" && t!==""? t:Define.downloadNameTemplate);
+        if(typeof t!=="string" || Define.downloadNameTemplates.indexOf(t)<0) {
+            return Define.downloadNameTemplate;
+        }
+        return t;
     }
-    /* 写入下载文件命名模板: 空值回到默认值 */
+    /* 写入下载文件命名模板: 空值或不在候选内的值回到默认值 */
     function setDownloadNameTemplate(t) {
         var v=(typeof t==="string"? t.trim():"");
-        if(v==="") {
+        if(Define.downloadNameTemplates.indexOf(v)<0) {
             v=Define.downloadNameTemplate;
         }
         Assist.dlog("落盘","写入下载命名模板: ",v);
