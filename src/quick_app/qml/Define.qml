@@ -86,15 +86,21 @@ Item {
     property int onlineRetryBaseMs: 60000;
     property int onlineRetryMaxMs: 300000;
     property int onlineRetryStepMs: 60000;
-    /* 歌词页字号: 默认值与调节步长, 当前行在字号基础上加一个固定差值 */
+    /* 歌词页字号: 默认值与调节步长, 全部歌词行同一字号 */
     property int lyricsFontSizeDefault: 16;
     property int lyricsFontSizeMin: 16;
     property int lyricsFontSizeMax: 40;
     property int lyricsFontSizeStep: 2;
-    property int lyricsCurrentLineExtra: 6;
+    /* 逐字进度的着色窗口上限(毫秒): 单个字或词最多按这么长的时长推进到满,
+     * 行间空档很大时用它截断, 避免最后一个字的进度一直拖到下一行的开始时刻 */
+    property int lyricsWordMaxSpanMs: 3000;
     /* 歌词偏移: 调节步长与上下限(毫秒), 正值表示歌词提前显示; 偏移量按歌词名落盘 */
     property int lyricsOffsetStepMs: 100;
     property int lyricsOffsetMaxMs: 5000;
+    /* 歌词页底部播放条的自动隐藏: 离开热区后的等待时长, 淡出时长与热区外扩像素 */
+    property int playerBarHideDelayMs: 3000;
+    property int playerBarFadeMs: 150;
+    property int playerBarHotPad: 8;
     /* 在线封面缓存的生命周期: 默认天数与设置页可选档位;
      * 生命周期在缓存写入那一刻定下, 之后改档位不影响已经缓存的封面 */
     property int coverCacheTtlDefaultDays: 28;

@@ -44,13 +44,13 @@ Rectangle {
     readonly property real anchorRatio: (1.0/3.0);
     /* 封面边长: 封面取正方形, 边长 32% 窗口宽; 过宽的窗口按可用高度收一档, 避免压到播放条 */
     readonly property real coverSide: Math.min(root.width*0.32, root.height*0.6);
-    /* 基准高度范围的度量: 单独一份, 只跟当前行字号绑定, 不与逐字测量的共享对象互相触发 */
+    /* 基准高度范围的度量: 单独一份, 只跟歌词字号绑定, 不与逐字测量的共享对象互相触发 */
     FontMetrics {
         id: bandFontMetrics;
-        font.pixelSize: root.currentFontSize;
-        font.bold: true;
+        font.pixelSize: root.baseFontSize;
+        font.bold: false;
     }
-    /* 基准高度范围: 高度取当前行的行高, 因此"范围内"等价于这一行正好嵌在基准位置上, 随字号变化 */
+    /* 基准高度范围: 高度取歌词行高, 因此"范围内"等价于这一行正好嵌在基准位置上, 随字号变化 */
     readonly property real anchorBandHeight: bandFontMetrics.height;
     /* 基准范围的容错: 不超过本身高度的十分之一 */
     readonly property real anchorBandTol: Math.max(1,root.anchorBandHeight*0.1);
@@ -228,8 +228,9 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter;
                 wrapMode: Text.Wrap;
                 text: String(modelData["text"]);
-                font.pixelSize: (index===root.currentLine? root.currentFontSize:root.baseFontSize);
-                font.bold: (index===root.currentLine);
+                /* 全部歌词行同一字号与同一字重: 当前行只用颜色区分, 不放大也不加粗 */
+                font.pixelSize: root.baseFontSize;
+                font.bold: false;
                 color: (index===root.currentLine? Define.btnIconColor:Define.forbdDarkColor);
             }
             /* 已唱层: 同一份文本, 同一套排版, 只换颜色; 露出多少由遮罩按像素决定,
@@ -550,9 +551,8 @@ Rectangle {
                                                  ? "":String(playingEntryData["lyrics"]));
     /* 实际使用的歌词名: 关闭歌词增强时为普通歌词, 开启时为增强歌词 */
     readonly property string activeLyricsName: Server.lyricsVariantName(playingLyricsName);
-    /* 歌词字号: 取界面偏好, 当前行在字号基础上加固定差值 */
+    /* 歌词字号: 取界面偏好, 全部歌词行同一字号 */
     readonly property int baseFontSize: GlobalFileStorage.lyricsFontSize();
-    readonly property int currentFontSize: baseFontSize+Define.lyricsCurrentLineExtra;
     /* 当前歌词的偏移量(毫秒): 正值让歌词提前, 按歌词名落进歌词缓存的偏移索引 */
     readonly property int lyricsOffsetMs: (activeLyricsName===""? 0:Server.lyricsOffsetMs(activeLyricsName));
     readonly property string coverSource: ((playingEntryData!==null && playingEntryData["absipath"])
@@ -944,7 +944,9 @@ Rectangle {
         root._animAnchorMs=Date.now();
         root._animSec=root._animBaseSec;
     }
-    /* 当前词的着色比例: 词起点到下一个词起点之间线性插值, 末词用固定时长兜底 */
+    /* 当前词的着色比例: 词起点到下一个词起点之间线性插值, 末词用固定时长兜底;
+     * 单个字或词的着色窗口最多按 Define.lyricsWordMaxSpanMs 截断, 行间空档很大时
+     * 最后一个字不会一直拖到下一行的开始时刻 */
     function wordProgressAt(sec) {
         if(root.enhancedOn!==true || root.currentLine<0 || root.currentLine>=lyricLines.length
            || root.currentWord<0) {
@@ -963,7 +965,8 @@ Rectangle {
                   && Number(lyricLines[root.currentLine+1]["t"])>t0) {
             t1=Number(lyricLines[root.currentLine+1]["t"]);
         }
-        var span=Math.max(0.12,t1-t0);
+        var cap=Define.lyricsWordMaxSpanMs/1000;
+        var span=Math.min(cap,Math.max(0.12,t1-t0));
         var f=(sec-t0)/span;
         if(f<0) {
             f=0;
