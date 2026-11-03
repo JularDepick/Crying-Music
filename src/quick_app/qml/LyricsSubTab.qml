@@ -129,13 +129,14 @@ Rectangle {
             source: root.coverSource;
         }
     }
-    /* 歌词列: 上下边界与封面同顶同底, 高度与位置直接给出(不用锚点),
-     * 宽度为窗口宽的 31%, 水平中轴线仍在窗口宽的 70% 处 */
+    /* 歌词列: 上下边界与封面同顶同底, 高度与位置直接给出(不用锚点);
+     * 宽度为窗口宽的 24.8%(原 31% 的 80%), 水平中轴线仍在窗口宽的 70% 处,
+     * 因此左起 57.6%(0.7 减半个宽度), 歌词文字的换行与逐字断行都随之变窄 */
     Item {
         id: lyricArea;
-        x: root.width*0.545;
+        x: root.width*0.576;
         y: coverPanel.y;
-        width: root.width*0.31;
+        width: root.width*0.248;
         height: coverPanel.height;
     }
     /* 歌词列上方的两行: 曲名在前, 歌手在后, 水平居中且最大宽度与歌词列同宽 */
@@ -272,11 +273,12 @@ Rectangle {
         }
     }
 
-    /* 基准高度处的跳转按钮: 圆钮加右侧时间, 固定在基准高度上, 不随歌词滚动;
+    /* 基准高度处的跳转按钮: 圆钮加右侧时间, 纵向固定在基准高度上, 不随歌词滚动;
+     * 横向放在歌词列的左侧并与之邻接(右边缘贴住歌词列左边缘), 不压住歌词文字;
      * 只在当前行被滚离基准高度范围时出现, 点击把进度跳到基准线对准的那一行 */
     Row {
         id: seekAnchorRow;
-        x: lyricArea.x;
+        x: (lyricArea.x-width);
         y: (lyricArea.y+lyricArea.height*root.anchorRatio-height/2);
         height: 32;
         spacing: 8;
