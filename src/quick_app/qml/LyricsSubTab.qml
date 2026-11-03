@@ -1004,14 +1004,15 @@ Rectangle {
         var v=(Math.abs(ms)/1000).toFixed(1);
         return (ms>0? "+"+v+" 秒":(ms<0? "-"+v+" 秒":"0.0 秒"));
     }
-    /* 鼠标在页面内移动: 记下当前位置, 落在播放条热区里就保持常显, 否则开始隐藏倒计时 */
+    /* 鼠标在页面内移动: 记下当前位置, 落在播放条热区里就保持常显, 否则开始隐藏倒计时;
+     * HoverHandler 的 pointChanged 不带入参, 位置一律取 point 属性, 写成 (p)=> 会拿到 undefined */
     HoverHandler {
         id: pageHover;
-        onPointChanged: (p)=> {
+        onPointChanged: {
             root._pointerInPage=true;
-            root._pointerX=p.position.x;
-            root._pointerY=p.position.y;
-            root.followPointer(p.position.x,p.position.y);
+            root._pointerX=point.position.x;
+            root._pointerY=point.position.y;
+            root.followPointer(point.position.x,point.position.y);
         }
         /* 指针移出窗口时没有后续移动事件: 记下指针已经离开并起表, 不让播放条一直挂着 */
         onHoveredChanged: {
@@ -1074,6 +1075,9 @@ Rectangle {
     }
     /* 显示整条播放条并停掉隐藏倒计时 */
     function showBar() {
+        if(root.barVisible!==true) {
+            Assist.dlog("界面","播放条: 指针回到热区, 显示");
+        }
         barVisible=true;
         rehideTimer.stop();
     }
@@ -1081,6 +1085,9 @@ Rectangle {
     function hideBar() {
         if(playerBarSubone!==null && playerBarSubone!==undefined) {
             playerBarSubone.prepareHide();
+        }
+        if(root.barVisible===true) {
+            Assist.dlog("界面","播放条: 离开热区, 隐藏");
         }
         barVisible=false;
         rehideTimer.stop();
@@ -1092,6 +1099,7 @@ Rectangle {
         }
         if(rehideTimer.running!==true) {
             rehideTimer.restart();
+            Assist.dlog("界面","播放条: 指针离开热区, 开始隐藏计时 ",Define.playerBarHideDelayMs," 毫秒");
         }
         return true;
     }
