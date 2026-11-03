@@ -38,8 +38,13 @@ Rectangle {
     /* 上一行因断行口径不一致而放弃着色的行号: 只用来避免重复输出同一行日志 */
     property int _maskFallbackLine: -1;
 
-    /* 控件可见性: 指针在播放条等热区里时保持常显, 离开热区 3 秒没回来就淡出 */
-    property bool chromeVisible: true;
+    /* 底部播放条的可见性: 指针落在播放条或它展开的弹层上时保持常显, 离开这一片 3 秒没回来就淡出;
+     * 弹层展开或滑块被按住期间处于锁定态, 不进入隐藏计时 */
+    property bool barVisible: true;
+    /* 指针是否还落在本页内: 离开页面后不再拿最后一次移动的坐标做热区几何判定 */
+    property bool _pointerInPage: false;
+    property real _pointerX: 0;
+    property real _pointerY: 0;
     /* 锚定比例: 当前行固定在歌词视口高度的这个位置, 与封面从上往下 1/3 处对齐 */
     readonly property real anchorRatio: (1.0/3.0);
     /* 封面边长: 封面取正方形, 边长 32% 窗口宽; 过宽的窗口按可用高度收一档, 避免压到播放条 */
@@ -85,31 +90,9 @@ Rectangle {
         }
     }
 
-    /* 顶部常驻热区: 控件隐藏(禁用)后由它接住悬停, 指针一进入就把控件唤回;
-     * 声明在退出入口与操控栏之前, 因此控件可见时由控件自己消费悬停 */
-    MouseArea {
-        id: topChromeSensor;
-        x: 0;
-        y: 0;
-        width: root.width;
-        height: (controlBar.y+controlBar.height+12);
-        acceptedButtons: Qt.NoButton;
-        hoverEnabled: true;
-        onContainsMouseChanged: {
-            if(containsMouse===true) {
-                root.showChrome();
-            }
-        }
-    }
-
     /* 左上角退出入口: 收起歌词页回到 canvas */
     CustomButtonA {
         id: closeLyricsBtn;
-        opacity: (root.chromeVisible? 1:0);
-        enabled: root.chromeVisible;
-        Behavior on opacity {
-            NumberAnimation { duration: 150; }
-        }
         anchors {left:parent.left; top:parent.top;}
         anchors.leftMargin: Define.windowPadding+controlBar.rowsTopMargin;
         anchors.topMargin: (Define.windowPadding+controlBar.rowsTopMargin
@@ -124,11 +107,6 @@ Rectangle {
     WindowControlBar {
         id: controlBar;
         theWindow: root.theWindow;
-        opacity: (root.chromeVisible? 1:0);
-        enabled: root.chromeVisible;
-        Behavior on opacity {
-            NumberAnimation { duration: 150; }
-        }
         anchors {top:parent.top; right:parent.right;}
         anchors.topMargin: Define.windowPadding+controlBar.rowsTopMargin;
         anchors.rightMargin: Define.windowPadding;
@@ -355,20 +333,24 @@ Rectangle {
             headClearable: false;
         }
     }
-    /* 播放条常驻热区: 播放条隐藏(禁用)时由它接住悬停, 指针一进来就把控件唤回;
-     * 声明在播放条之前, 因此播放条可见时由播放条自己消费悬停 */
+    /* 播放条常驻热区: 播放条隐藏(禁用)时由它接住悬停与点击, 指针一进来就把整条播放条唤回;
+     * 声明在播放条之前, 因此播放条可见时由播放条自己消费输入;
+     * 隐藏时接受左键: 否则点在这一带会被页面的拖动区接管成拖动窗口 */
     MouseArea {
         id: barChromeSensor;
         x: 0;
         y: (playerBarSubone.y-Define.windowPadding);
         width: root.width;
         height: (playerBarSubone.height+Define.windowPadding*2);
-        acceptedButtons: Qt.NoButton;
+        acceptedButtons: (root.barVisible? Qt.NoButton:Qt.LeftButton);
         hoverEnabled: true;
         onContainsMouseChanged: {
             if(containsMouse===true) {
-                root.showChrome();
+                root.showBar();
             }
+        }
+        onClicked: {
+            root.showBar();
         }
     }
 
@@ -379,10 +361,10 @@ Rectangle {
         cardStyle: false;
         /* 歌词页里这枚封面按钮的作用是退出歌词页, 悬停图标用关闭图形 */
         lyricsCloseIcon: true;
-        opacity: (root.chromeVisible? 1:0);
-        enabled: root.chromeVisible;
+        opacity: (root.barVisible? 1:0);
+        enabled: root.barVisible;
         Behavior on opacity {
-            NumberAnimation { duration: 150; }
+            NumberAnimation { duration: Define.playerBarFadeMs; }
         }
         thePlayer: root.thePlayer;
         theMemStorage: root.theMemStorage;
@@ -1020,71 +1002,90 @@ Rectangle {
         var v=(Math.abs(ms)/1000).toFixed(1);
         return (ms>0? "+"+v+" 秒":(ms<0? "-"+v+" 秒":"0.0 秒"));
     }
-    /* 鼠标在页面内移动: 落在播放条与顶部控件的热区里就保持常显, 否则开始隐藏倒计时 */
+    /* 鼠标在页面内移动: 记下当前位置, 落在播放条热区里就保持常显, 否则开始隐藏倒计时 */
     HoverHandler {
         id: pageHover;
         onPointChanged: (p)=> {
+            root._pointerInPage=true;
+            root._pointerX=p.position.x;
+            root._pointerY=p.position.y;
             root.followPointer(p.position.x,p.position.y);
         }
-        /* 指针移出窗口时没有后续移动事件: 直接进入倒计时, 不让控件一直挂着 */
+        /* 指针移出窗口时没有后续移动事件: 记下指针已经离开并起表, 不让播放条一直挂着 */
         onHoveredChanged: {
+            root._pointerInPage=hovered;
             if(hovered!==true) {
-                root.startChromeHideCountdown();
+                root.startBarHideCountdown();
             }
         }
     }
-    /* 控件隐藏计时: 指针离开播放条与顶部控件 3 秒还没回来就把三处控件一起淡出 */
+    /* 播放条隐藏计时: 指针离开播放条这一片 3 秒还没回来就把整条播放条淡出;
+     * 弹层展开或滑块被按住期间是锁定态, 到时也不隐藏 */
     Timer {
         id: rehideTimer;
-        interval: 3000;
+        interval: Define.playerBarHideDelayMs;
         repeat: false;
         onTriggered: {
-            /* 指针此刻就在热区里就不隐藏: 倒计时的起点可能早于指针进来 */
-            if(root.pointerInChromeHotArea()===true) {
+            if(root.barLocked()===true) {
                 return;
             }
-            root.chromeVisible=false;
+            /* 指针此刻就在热区里就不隐藏: 倒计时的起点可能早于指针进来 */
+            if(root.pointerInBarHotArea()===true) {
+                return;
+            }
+            root.hideBar();
         }
     }
-    /* 控件热区: 底部播放条, 顶部两块控件与播放列表面板, 指针落在其中才保持常显 */
-    function inChromeHotArea(x,y) {
-        var pad=8;
-        var areas=[playerBarSubone,closeLyricsBtn,controlBar,listPanel];
-        for(var i=0;i<areas.length;i++) {
-            var it=areas[i];
-            /* 收起的面板不占热区, 否则指针划过它原本覆盖的位置也会把控件留住 */
-            if(it.visible===false) {
-                continue;
-            }
-            if(x>=it.x-pad && x<=it.x+it.width+pad && y>=it.y-pad && y<=it.y+it.height+pad) {
-                return true;
-            }
+    /* 交互锁: 本页播放条上有弹层展开或滑块被按住时不隐藏, 状态由播放条组件自己给出 */
+    function barLocked() {
+        if(playerBarSubone===null || playerBarSubone===undefined) {
+            return false;
         }
-        return false;
+        return (playerBarSubone.interactionLocked===true);
     }
-    /* 指针此刻是否落在热区里: 两块常驻热区与几何判定合并, 供隐藏计时到点时复核 */
-    function pointerInChromeHotArea() {
-        if(barChromeSensor.containsMouse===true || topChromeSensor.containsMouse===true) {
+    /* 播放条热区: 播放条自身与它展开的弹层, 外扩 Define.playerBarHotPad;
+     * 弹层挂在播放条上方, 几何由播放条自己给出, 这里只做坐标换算 */
+    function inBarHotArea(x,y) {
+        if(playerBarSubone===null || playerBarSubone===undefined) {
+            return false;
+        }
+        var p=playerBarSubone.mapFromItem(root,Number(x),Number(y));
+        return (playerBarSubone.hotAreaContains(p.x,p.y,Define.playerBarHotPad)===true);
+    }
+    /* 指针此刻是否落在播放条热区里: 指针已经离开页面时一律算不在, 不回看最后一次移动的坐标 */
+    function pointerInBarHotArea() {
+        if(root._pointerInPage!==true) {
+            return false;
+        }
+        if(barChromeSensor.containsMouse===true) {
             return true;
         }
-        return root.inChromeHotArea(pageHover.point.position.x,pageHover.point.position.y);
+        return root.inBarHotArea(root._pointerX,root._pointerY);
     }
-    /* 指针移动时的控件策略: 进热区即显示并停表, 离开热区只启动一次倒计时, 中途不延长 */
+    /* 指针移动时的可见性策略: 在热区里或处于锁定态即显示并停表, 否则只启动一次倒计时 */
     function followPointer(x,y) {
-        if(root.inChromeHotArea(x,y)===true) {
-            root.showChrome();
+        if(root.inBarHotArea(x,y)===true || root.barLocked()===true) {
+            root.showBar();
             return true;
         }
-        return root.startChromeHideCountdown();
+        return root.startBarHideCountdown();
     }
-    /* 显示控件并停掉隐藏倒计时 */
-    function showChrome() {
-        chromeVisible=true;
+    /* 显示整条播放条并停掉隐藏倒计时 */
+    function showBar() {
+        barVisible=true;
         rehideTimer.stop();
     }
-    /* 启动隐藏倒计时: 已在倒计时中时不重新计时, 避免指针在歌词区里移动就把控件一直挂着 */
-    function startChromeHideCountdown() {
-        if(root.chromeVisible!==true) {
+    /* 隐藏整条播放条: 先把弹层与播放列表面板一起收起, 再淡出 */
+    function hideBar() {
+        if(playerBarSubone!==null && playerBarSubone!==undefined) {
+            playerBarSubone.prepareHide();
+        }
+        barVisible=false;
+        rehideTimer.stop();
+    }
+    /* 启动隐藏倒计时: 已在倒计时中时不重新计时, 避免指针在歌词区里移动就把播放条一直挂着 */
+    function startBarHideCountdown() {
+        if(root.barVisible!==true) {
             return false;
         }
         if(rehideTimer.running!==true) {
@@ -1266,17 +1267,31 @@ Rectangle {
             }
         }
     }
-    /* 显示时同步一次播放条与歌词, 隐藏时只改可见性 */
+    /* 锁定态解除(弹层收起或松开滑块)后按指针位置重新判定:
+     * 指针还在热区里就保持常显, 已经离开就起表, 不必等指针再动一次 */
+    Connections {
+        target: playerBarSubone;
+        function onInteractionLockedChanged() {
+            if(root.barLocked()===true) {
+                return;
+            }
+            if(root._pointerInPage!==true) {
+                root.startBarHideCountdown();
+                return;
+            }
+            root.followPointer(root._pointerX,root._pointerY);
+        }
+    }
+    /* 显示时同步一次播放条与歌词并亮出播放条, 隐藏时只改可见性并把下一轮复位成常显;
+     * 隐藏计时不在这里起表: 只有指针真的离开播放条那一片才开始计时 */
     onVisibleChanged: {
         if(visible===true) {
             root.syncLyrics();
             Qt.callLater(root.anchorToCurrentLine);
-            /* 先亮出控件, 再按指针当前是否在热区里决定保持还是进入倒计时 */
-            root.showChrome();
-            root.followPointer(pageHover.point.position.x,pageHover.point.position.y);
+            root.showBar();
         } else {
             rehideTimer.stop();
-            root.chromeVisible=true;
+            root.barVisible=true;
         }
     }
     function show() {
@@ -1284,7 +1299,7 @@ Rectangle {
     }
     function hide() {
         root.closeMenu();
-        playerBarSubone.sub_hideList();
+        playerBarSubone.prepareHide();
         visible=false;
     }
     function tshow() {
