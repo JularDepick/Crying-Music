@@ -15,15 +15,16 @@
         <file>assets/iconfont/function/close.svg</file>
         <file>assets/iconfont/function/closedown.svg</file>
         <file>assets/iconfont/function/closeup.svg</file>
+        <file>assets/iconfont/function/checked_stark.svg</file>
+        <file>assets/iconfont/function/check_mark.svg</file>
         <file>assets/iconfont/function/more.svg</file>
         <file>assets/iconfont/function/jump2top.svg</file>
         <file>assets/iconfont/function/jump2playing.svg</file>
-        <file>assets/iconfont/function/checked_stark.svg</file>
 
+        <file>assets/iconfont/listview/checked_status.svg</file>
         <file>assets/iconfont/listview/upsort.svg</file>
         <file>assets/iconfont/listview/downsort.svg</file>
         <file>assets/iconfont/listview/justsort.svg</file>
-        <file>assets/iconfont/listview/playingstatus.svg</file>
 
         <file>assets/iconfont/leftsidebar/home.svg</file>
         <file>assets/iconfont/leftsidebar/home_ed.svg</file>

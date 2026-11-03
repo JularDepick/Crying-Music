@@ -592,14 +592,14 @@ MainAreaFatherPage {
                             width: height;
                             transEnabled: false;
                             hoverHandlerEnabled: false;
-                            /* 图标: 正在播放的行不悬停时显示播放中的状态图标, 悬停时按播放状态显示暂停或播放;
-                             * 其它行只在悬停时显示播放图标 */
+                            /* 图标: 正在播放的行不悬停时由 PlayingBars 显示跳动的柱子, 悬停时按播放状态
+                             * 显示暂停或播放; 其它行只在悬停时显示播放图标 */
                             icon.source: {
                                 if(mainListView.batchMode) {
                                     return "";
                                 }
                                 if(box.hoveredRow!==true) {
-                                    return (box.playingRow===true? "qrc:/assets/iconfont/listview/playingstatus.svg":"");
+                                    return "";
                                 }
                                 if(box.playingRow===true) {
                                     return ((thePlayer!==null && thePlayer.playing===true)
@@ -611,6 +611,17 @@ MainAreaFatherPage {
                             icon.color: (hovered? Define.btnHoverColor:Define.mainAreaColor);
                             icon.width: 17;
                             icon.height: 17;
+                            /* 正在播放的行不悬停时, 图标位置换成一圈自己跳动的柱子:
+                             * 原来那枚 svg 是 SMIL 动画, QML 只把它光栅化成一张静态图 */
+                            PlayingBars {
+                                anchors.centerIn: parent;
+                                width: 17;
+                                height: 17;
+                                barColor: Define.mainAreaColor;
+                                active: (thePlayer!==null && thePlayer.playing===true);
+                                visible: (mainListView.batchMode!==true && box.hoveredRow!==true
+                                          && box.playingRow===true);
+                            }
                             onClicked: {
                                 if(mainListView.batchMode) {
                                     mainListView.toggleChecked(index);
