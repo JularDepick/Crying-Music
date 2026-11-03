@@ -94,7 +94,7 @@ Item {
         downloadsDir: "",
         themeId: "",
         coverCacheTtlDays: 0,
-        lyricsEnhanced: false,
+        lyricsEnhanced: true,
         lyricsFontSize: 0,
         audioCacheCapMb: 0
     });
@@ -525,7 +525,7 @@ Item {
                        "downloadsDir":(typeof us.downloadsDir==="string"? us.downloadsDir:""),
                        "themeId":(typeof us.themeId==="string"? us.themeId:""),
                        "coverCacheTtlDays":(typeof us.coverCacheTtlDays==="number"? us.coverCacheTtlDays:0),
-                       "lyricsEnhanced":(us.lyricsEnhanced===true),
+                       "lyricsEnhanced":(us.lyricsEnhanced!==false),
                        "lyricsFontSize":(typeof us.lyricsFontSize==="number"? us.lyricsFontSize:0),
                        "audioCacheCapMb":(typeof us.audioCacheCapMb==="number"? us.audioCacheCapMb:0)});
         }
