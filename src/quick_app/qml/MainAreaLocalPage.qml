@@ -208,7 +208,8 @@ MainAreaFatherPage {
                                 anchors.verticalCenter: parent.verticalCenter;
                                 width: Define.batchIconSize;
                                 height: Define.batchIconSize;
-                                source: `qrc:/assets/iconfont/function/checked_stark.svg`;
+                                /* 批量按钮呼起的全选入口用对勾图标; checked_stark 只用于行首复选框 */
+                                source: "qrc:/assets/iconfont/function/check_mark.svg";
                                 color: Define.btnIconColor;
                             }
                             Text {
