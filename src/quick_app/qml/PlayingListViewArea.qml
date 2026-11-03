@@ -10,6 +10,8 @@ Rectangle {
     id: root;
     /* 注入: 持有播放队列与播放命令的播放器对象 */
     property var thePlayer: null;
+    /* 注入: 内存枢纽(在线条目的下载队列), 行内的下载按钮据此判断是否已在下载 */
+    property var theMemStorage: null;
     /* 实例开关: 是否带面板头部(标题, 曲目数与清空列表); 关掉后只保留列表 */
     property bool headEnabled: true;
     /* 实例开关: 头部只留空白占位, 不显示标题, 曲目数与清空按钮 */
@@ -256,6 +258,34 @@ Rectangle {
                                 ToolTip.visible: playingSingerHh.hovered&&truncated;
                                 ToolTip.text: text;
                                 ToolTip.delay: 500;
+                            }
+                        }
+                        /* 下载按钮: 只对在线条目出现, 未下载显示下载图标并可点,
+                         * 已在下载队列里则禁用, 已下载显示对勾状态图标; 本地音乐没有这一项 */
+                        CustomButtonA {
+                            id: songDownloadBtn;
+                            property string onlineId: (modelData["onlineId"]===undefined? "":String(modelData["onlineId"]));
+                            property var task: ((onlineId==="" || root.theMemStorage===null)
+                                                ? null:root.theMemStorage.downloadTaskOf(onlineId));
+                            property bool downloaded: (onlineId!=="" && GlobalFileStorage.isDownloaded(onlineId));
+                            property bool downloading: (task!==null);
+                            visible: (modelData["online"]===true && playingBox.hoveredRow===true);
+                            anchors.verticalCenter: parent.verticalCenter;
+                            height: 20;
+                            width: 20;
+                            enabled: (!downloaded && !downloading);
+                            transEnabled: false;
+                            icon.source: (downloaded? "qrc:/assets/iconfont/listview/checked_status.svg"
+                                                     :"qrc:/assets/iconfont/function/download.svg");
+                            icon.color: (downloaded? Define.choseCyanColor
+                                                    :(downloading? Define.forbdDarkColor
+                                                      :(hovered? Define.btnHoverColor:Define.btnIconColor)));
+                            onClicked: {
+                                if(downloaded===true || downloading===true) {
+                                    return;
+                                }
+                                Assist.dlog("下载","列表内开始下载: ",modelData["songname"]);
+                                root.theMemStorage.startDownload(modelData);
                             }
                         }
                         CustomButtonA {

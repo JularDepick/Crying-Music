@@ -331,6 +331,7 @@ Rectangle {
         PlayingListViewArea {
             anchors.fill: parent;
             thePlayer: root.thePlayer;
+            theMemStorage: root.theMemStorage;
             headEnabled: true;
             headClearable: false;
         }

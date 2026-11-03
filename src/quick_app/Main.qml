@@ -1481,6 +1481,7 @@ ApplicationWindow {
             PlayingListViewArea {
                 anchors.fill: parent;
                 thePlayer: player;
+                theMemStorage: memStorage;
             }
         }
     }

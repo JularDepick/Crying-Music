@@ -730,13 +730,43 @@ MainAreaFatherPage {
                                 }
                                 CustomButtonA {
                                     id: songAddIntoBtn;
-                                    visible: (!mainListView.batchMode && headRow.curr!=="downloadingSongs");
+                                    /* 加入播放列表与下载按钮跟着行悬停出现, 点赞按钮常驻 */
+                                    visible: (!mainListView.batchMode && headRow.curr!=="downloadingSongs"
+                                              && box.hoveredRow);
                                     height: 20;
                                     width: 20;
                                     icon.source: "qrc:/assets/iconfont/function/addinto.svg";
                                     transEnabled: false;
                                     onClicked: {
                                         thePlayer.insertNext(modelData);
+                                    }
+                                }
+                                /* 下载按钮: 只对在线条目出现; 未下载显示下载图标并可点,
+                                 * 已在下载队列里则禁用(状态由内存枢纽统一给出),
+                                 * 已下载显示对勾状态图标; 本地音乐没有这一项 */
+                                CustomButtonA {
+                                    id: songDownloadBtn;
+                                    property string onlineId: (modelData["onlineId"]===undefined? "":String(modelData["onlineId"]));
+                                    property var task: ((onlineId==="" || theMemStorage===undefined || theMemStorage===null)
+                                                        ? null:theMemStorage.downloadTaskOf(onlineId));
+                                    property bool downloaded: (onlineId!=="" && GlobalFileStorage.isDownloaded(onlineId));
+                                    property bool downloading: (task!==null);
+                                    visible: (modelData["online"]===true && box.hoveredRow===true && mainListView.batchMode!==true && headRow.curr!=="downloadingSongs");
+                                    height: 20;
+                                    width: 20;
+                                    enabled: (!downloaded && !downloading);
+                                    transEnabled: false;
+                                    icon.source: (downloaded? "qrc:/assets/iconfont/listview/checked_status.svg"
+                                                             :"qrc:/assets/iconfont/function/download.svg");
+                                    icon.color: (downloaded? Define.choseCyanColor
+                                                            :(downloading? Define.forbdDarkColor
+                                                              :(hovered? Define.btnHoverColor:Define.btnIconColor)));
+                                    onClicked: {
+                                        if(downloaded===true || downloading===true) {
+                                            return;
+                                        }
+                                        Assist.dlog("下载","列表内开始下载: ",modelData["songname"]);
+                                        theMemStorage.startDownload(modelData);
                                     }
                                 }
                                 /* 取消按钮: 只在正在下载标签出现 */
