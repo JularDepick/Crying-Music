@@ -81,8 +81,8 @@ Item {
     property int onlineRetryStepMs: 60000;
     /* 歌词页字号: 默认值与调节步长, 当前行在字号基础上加一个固定差值 */
     property int lyricsFontSizeDefault: 16;
-    property int lyricsFontSizeMin: 12;
-    property int lyricsFontSizeMax: 32;
+    property int lyricsFontSizeMin: 16;
+    property int lyricsFontSizeMax: 40;
     property int lyricsFontSizeStep: 2;
     property int lyricsCurrentLineExtra: 6;
     /* 歌词偏移: 调节步长与上下限(毫秒), 正值表示歌词提前显示; 偏移量按歌词名落盘 */
