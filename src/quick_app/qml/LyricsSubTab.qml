@@ -74,6 +74,23 @@ Rectangle {
         }
     }
 
+    /* 顶部常驻热区: 控件隐藏(禁用)后由它接住悬停, 指针一进入就把控件唤回;
+     * 声明在退出入口与操控栏之前, 因此控件可见时由控件自己消费悬停 */
+    MouseArea {
+        id: topChromeSensor;
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: (controlBar.y+controlBar.height+12);
+        acceptedButtons: Qt.NoButton;
+        hoverEnabled: true;
+        onContainsMouseChanged: {
+            if(containsMouse===true) {
+                root.showChrome();
+            }
+        }
+    }
+
     /* 左上角退出入口: 收起歌词页回到 canvas */
     CustomButtonA {
         id: closeLyricsBtn;
@@ -276,6 +293,23 @@ Rectangle {
             headClearable: false;
         }
     }
+    /* 播放条常驻热区: 播放条隐藏(禁用)时由它接住悬停, 指针一进来就把控件唤回;
+     * 声明在播放条之前, 因此播放条可见时由播放条自己消费悬停 */
+    MouseArea {
+        id: barChromeSensor;
+        x: 0;
+        y: (playerBarSubone.y-Define.windowPadding);
+        width: root.width;
+        height: (playerBarSubone.height+Define.windowPadding*2);
+        acceptedButtons: Qt.NoButton;
+        hoverEnabled: true;
+        onContainsMouseChanged: {
+            if(containsMouse===true) {
+                root.showChrome();
+            }
+        }
+    }
+
     /* 底部播放条: 与主界面播放栏共用同一份实现, 透明无卡片底, 左右与底部各留 windowPadding 的外边距;
      * 队列与播放状态的权威是注入的播放器 */
     PlayerBar {
@@ -884,6 +918,10 @@ Rectangle {
         interval: 3000;
         repeat: false;
         onTriggered: {
+            /* 指针此刻就在热区里就不隐藏: 倒计时的起点可能早于指针进来 */
+            if(root.pointerInChromeHotArea()===true) {
+                return;
+            }
             root.chromeVisible=false;
         }
     }
@@ -902,6 +940,13 @@ Rectangle {
             }
         }
         return false;
+    }
+    /* 指针此刻是否落在热区里: 两块常驻热区与几何判定合并, 供隐藏计时到点时复核 */
+    function pointerInChromeHotArea() {
+        if(barChromeSensor.containsMouse===true || topChromeSensor.containsMouse===true) {
+            return true;
+        }
+        return root.inChromeHotArea(pageHover.point.position.x,pageHover.point.position.y);
     }
     /* 指针移动时的控件策略: 进热区即显示并停表, 离开热区只启动一次倒计时, 中途不延长 */
     function followPointer(x,y) {
