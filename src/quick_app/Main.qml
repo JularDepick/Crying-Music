@@ -344,14 +344,18 @@ ApplicationWindow {
         }
         /* 在线音频开始加载时探测一次字节数: 作为元数据就绪前的临时显示数据 */
         onSourceChanged: {
-            /* 字节数按在线标识记录, 实际探测走真正取用的地址; 回退到本地文件或缓存时不探测 */
+            /* 字节数按在线标识记录: 流式播放走远端探测, 播的是缓存或已下载文件时直接取文件大小,
+             * 两种情况都会落进已播放元数据, 下次启动直接复用
+             */
             if(Server.isOnlineKey(playingWhich)===false) {
                 return;
             }
-            if(String(source).indexOf("http")!==0) {
+            var src=String(source);
+            if(src.indexOf("http")!==0) {
+                Server.rememberSizeFromFile(playingWhich,src);
                 return;
             }
-            Server.ensureSize(playingWhich,source);
+            Server.ensureSize(playingWhich,src);
         }
         onMediaStatusChanged: {
             if(mediaStatus===MediaPlayer.LoadedMedia && pendingRestore===true) {

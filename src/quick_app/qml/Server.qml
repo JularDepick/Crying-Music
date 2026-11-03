@@ -860,8 +860,8 @@ Item {
         }
         return main+elrcExt;
     }
-    /* 歌词的候选地址: 增强开启时先按数据根试增强歌词, 再退回普通歌词(仍可显示, 只是没有逐字进度);
-     * 增强关闭时只试普通歌词; 无论实际取到哪一种, 缓存一律按这一档的歌词名落盘 */
+    /* 歌词的候选地址按这一档的扩展名决定: 普通档只取普通歌词源, 增强档先取增强歌词源,
+     * 缺增强歌词时才退回普通歌词(仍可显示, 只是没有逐字进度); 缓存一律按这一档的歌词名落盘 */
     function lyricsUrlCandidates(lyricsName) {
         var res=[];
         var name=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
@@ -879,7 +879,9 @@ Item {
            && main.substring(main.length-elrcExt.length)===elrcExt) {
             main=main.substring(0,main.length-elrcExt.length);
         }
-        if(elrcExt!=="") {
+        var wantElrc=(elrcExt!=="" && name.length>elrcExt.length
+                      && name.substring(name.length-elrcExt.length)===elrcExt);
+        if(wantElrc===true && elrcExt!=="") {
             var enh=_urlsOfSources(oss.audio_lyrics_elrc_src,main);
             for(var i=0;i<enh.length;i++) {
                 res.push(enh[i]);
@@ -1924,8 +1926,25 @@ Item {
         return (AppFileHelper.writeFile(dir+"/"+GlobalFileStorage.onlinePlayedMetaFileName,
                                         JSON.stringify(playedMeta),"UTF-8")===true);
     }
+    /* 从本地文件补齐一首在线歌曲的字节数: 播的是音频缓存或已下载文件时本地就有大小,
+     * 不必再向远端探测, 也让下次启动能直接显示文件大小
+     */
+    function rememberSizeFromFile(key,path) {
+        if(isOnlineKey(key)===false) {
+            return false;
+        }
+        var p=String(path===undefined || path===null? "":path);
+        if(p==="" || p.indexOf("http")===0) {
+            return false;
+        }
+        var n=AppFileHelper.fileSize(p);
+        if(!(n>0)) {
+            return false;
+        }
+        return rememberSize(key,n);
+    }
     /* 请求在线歌曲的字节数: key 是在线标识(记录用的键), url 是实际取用的地址, 缺省与 key 相同;
-     * 已有值或已探测失败时直接返回, 每首歌只探测一次
+     * 已有值直接返回; 没有值或上次失败过时每次播放都重新探测一次, 失败的标记在本次探测开头清掉
      */
     function ensureSize(key,url) {
         if(isOnlineKey(key)===false) {
@@ -1935,9 +1954,10 @@ Item {
         if(pm!==null && pm["size"]>0) {
             return true;
         }
-        if(_sizeMiss[key]===true || _sizeProbing[key]===true) {
+        if(_sizeProbing[key]===true) {
             return false;
         }
+        delete _sizeMiss[key];
         var urlOk=(typeof url==="string" && (url.indexOf("http://")===0 || url.indexOf("https://")===0));
         var target=(urlOk===true? url:audioUrlOf(key));
         if(target==="") {
