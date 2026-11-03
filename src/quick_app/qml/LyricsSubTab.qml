@@ -32,11 +32,17 @@ Rectangle {
     property real _animSec: 0;
     property real _animBaseSec: 0;
     property double _animAnchorMs: 0;
+    /* 上一次锚定后的内容偏移: 与当前偏移相比即可判断用户是否把歌词滚离了基准高度 */
+    property real _anchorContentY: 0;
 
-    /* 控件可见性: 鼠标静止一段时间后淡出, 移动即恢复 */
+    /* 控件可见性: 指针在播放条等热区里时保持常显, 离开热区 3 秒没回来就淡出 */
     property bool chromeVisible: true;
-    /* 锚定比例: 当前行固定在歌词视口高度的这个位置, 上下都能看到后续歌词 */
-    readonly property real anchorRatio: 0.42;
+    /* 锚定比例: 当前行固定在歌词视口高度的这个位置, 与封面从上往下 1/3 处对齐 */
+    readonly property real anchorRatio: (1.0/3.0);
+    /* 封面边长: 封面取正方形, 边长 32% 窗口宽; 过宽的窗口按可用高度收一档, 避免压到播放条 */
+    readonly property real coverSide: Math.min(root.width*0.32, root.height*0.6);
+    /* 基准高度范围半高: 当前行离基准线不超过这段高度即算仍在基准线上, 半高随歌词字号变化 */
+    readonly property real seekBandHalf: Math.max(10,root.currentFontSize*0.9);
     topLeftRadius: Define.windowRadius;
     topRightRadius: Define.windowRadius;
     bottomLeftRadius: Define.windowRadius;
@@ -100,14 +106,13 @@ Rectangle {
         anchors.rightMargin: Define.windowPadding;
     }
 
-    /* 封面大图: 版面按参考图取宽 32%, 左起 17.1%, 顶起 26.1%, 高 46.5% */
+    /* 封面大图: 取正方形, 位置与边长直接给出(不用锚点), 左起 17.1%, 顶起 26.1% */
     Rectangle {
         id: coverPanel;
-        anchors {left:parent.left; top:parent.top;}
-        anchors.leftMargin: root.width*0.171;
-        anchors.topMargin: root.height*0.261;
-        width: root.width*0.32;
-        height: root.height*0.465;
+        x: root.width*0.171;
+        y: root.height*0.261;
+        width: root.coverSide;
+        height: root.coverSide;
         radius: Define.mainAreaRaduis*2;
         clip: true;
         color: Define.hoverDarkColor;
@@ -118,18 +123,41 @@ Rectangle {
             source: root.coverSource;
         }
     }
-    /* 歌词显示区: 封面右侧, 顶部操控栏与底部播放条之间;
-     * 列宽由参考图的 24.8% 增至 31%(1.25 倍), 左右一起外扩,
-     * 水平中轴线仍在窗口宽的 70% 处 */
+    /* 歌词列: 上下边界与封面同顶同底, 高度与位置直接给出(不用锚点),
+     * 宽度为窗口宽的 31%, 水平中轴线仍在窗口宽的 70% 处 */
     Item {
         id: lyricArea;
-        anchors {top:parent.top; bottom:playerBarSubone.top;}
-        anchors.topMargin: root.height*0.227;
-        anchors.bottomMargin: 20;
-        anchors.left: parent.left;
-        anchors.right: parent.right;
-        anchors.leftMargin: root.width*0.545;
-        anchors.rightMargin: root.width*0.145;
+        x: root.width*0.545;
+        y: coverPanel.y;
+        width: root.width*0.31;
+        height: coverPanel.height;
+    }
+    /* 歌词列上方的两行: 曲名在前, 歌手在后, 水平居中且最大宽度与歌词列同宽 */
+    Column {
+        id: lyricHead;
+        anchors {bottom:lyricArea.top; bottomMargin: 14;}
+        x: lyricArea.x;
+        width: lyricArea.width;
+        spacing: 6;
+        Text {
+            width: parent.width;
+            horizontalAlignment: Text.AlignHCenter;
+            text: root.playingSongName;
+            color: Define.textColor;
+            font.pixelSize: 22;
+            font.weight: 600;
+            elide: Text.ElideRight;
+            maximumLineCount: 1;
+        }
+        Text {
+            width: parent.width;
+            horizontalAlignment: Text.AlignHCenter;
+            text: root.playingSingerName;
+            color: Define.btnIconColor;
+            font.pixelSize: 13;
+            elide: Text.ElideRight;
+            maximumLineCount: 1;
+        }
     }
     ListView {
         id: lyricView;
@@ -173,13 +201,6 @@ Rectangle {
             font.pixelSize: (index===root.currentLine? root.currentFontSize:root.baseFontSize);
             font.bold: (index===root.currentLine);
             color: (index===root.currentLine? Define.btnIconColor:Define.forbdDarkColor);
-            /* 双击某行歌词: 把播放进度跳到这一行的起始时刻 */
-            TapHandler {
-                acceptedButtons: Qt.LeftButton;
-                onDoubleTapped: (eventPoint)=> {
-                    root.seekToLine(index);
-                }
-            }
         }
         /* 右键歌词区呼出调节菜单: 用 TapHandler, 不打断左键拖动与滚轮 */
         TapHandler {
@@ -194,11 +215,49 @@ Rectangle {
         }
     }
 
-    /* 播放列表面板: 本页自己的一份实例, 内容与主界面共用同一份实现, 队列状态来自注入的播放器 */
+    /* 基准高度处的跳转按钮: 圆钮加右侧时间, 固定在基准高度上, 不随歌词滚动;
+     * 只在当前行被滚离基准高度范围时出现, 点击把进度跳到基准线对准的那一行 */
+    Row {
+        id: seekAnchorRow;
+        x: lyricArea.x;
+        y: (lyricArea.y+lyricArea.height*root.anchorRatio-height/2);
+        height: 32;
+        spacing: 8;
+        visible: root.seekAnchorReady();
+        CustomButtonA {
+            id: seekAnchorBtn;
+            width: 32;
+            height: 32;
+            transEnabled: false;
+            icon.source: "qrc:/assets/iconfont/playerbar/play.svg";
+            icon.width: 14;
+            icon.height: 14;
+            background: Rectangle {
+                anchors.fill: parent;
+                radius: width/2;
+                color: (parent.hovered? Define.choseCyanColor:Define.hoverDarkColor);
+                border.color: Define.subGrey;
+                border.width: 1;
+            }
+            onClicked: {
+                root.seekToLine(root.anchorSeekLineIndex());
+            }
+        }
+        Text {
+            id: seekAnchorTime;
+            anchors.verticalCenter: parent.verticalCenter;
+            text: root.seekAnchorTimeText();
+            color: Define.btnIconColor;
+            font.pixelSize: 12;
+        }
+    }
+
+    /* 播放列表面板: 本页自己的一份实例, 内容与主界面共用同一份实现, 队列状态来自注入的播放器;
+     * 面板顶到窗口上沿, 因此打开时遮住右上角的窗口操控栏 */
     Rectangle {
         id: listPanel;
         anchors {top:parent.top; bottom:playerBarSubone.top; right:parent.right;}
-        anchors.topMargin: Define.windowPadding+controlBar.rowsTopMargin+controlBar.rowsHeight+20;
+        anchors.topMargin: Define.windowPadding;
         anchors.bottomMargin: 10;
         anchors.rightMargin: Define.windowPadding;
         width: 450;
@@ -213,8 +272,8 @@ Rectangle {
         PlayingListViewArea {
             anchors.fill: parent;
             thePlayer: root.thePlayer;
-            headEnabled: false;
-            headBlank: true;
+            headEnabled: true;
+            headClearable: false;
         }
     }
     /* 底部播放条: 与主界面播放栏共用同一份实现, 透明无卡片底, 左右与底部各留 windowPadding 的外边距;
@@ -386,6 +445,11 @@ Rectangle {
     /* 当前播放项的封面: 条目自带封面优先, 其次在线封面缓存, 都没有时回退应用图标 */
     readonly property var playingEntryData: ((thePlayer===null || typeof thePlayer.playingEntry!=="function")
                                              ? null:thePlayer.playingEntry());
+    /* 歌词列上方的曲名与歌手: 取当前播放项, 没有播放项时为空 */
+    readonly property string playingSongName: ((playingEntryData===null || playingEntryData["songname"]===undefined)
+                                               ? "":String(playingEntryData["songname"]));
+    readonly property string playingSingerName: ((playingEntryData===null || playingEntryData["singer"]===undefined)
+                                                 ? "":String(playingEntryData["singer"]));
     readonly property string playingLyricsName: ((playingEntryData===null
                                                   || playingEntryData["lyrics"]===undefined)
                                                  ? "":String(playingEntryData["lyrics"]));
@@ -801,23 +865,66 @@ Rectangle {
         var v=(Math.abs(ms)/1000).toFixed(1);
         return (ms>0? "+"+v+" 秒":(ms<0? "-"+v+" 秒":"0.0 秒"));
     }
-    /* 鼠标在页面内移动即恢复控件并重新计时 */
+    /* 鼠标在页面内移动: 落在播放条与顶部控件的热区里就保持常显, 否则开始隐藏倒计时 */
     HoverHandler {
         id: pageHover;
-        onPointChanged: root.bumpIdle();
+        onPointChanged: (p)=> {
+            root.followPointer(p.position.x,p.position.y);
+        }
+        /* 指针移出窗口时没有后续移动事件: 直接进入倒计时, 不让控件一直挂着 */
+        onHoveredChanged: {
+            if(hovered!==true) {
+                root.startChromeHideCountdown();
+            }
+        }
     }
-    /* 控件淡出计时: 页面可见时启动, 到点把控件淡出 */
+    /* 控件隐藏计时: 指针离开播放条与顶部控件 3 秒还没回来就把三处控件一起淡出 */
     Timer {
-        id: idleTimer;
-        interval: 5000;
+        id: rehideTimer;
+        interval: 3000;
         repeat: false;
         onTriggered: {
             root.chromeVisible=false;
         }
     }
-    function bumpIdle() {
+    /* 控件热区: 底部播放条, 顶部两块控件与播放列表面板, 指针落在其中才保持常显 */
+    function inChromeHotArea(x,y) {
+        var pad=8;
+        var areas=[playerBarSubone,closeLyricsBtn,controlBar,listPanel];
+        for(var i=0;i<areas.length;i++) {
+            var it=areas[i];
+            /* 收起的面板不占热区, 否则指针划过它原本覆盖的位置也会把控件留住 */
+            if(it.visible===false) {
+                continue;
+            }
+            if(x>=it.x-pad && x<=it.x+it.width+pad && y>=it.y-pad && y<=it.y+it.height+pad) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /* 指针移动时的控件策略: 进热区即显示并停表, 离开热区只启动一次倒计时, 中途不延长 */
+    function followPointer(x,y) {
+        if(root.inChromeHotArea(x,y)===true) {
+            root.showChrome();
+            return true;
+        }
+        return root.startChromeHideCountdown();
+    }
+    /* 显示控件并停掉隐藏倒计时 */
+    function showChrome() {
         chromeVisible=true;
-        idleTimer.restart();
+        rehideTimer.stop();
+    }
+    /* 启动隐藏倒计时: 已在倒计时中时不重新计时, 避免指针在歌词区里移动就把控件一直挂着 */
+    function startChromeHideCountdown() {
+        if(root.chromeVisible!==true) {
+            return false;
+        }
+        if(rehideTimer.running!==true) {
+            rehideTimer.restart();
+        }
+        return true;
     }
     /* Esc 退出歌词页 */
     Shortcut {
@@ -842,21 +949,80 @@ Rectangle {
         lyricView.positionViewAtIndex(currentLine,ListView.Beginning);
         var maxY=Math.max(0,lyricView.contentHeight-lyricView.height);
         lyricView.contentY=Math.max(0,Math.min(maxY,lyricView.contentY-lyricView.height*anchorRatio));
+        /* 记下锚定位置: 跳转按钮的可见性按它与当前偏移的差判断 */
+        root._anchorContentY=lyricView.contentY;
         return true;
     }
-    /* 当前行是否已经落在锚定线上: 用来判断用户是否把歌词滚离了当前行 */
+    /* 当前行是否已经落在锚定线上: 按锚定偏移与当前偏移的差判断, 与基准高度的口径一致 */
     function isAnchoredAtCurrent() {
-        if(root.currentLine<0 || root.currentLine>=lyricLines.length) {
+        if(root.currentLine<0) {
             return false;
         }
-        var it=lyricView.itemAtIndex(root.currentLine);
-        if(it===null || it===undefined) {
-            return false;
-        }
-        var target=lyricView.height*root.anchorRatio;
-        return (Math.abs(it.y-target)<=Math.max(6,it.height*0.5));
+        return (Math.abs(lyricView.contentY-root._anchorContentY)<=Math.max(6,root.seekBandHalf));
     }
-    /* 双击某行歌词: 把播放进度跳到这一行的起始时刻, 按偏移量换算回真实播放位置 */
+    /* 当前行是否仍在基准高度范围内: 用锚定偏移与当前偏移的差判断,
+     * 不依赖当前行是否还在实例化的委托里, 滚得再远也判得准 */
+    function currentLineInBand() {
+        if(root.currentLine<0) {
+            return true;
+        }
+        return (Math.abs(lyricView.contentY-root._anchorContentY)<=root.seekBandHalf);
+    }
+    /* 基准高度对准的歌词行: 按内容坐标顺序走过已实例化的委托, 第一个盖住基准线的行即结果 */
+    function anchorLineIndex() {
+        var target=lyricView.contentY+lyricView.height*root.anchorRatio;
+        var first=-1;
+        for(var i=0;i<lyricLines.length;i++) {
+            var it=lyricView.itemAtIndex(i);
+            if(it===null || it===undefined) {
+                if(first>=0) {
+                    break;
+                }
+                continue;
+            }
+            if(first<0) {
+                first=i;
+            }
+            if(target<=it.y+it.height) {
+                return i;
+            }
+        }
+        return first;
+    }
+    /* 基准高度上可跳转的行: 没有行或该行没有时间戳时返回 -1 */
+    function anchorSeekLineIndex() {
+        var idx=root.anchorLineIndex();
+        if(idx<0 || idx>=lyricLines.length) {
+            return -1;
+        }
+        return (Number(lyricLines[idx]["t"])>=0? idx:-1);
+    }
+    /* 跳转按钮的可见性: 当前行已离开基准高度范围, 且基准线上有带时间戳的行 */
+    function seekAnchorReady() {
+        if(root.visible!==true || root.currentLine<0) {
+            return false;
+        }
+        if(root.currentLineInBand()===true) {
+            return false;
+        }
+        return (root.anchorSeekLineIndex()>=0);
+    }
+    /* 基准线那行的时间: 与点击跳转后的播放进度一致, 显示成 mm:ss */
+    function seekAnchorTimeText() {
+        var idx=root.anchorSeekLineIndex();
+        if(idx<0) {
+            return "";
+        }
+        return root.timeText(Math.max(0,Number(lyricLines[idx]["t"])-root.lyricsOffsetMs/1000));
+    }
+    /* 秒数格式化为 mm:ss */
+    function timeText(sec) {
+        var s=Math.max(0,Math.floor(Number(sec)));
+        var m=Math.floor(s/60);
+        var r=s%60;
+        return (m<10? "0"+m:String(m))+":"+(r<10? "0"+r:String(r));
+    }
+    /* 跳到某行的起始时刻: 按偏移量换算回真实播放位置 */
     function seekToLine(index) {
         if(index<0 || index>=lyricLines.length) {
             return false;
@@ -926,9 +1092,11 @@ Rectangle {
         if(visible===true) {
             root.syncLyrics();
             Qt.callLater(root.anchorToCurrentLine);
-            root.bumpIdle();
+            /* 先亮出控件, 再按指针当前是否在热区里决定保持还是进入倒计时 */
+            root.showChrome();
+            root.followPointer(pageHover.point.position.x,pageHover.point.position.y);
         } else {
-            idleTimer.stop();
+            rehideTimer.stop();
             root.chromeVisible=true;
         }
     }

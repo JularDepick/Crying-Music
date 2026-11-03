@@ -12,8 +12,10 @@ Rectangle {
     property var thePlayer: null;
     /* 实例开关: 是否带面板头部(标题, 曲目数与清空列表); 关掉后只保留列表 */
     property bool headEnabled: true;
-    /* 实例开关: 头部只留空白占位, 不显示标题, 曲目数与清空按钮; 歌词页用 */
+    /* 实例开关: 头部只留空白占位, 不显示标题, 曲目数与清空按钮 */
     property bool headBlank: false;
+    /* 实例开关: 表头是否带清空列表按钮; 歌词页的面板不带 */
+    property bool headClearable: true;
     /* 实例开关: 播放状态变化时是否自动定位到当前播放行 */
     property bool autoFollow: true;
     /* 队列, 当前播放标识与下标: 统一从注入的播放器取, 未注入时按空队列处理 */
@@ -59,6 +61,7 @@ Rectangle {
             }
             CustomButtonA {
                 anchors {verticalCenter:parent.verticalCenter; right:parent.right;}
+                visible: root.headClearable;
                 transEnabled: false;
                 width: 80;
                 height: 25;
