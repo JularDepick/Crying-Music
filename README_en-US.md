@@ -23,6 +23,7 @@ A desktop music player built as an implementation of mainstream players, with th
 - Online library: recommendation grid on the home page, streaming playback and download, covers and lyrics cached on disk, played tracks cached whole for reuse when downloading
 - Search: top bar keyword search with exact and fuzzy matching, results can be played directly
 - Lyrics page: full screen lyrics, line highlight, per word progress for enhanced lyrics, adjustable font size and offset
+- User: email code login without registration, login kept locally for 7 days, QQ mailboxes get a cached QQ avatar, browsing and playback are unaffected when signed out
 - Settings and themes: online play strategy, download naming and folder, cover and audio cache limits and cleanup, lyrics enhancement switch, six preset color schemes (four light and two dark)
 
 
