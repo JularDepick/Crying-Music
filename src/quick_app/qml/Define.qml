@@ -108,6 +108,16 @@ Item {
     /* 在线音频缓存: 默认上限(MB)与设置页可选档位, 超出上限按最近使用时间淘汰 */
     property int audioCacheCapDefaultMb: 1024;
     property var audioCacheCapMbOptions: [512,1024,2048,4096];
+    /* 用户登录: 本地登录状态的保留天数, 到期后要求重新登录;
+     * 验证码请求的超时阈值, 以及服务端未给冷却时间时的兜底重发间隔(秒) */
+    property int loginKeepDays: 7;
+    property int loginRequestTimeoutMs: 12000;
+    property int loginResendFallbackSeconds: 60;
+    /* QQ 头像: 两档清晰度, 大图用于用户页, 小图用于左侧栏, 均由 qlogo 按 QQ 号取;
+     * 模板里的 {qq} 与 {spec} 在取地址时替换 */
+    property int avatarSpecSmall: 100;
+    property int avatarSpecLarge: 640;
+    property string avatarUrlTemplate: "http://q.qlogo.cn/headimg_dl?dst_uin={qq}&spec={spec}&img_type=jpg";
     /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;
      * 输出的统一格式为 [分类标签]<具体信息>, 由 Assist 的输出函数拼装 */
     property var debugCategoryOn:
@@ -123,7 +133,8 @@ Item {
         "界面": true,
         "点击收起": true,
         "在线": true,
-        "下载": true
+        "下载": true,
+        "用户": true
     });
     /* 换肤: 把选定主题的配色写进本单例的同名颜色属性, 这是修改主题与颜色的唯一形式;
      * 主题数据只从 Theme 只读, 本函数不修改 Theme; 入参为主题 id, 未知时回退到默认主题 */

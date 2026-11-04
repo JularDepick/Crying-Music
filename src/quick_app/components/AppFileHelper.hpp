@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QStringList>
 #include <QStringConverter>
+#include <QCryptographicHash>
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QMediaPlayer>
@@ -350,6 +351,34 @@ public:
             result << QUrl::fromLocalFile(dir.absoluteFilePath(name)).toString();
         }
         return result;
+    }
+
+    /* SHA-256 摘要: 入参为待摘要的文本, 回 64 位十六进制小写串 */
+    Q_INVOKABLE QString sha256Hex(const QString &text) const {
+        return QString::fromLatin1(
+            QCryptographicHash::hash(text.toUtf8(), QCryptographicHash::Sha256).toHex());
+    }
+
+    /* HMAC-SHA256: 入参为密钥与待签文本, 回 64 位十六进制小写串,
+     * 客户端与服务端按同一口径算登录凭证的签名 */
+    Q_INVOKABLE QString hmacSha256Hex(const QString &key, const QString &message) const {
+        constexpr int blockSize = 64;
+        QByteArray k = key.toUtf8();
+        if (k.size() > blockSize) {
+            k = QCryptographicHash::hash(k, QCryptographicHash::Sha256);
+        }
+        k = k.leftJustified(blockSize, '\0', true);
+        QByteArray innerPad(blockSize, '\0');
+        QByteArray outerPad(blockSize, '\0');
+        for (int i = 0; i < blockSize; ++i) {
+            innerPad[i] = static_cast<char>(k.at(i) ^ 0x36);
+            outerPad[i] = static_cast<char>(k.at(i) ^ 0x5c);
+        }
+        const QByteArray inner =
+            QCryptographicHash::hash(innerPad + message.toUtf8(), QCryptographicHash::Sha256);
+        const QByteArray outer =
+            QCryptographicHash::hash(outerPad + inner, QCryptographicHash::Sha256);
+        return QString::fromLatin1(outer.toHex());
     }
 
     /* 读取音频元数据(兜底): 入参为标准化绝对路径, 异步返回;

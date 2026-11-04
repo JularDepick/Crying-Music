@@ -7,6 +7,12 @@ import "./"
 
 Item {
     id: serverRoot;
+    property var api:
+    ({
+        "base_url": "https://crying-music.uxiyu.xyz/",
+        "path": "api/",
+        "client_secret": "4ab0540096cc6e4a94ad9d03c3e7806f06c5839ca72d14af566e86be318f0fd651d2933eb5ce52408377f7c141f5a1c05cf53f3655fa169dc39d6b95e73b4071"
+    });
     /* 远程数据分布:
         * 元信息(meta.json)在仓库的 online-data 分支, 它的候选地址写在下面的 meta_file_url, 是在线曲库的唯一入口
         * 元信息是"数据根 + 资源声明"的组数组, 每一项是一组: base_url 给出本组的备用数据根,

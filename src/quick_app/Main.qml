@@ -1039,7 +1039,9 @@ ApplicationWindow {
                         background: Image {
                             anchors.fill: parent;
                             id: userAvatar;
-                            source: "qrc:/favicon.jpg";
+                            /* 登录后显示缓存的 QQ 头像小图, 未登录或不是纯数字 QQ 邮箱时用应用图标 */
+                            source: (Account.avatarSource(Define.avatarSpecSmall)===""
+                                     ? "qrc:/favicon.jpg":Account.avatarSource(Define.avatarSpecSmall));
                             fillMode: Image.PreserveAspectCrop;
                             layer.enabled: true;
                             layer.effect: MultiEffect {
@@ -1070,12 +1072,11 @@ ApplicationWindow {
                             Text {
                                 color: Define.textColor;
                                 id: userName;
-                                text: "用户名";
-                            }
-                            Text {
-                                color: Define.textColor;
-                                id: userLevel;
-                                text: "Lv.100";
+                                /* 登录后直接显示邮箱地址, 未登录显示未登录; 过长时右侧省略 */
+                                text: (Account.loggedIn===true? Account.email:"未登录");
+                                font.pixelSize: 13;
+                                width: 130;
+                                elide: Text.ElideRight;
                             }
                         }
                         Row {
@@ -1636,6 +1637,8 @@ ApplicationWindow {
         /* 先确定存储目录, 再读取落盘数据; 子项先于本处理器完成构建, 因此列表需在读盘后重建一次 */
         GlobalFileStorage.verifyStorageDir();
         GlobalFileStorage.load();
+        /* 登录记录跟着读盘一起复核: 签名不符或已过保留期的一律在窗口显示前清掉 */
+        Assist.dlog("用户","启动时复核登录记录: ",Account.refresh());
         /* 按界面偏好恢复预设主题: 只把选定主题的配色写进设计常量的内存值, 主题数据本身不改;
          * 必须在窗口显示前完成, 避免先按默认配色闪一帧 */
         Assist.dlog("界面","恢复预设主题: ",GlobalFileStorage.themeId(),", 结果 ",

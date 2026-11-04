@@ -23,6 +23,8 @@ Item {
     property string playStateFileName: "playState.json";
     property string uiStateFileName: "UI_State.json";
     property string downloadsFileName: "downloads.json";
+    /* 用户登录记录: 邮箱, 登录时刻与签名, 三者一起落盘 */
+    property string accountFileName: "account.json";
     /* 存储布局: 在线音乐的下载文件放在 <storageDirPath>/downloads 下,
      * 在线封面缓存放在 <storageDirPath>/cache/covers 下,
      * 在线歌词缓存放在 <storageDirPath>/cache/lyrics 下 */
@@ -32,6 +34,8 @@ Item {
     property string lyricsCacheDirName: "lyrics";
     /* 在线音频缓存放在 <storageDirPath>/cache/audio 下, 超出上限按最近使用时间淘汰 */
     property string audioCacheDirName: "audio";
+    /* 用户头像缓存放在 <storageDirPath>/cache/avatars 下, 两种清晰度各一份, 不过期 */
+    property string avatarCacheDirName: "avatars";
     /* 封面缓存索引: 记录每个封面的缓存时刻与该条目自己的生命周期 */
     property string coverCacheIndexFileName: "index.json";
     /* 歌词缓存索引: 记录每份歌词的偏移量(毫秒), 键为歌词缓存文件名 */
@@ -71,6 +75,15 @@ Item {
     /* 在线音乐的下载记录: 每项含在线标识与下载后的本地路径, 同时充当本地与在线的映射表 */
     /* 存到 #/data/downloads.json */
     property var downloads: [];
+    /* 用户登录记录: 邮箱为明文, loginAt 为验证通过时服务端给出的毫秒时刻,
+     * sign 是服务端按内置密钥签出的 HMAC, 读取时由 Account 复核, 复核通过且未满保留期才算已登录 */
+    /* 存到 #/data/account.json */
+    property var account:
+    ({
+        email: "",
+        loginAt: 0,
+        sign: ""
+    });
     /* 播放状态枢纽: 播放队列, 当前播放项路径与下标, 播放顺序与播放进度; 跨模块只经此处交换 */
     /* 存到 #/data/playState.json */
     property var playState:
@@ -350,6 +363,7 @@ Item {
         mergeDownloadList(srcDir,dstDir);
         mergeWholePayload(srcDir,dstDir,playStateFileName);
         mergeWholePayload(srcDir,dstDir,uiStateFileName);
+        mergeAccount(srcDir,dstDir);
         Assist.dlog("存储目录","迁移完成: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
         return true;
     }
@@ -478,6 +492,22 @@ Item {
         Assist.dlog("存储目录","  合并 ",fileName,": 采用来源目录的整份内容");
         return writePayload(dstDir,fileName,src);
     }
+    /* 合并登录记录: 两边都有记录时取登录时刻较新的一份, 只有一边有时直接搬过来 */
+    function mergeAccount(srcDir,dstDir) {
+        var dst=readPayload(dstDir,accountFileName);
+        var src=readPayload(srcDir,accountFileName);
+        if(src===null) {
+            Assist.dlog("存储目录","  合并 ",accountFileName,": 来源目录没有该文件, 跳过");
+            return false;
+        }
+        if(dst!==null && (typeof dst.loginAt==="number") && (typeof src.loginAt==="number")
+           && dst.loginAt>=src.loginAt) {
+            Assist.dlog("存储目录","  合并 ",accountFileName,": 目标目录的记录较新, 以目标为准");
+            return false;
+        }
+        Assist.dlog("存储目录","  合并 ",accountFileName,": 采用来源目录的记录");
+        return writePayload(dstDir,accountFileName,src);
+    }
     /* 读取落盘数据: 存储目录未确定或数据文件缺失时保持默认值 */
     function load() {
         if(storageDirPath==="") {
@@ -529,6 +559,12 @@ Item {
                        "lyricsFontSize":(typeof us.lyricsFontSize==="number"? us.lyricsFontSize:0),
                        "audioCacheCapMb":(typeof us.audioCacheCapMb==="number"? us.audioCacheCapMb:0)});
         }
+        var ac=readPayload(storageDirPath,accountFileName);
+        if(ac!==null) {
+            account=({"email":(typeof ac.email==="string"? ac.email:""),
+                      "loginAt":(typeof ac.loginAt==="number"? ac.loginAt:0),
+                      "sign":(typeof ac.sign==="string"? ac.sign:"")});
+        }
         Assist.dlog("落盘","读取完成: 手动歌曲 ",localScan.singleFiles.length,
                     " 项, 扫描文件夹 ",localScan.scanDirs.length,
                     " 个, 喜欢 ",likedFiles.length,
@@ -537,7 +573,8 @@ Item {
                     " 项, 队列 ",playState.sortlist.length,
                     " 项, 音量 ",playState.volume,
                     ", 页面 ",uiState.mainAreaPage,
-                    ", 左侧栏展开 ",uiState.leftSidebarSpreaded);
+                    ", 左侧栏展开 ",uiState.leftSidebarSpreaded,
+                    ", 登录邮箱 ",(account.email===""? "无":account.email));
         return true;
     }
     /* 写入全部落盘数据: 退出与数据迁移时使用 */
@@ -553,6 +590,7 @@ Item {
         writePayload(storageDirPath,downloadsFileName,downloads);
         writePayload(storageDirPath,playStateFileName,playState);
         writePayload(storageDirPath,uiStateFileName,uiState);
+        writePayload(storageDirPath,accountFileName,account);
         return true;
     }
     /* 只写扫描配置 */
@@ -574,6 +612,36 @@ Item {
     /* 只写界面状态 */
     function saveUIState() {
         return writePayload(storageDirPath,uiStateFileName,uiState);
+    }
+    /* 用户头像缓存目录: 存储目录未确定时返回空字符串 */
+    function avatarCacheDir() {
+        if(storageDirPath==="") {
+            return "";
+        }
+        return storageDirPath+"/"+cacheDirName+"/"+avatarCacheDirName;
+    }
+    /* 只写登录记录 */
+    function saveAccount() {
+        return writePayload(storageDirPath,accountFileName,account);
+    }
+    /* 写入登录记录: 邮箱, 登录时刻与签名三件齐全才写, 缺一项都不落盘 */
+    function setAccount(email,loginAt,sign) {
+        var e=String(email===undefined || email===null? "":email);
+        var t=(typeof loginAt==="number"? loginAt:0);
+        var s=String(sign===undefined || sign===null? "":sign);
+        if(e==="" || t<=0 || s==="") {
+            Assist.dwarn("落盘","写入登录记录失败: 参数不完整");
+            return false;
+        }
+        Assist.dlog("落盘","写入登录记录: ",e);
+        account=({"email":e,"loginAt":t,"sign":s});
+        return saveAccount();
+    }
+    /* 清除登录记录: 退出登录时使用 */
+    function clearAccount() {
+        Assist.dlog("落盘","清除登录记录");
+        account=({"email":"","loginAt":0,"sign":""});
+        return saveAccount();
     }
     /* 整体写回扫描规则 */
     function setMALocalP(a,b,c) {

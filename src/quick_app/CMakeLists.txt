@@ -41,6 +41,7 @@ set_source_files_properties(qml/GlobalFileStorage.qml PROPERTIES QT_QML_SINGLETO
 set_source_files_properties(qml/Assist.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(qml/Server.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(qml/Account.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 # 创建 QML 模块;RESOURCE_PREFIX "/" 与 NO_RESOURCE_TARGET_PATH 使 QML 文件
 # 按源码相对路径嵌入,如 qrc:/Main.qml、qrc:/qml/Define.qml,与 main.cpp 入口一致
 qt_policy(SET QTP0004 NEW)
