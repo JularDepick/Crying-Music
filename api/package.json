@@ -1,0 +1,25 @@
+{
+  "name": "crying-music-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "泣水音乐验证码服务: 邮箱验证码的发送与校验",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "dev": "node --watch src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "nodemailer": "^7.0.9"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.9.1",
+    "@types/nodemailer": "^7.0.3",
+    "typescript": "^5.9.3"
+  }
+}

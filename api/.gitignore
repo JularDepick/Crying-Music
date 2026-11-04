@@ -1,1 +1,8 @@
+node_modules/
+.pnpm-store/
+data/
+dist/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 .env
