@@ -146,22 +146,68 @@ Rectangle {
         x: lyricArea.x;
         width: lyricArea.width;
         spacing: 6;
-        Text {
+        /* 曲名: 超出歌词列宽度时按播放栏那套循环轮播, 未超出时水平居中;
+         * 宽度固定为歌词列宽度, 超出部分靠视口裁剪, 因此不会再出现省略号 */
+        Item {
+            id: songTitleViewport;
             width: parent.width;
-            horizontalAlignment: Text.AlignHCenter;
-            text: root.playingSongName;
-            color: Define.textColor;
-            font.pixelSize: 22;
-            font.weight: 600;
-            elide: Text.ElideRight;
-            maximumLineCount: 1;
+            height: songTitleText.height;
+            clip: true;
+            readonly property bool overflowing: (songTitleText.implicitWidth>width);
+            /* 轮播的横向位置: 未超出时不用它, 超出时由下面的动画推进 */
+            property real scrollX: 0;
+            Text {
+                id: songTitleText;
+                x: (songTitleViewport.overflowing
+                    ? songTitleViewport.scrollX
+                    : (songTitleViewport.width-implicitWidth)/2);
+                text: root.playingSongName;
+                color: Define.textColor;
+                /* 原 22 的 1.25 倍: 字号按整数像素生效, 取四舍五入的 28 */
+                font.pixelSize: 28;
+                font.weight: 600;
+                wrapMode: Text.NoWrap;
+                /* 换歌或换文本时回到开头, 避免停在上一次的滚动位置 */
+                onTextChanged: {
+                    songTitleViewport.scrollX=0;
+                }
+                /* 轮播: 开头停 1 秒, 滚到文本末尾, 末尾停 1 秒, 再滚回开头, 如此往复 */
+                SequentialAnimation {
+                    running: songTitleViewport.overflowing;
+                    loops: Animation.Infinite;
+                    PauseAnimation {
+                        duration: 1000;
+                    }
+                    NumberAnimation {
+                        target: songTitleViewport;
+                        property: "scrollX";
+                        from: 0;
+                        to: -(songTitleText.implicitWidth-songTitleViewport.width);
+                        duration: Math.max(1200,(songTitleText.implicitWidth-songTitleViewport.width)*30);
+                    }
+                    PauseAnimation {
+                        duration: 1000;
+                    }
+                    NumberAnimation {
+                        target: songTitleViewport;
+                        property: "scrollX";
+                        from: -(songTitleText.implicitWidth-songTitleViewport.width);
+                        to: 0;
+                        duration: Math.max(1200,(songTitleText.implicitWidth-songTitleViewport.width)*30);
+                    }
+                    PauseAnimation {
+                        duration: 1000;
+                    }
+                }
+            }
         }
+        /* 歌手: 仍按单行省略; 原 13 的 1.5 倍取四舍五入的 20, 字号按整数像素生效 */
         Text {
             width: parent.width;
             horizontalAlignment: Text.AlignHCenter;
             text: root.playingSingerName;
             color: Define.btnIconColor;
-            font.pixelSize: 13;
+            font.pixelSize: 20;
             elide: Text.ElideRight;
             maximumLineCount: 1;
         }
@@ -531,9 +577,9 @@ Rectangle {
                                                ? "":String(playingEntryData["songname"]));
     readonly property string playingSingerName: ((playingEntryData===null || playingEntryData["singer"]===undefined)
                                                  ? "":String(playingEntryData["singer"]));
-    readonly property string playingLyricsName: ((playingEntryData===null
-                                                  || playingEntryData["lyrics"]===undefined)
-                                                 ? "":String(playingEntryData["lyrics"]));
+    /* 歌词名: 条目自带优先; 早期落盘的条目没有这一项, 由 Server 按在线标识或下载记录回查清单,
+     * 因此已下载到本地再播放的曲目同样能出歌词 */
+    readonly property string playingLyricsName: Server.lyricsNameOfEntry(playingEntryData);
     /* 实际使用的歌词名: 关闭歌词增强时为普通歌词, 开启时为增强歌词 */
     readonly property string activeLyricsName: Server.lyricsVariantName(playingLyricsName);
     /* 歌词字号: 取界面偏好, 全部歌词行同一字号 */
