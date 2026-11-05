@@ -67,15 +67,28 @@ async function main(): Promise<void> {
         await routes.verify(req, res);
     }
 
-    server.listen(config.port, () => {
-        console.log("[服务] 已启动: 端口 " + String(config.port) + ", 数据库 " + config.dbFile);
+    /* 地址留空时交给系统按默认的双栈地址监听, 有值时只绑在该地址上 */
+    const hostText = (config.host === "" ? "默认地址" : config.host);
+    server.on("error", (error: Error) => {
+        console.error("[服务] 监听失败: " + hostText + ":" + String(config.port) + ", " + error.message);
+        store.close();
+        process.exit(1);
+    });
+    const onListening = (): void => {
+        console.log("[服务] 已启动: 地址 " + hostText + ", 端口 " + String(config.port)
+                    + ", 数据库 " + config.dbFile);
         console.log("[服务] 验证码有效期 " + String(config.codeTtlSeconds) + " 秒, 发送冷却 "
                     + String(config.sendCooldownSeconds) + " 秒, 每日上限 "
                     + String(config.sendDailyLimit) + " 次");
         void mail.verifyConnection().then((ok: boolean) => {
             console.log("[服务] SMTP 自检: " + (ok ? "通过" : "未通过, 发送可能失败"));
         });
-    });
+    };
+    if (config.host === "") {
+        server.listen(config.port, onListening);
+    } else {
+        server.listen(config.port, config.host, onListening);
+    }
 
     const shutdown = (signal: string): void => {
         console.log("[服务] 收到 " + signal + ", 正在关闭: " + stampOf(Date.now()));

@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
 
 /* 服务运行所需的全部配置项 */
 export interface ApiConfig {
+    /* 监听地址: 空串表示不指定地址, 由系统按默认的双栈地址监听 */
+    host: string;
     /* 监听端口 */
     port: number;
     /* 客户端内置密钥: 请求鉴权与登录签名共用, 只在服务端与客户端之间约定 */
@@ -127,6 +129,8 @@ export function loadConfig(): ApiConfig {
     }
     const dbRaw = textOf(env, "DB_FILE", "");
     const config: ApiConfig = {
+        /* 默认只绑 IPv4 的全部地址, 与样例 .env 一致; 要 IPv6 或只监听本机时改这一项 */
+        host: textOf(env, "API_HOST", "0.0.0.0"),
         port: intOf(env, "API_PORT", 26714),
         clientSecret: clientSecret,
         smtpHost: smtpHost,
