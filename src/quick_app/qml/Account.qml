@@ -210,11 +210,21 @@ Item {
             setHint(true,"邮箱地址格式不正确");
             return false;
         }
+        /* 先按成功展开: 验证码输入与冷却立即出现, 请求回来再决定保留还是回退,
+         * 因此点发送之后界面不等网络; 回退时把这两项还原成发送前的样子 */
+        var wasSent=codeSent;
+        var wasResendAt=resendAt;
+        codeSent=true;
+        nowMs=Date.now();
+        resendAt=nowMs+Define.loginResendFallbackSeconds*1000;
         phase=1;
         setHint(false,"");
         post("code/send",{"email":emailOne},function(sent,status,body) {
             accountRoot.phase=0;
             if(sent!==true) {
+                accountRoot.codeSent=wasSent;
+                accountRoot.resendAt=wasResendAt;
+                accountRoot.nowMs=Date.now();
                 accountRoot.setHint(true,"无法连接服务器, 请检查网络");
                 return;
             }
@@ -229,6 +239,10 @@ Item {
                 Assist.dlog("用户","验证码已发送: ",emailOne);
                 return;
             }
+            /* 服端明确拒绝时同样回退: 冷却不白占, 验证码区回到发送前 */
+            accountRoot.codeSent=wasSent;
+            accountRoot.resendAt=wasResendAt;
+            accountRoot.nowMs=Date.now();
             Assist.dwarn("用户","验证码发送失败: 状态 ",status);
             accountRoot.setHint(true,accountRoot.messageOf(status,body));
         });
