@@ -1161,8 +1161,8 @@ Rectangle {
             }
         }
     }
-    /* 把当前行钉到锚定线: 先按顶部对齐定位, 再上移一个锚定高度, 首尾由列表的首尾留白兜底;
-     * 用户正在拖动时不抢占, 松手后由列表的 movementEnded 重新锚定 */
+    /* 把当前行钉到锚定线: 先让列表把这一行实例化, 再按它的真实内容偏移算滚动位置;
+     * 首尾由列表的首尾留白兜底; 用户正在拖动时不抢占, 松手后由列表的 movementEnded 重新锚定 */
     function anchorToCurrentLine() {
         if(visible!==true || lyricView.moving===true) {
             return false;
@@ -1171,8 +1171,25 @@ Rectangle {
             return false;
         }
         lyricView.positionViewAtIndex(currentLine,ListView.Beginning);
-        var maxY=Math.max(0,lyricView.contentHeight-lyricView.height);
-        lyricView.contentY=Math.max(0,Math.min(maxY,lyricView.contentY-lyricView.height*anchorRatio));
+        root.applyAnchorOffset();
+        /* 行高要等委托完成排版才准: 下一帧按真实行高再校一次, 首次显示与重启后打开也能落准 */
+        Qt.callLater(root.applyAnchorOffset);
+        return true;
+    }
+    /* 按目标行的真实 y 与视口高度算滚动位置: 不用 positionViewAtIndex 的估算,
+     * 也不拿可能尚未结算的内容总高去夹, 越界由列表按边界自己收住 */
+    function applyAnchorOffset() {
+        if(root.visible!==true || lyricView.moving===true || root.userScrolled===true) {
+            return false;
+        }
+        if(root.currentLine<0 || root.currentLine>=lyricLines.length) {
+            return false;
+        }
+        var it=lyricView.itemAtIndex(root.currentLine);
+        if(it===null || it===undefined) {
+            return false;
+        }
+        lyricView.contentY=Math.max(0,it.y-lyricView.height*root.anchorRatio);
         /* 记下锚定位置: 跳转按钮的可见性按它与当前偏移的差判断 */
         root._anchorContentY=lyricView.contentY;
         return true;
