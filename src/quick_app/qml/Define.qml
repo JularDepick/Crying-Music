@@ -118,6 +118,20 @@ Item {
     property int avatarSpecSmall: 100;
     property int avatarSpecLarge: 640;
     property string avatarUrlTemplate: "http://q.qlogo.cn/headimg_dl?dst_uin={qq}&spec={spec}&img_type=jpg";
+    /* 用户等级: 累计听歌秒数换算等级的口径, 与服务端同一套公式,
+     * 其中 t = 累计秒数 / levelScaleSeconds; 等级上限 levelMax,
+     * 左侧栏徽标按等级落在 levelIconSteps 的哪一档取图标 */
+    property double levelBase: 55.5;
+    property double levelDivisor: 72.2;
+    property int levelScaleSeconds: 18000;
+    property int levelMax: 100;
+    /* 用户等级徽标的档位表: 只有十档, 等级落在哪一档就用哪一档的图标, 高于末档用末档 */
+    property var levelIconSteps: [10,20,30,40,50,60,70,80,90,100];
+    /* 听歌时长上报: 播放中每隔这么长时间上报一次, 单次上报按这个秒数计,
+     * 一天最多累计这么多秒; 与服务端口径一致 */
+    property int listenReportIntervalMs: 10000;
+    property int listenChunkSeconds: 10;
+    property int listenDailyMaxSeconds: 18000;
     /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;
      * 输出的统一格式为 [分类标签]<具体信息>, 由 Assist 的输出函数拼装 */
     property var debugCategoryOn:

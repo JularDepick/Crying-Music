@@ -33,6 +33,23 @@ MainAreaFatherPage {
         var ms=Account.expireAt-Account.nowMs;
         return (ms>0? Math.ceil(ms/86400000):0);
     }
+    /* 累计听歌时长: 按时分秒格式化, 不足一小时只给分秒 */
+    function listenStamp(totalSeconds) {
+        var sec=Math.floor(Number(totalSeconds));
+        if(!(sec>0)) {
+            return "0 秒";
+        }
+        var h=Math.floor(sec/3600);
+        var m=Math.floor((sec%3600)/60);
+        var s=sec%60;
+        if(h>0) {
+            return String(h)+" 小时 "+String(m)+" 分 "+String(s)+" 秒";
+        }
+        if(m>0) {
+            return String(m)+" 分 "+String(s)+" 秒";
+        }
+        return String(s)+" 秒";
+    }
     /* 发送按钮的文案: 依次覆盖发送中, 冷却中与已有验证码三种情况 */
     function sendLabel() {
         if(Account.phase===1) {
@@ -286,6 +303,12 @@ MainAreaFatherPage {
                     Text {
                         text: "登录状态保留至 " + mainArea_ProfilePage.stampOf(Account.expireAt)
                               + " (剩余 " + String(mainArea_ProfilePage.leftDays()) + " 天)";
+                        font.pixelSize: 13;
+                        color: Define.btnIconColor;
+                    }
+                    Text {
+                        text: "累计听歌 " + mainArea_ProfilePage.listenStamp(Account.totalListenSeconds)
+                              + ", 等级 Lv." + String(Account.levelOf(Account.totalListenSeconds));
                         font.pixelSize: 13;
                         color: Define.btnIconColor;
                     }

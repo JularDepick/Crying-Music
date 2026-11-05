@@ -23,8 +23,10 @@ Item {
     property string playStateFileName: "playState.json";
     property string uiStateFileName: "UI_State.json";
     property string downloadsFileName: "downloads.json";
-    /* 用户登录记录: 邮箱, 登录时刻与签名, 三者一起落盘 */
+    /* 用户登录记录: 邮箱, 登录时刻, 签名与登录状态秘钥, 四者一起落盘 */
     property string accountFileName: "account.json";
+    /* 听歌时长上报状态: 服务端累计秒数与本地待补报秒数 */
+    property string listenStateFileName: "listenState.json";
     /* 存储布局: 在线音乐的下载文件放在 <storageDirPath>/downloads 下,
      * 在线封面缓存放在 <storageDirPath>/cache/covers 下,
      * 在线歌词缓存放在 <storageDirPath>/cache/lyrics 下 */
@@ -76,13 +78,23 @@ Item {
     /* 存到 #/data/downloads.json */
     property var downloads: [];
     /* 用户登录记录: 邮箱为明文, loginAt 为验证通过时服务端给出的毫秒时刻,
-     * sign 是服务端按内置密钥签出的 HMAC, 读取时由 Account 复核, 复核通过且未满保留期才算已登录 */
+     * sign 是服务端按内置密钥签出的 HMAC, 读取时由 Account 复核, 复核通过且未满保留期才算已登录;
+     * sessionKey 是服务端签发的登录状态秘钥, 后续涉及用户的操作都要凭它做身份验证 */
     /* 存到 #/data/account.json */
     property var account:
     ({
         email: "",
         loginAt: 0,
-        sign: ""
+        sign: "",
+        sessionKey: ""
+    });
+    /* 听歌时长上报: 服务端给出的累计秒数, 用户等级按它派生;
+     * 上报未确认时用 pendingSeconds 暂存本地已播出的秒数, 下次成功时补报 */
+    /* 存到 #/data/listenState.json */
+    property var listenState:
+    ({
+        totalSeconds: 0,
+        pendingSeconds: 0
     });
     /* 播放状态枢纽: 播放队列, 当前播放项路径与下标, 播放顺序与播放进度; 跨模块只经此处交换 */
     /* 存到 #/data/playState.json */
@@ -364,6 +376,7 @@ Item {
         mergeWholePayload(srcDir,dstDir,playStateFileName);
         mergeWholePayload(srcDir,dstDir,uiStateFileName);
         mergeAccount(srcDir,dstDir);
+        mergeListenState(srcDir,dstDir);
         Assist.dlog("存储目录","迁移完成: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
         return true;
     }
@@ -492,7 +505,25 @@ Item {
         Assist.dlog("存储目录","  合并 ",fileName,": 采用来源目录的整份内容");
         return writePayload(dstDir,fileName,src);
     }
-    /* 合并登录记录: 两边都有记录时取登录时刻较新的一份, 只有一边有时直接搬过来 */
+    /* 合并听歌上报状态: 与登录记录同一套规则, 取累计秒数较多的一份 */
+    function mergeListenState(srcDir,dstDir) {
+        var dst=readPayload(dstDir,listenStateFileName);
+        var src=readPayload(srcDir,listenStateFileName);
+        if(src===null) {
+            Assist.dlog("存储目录","  合并 ",listenStateFileName,": 来源目录没有该文件, 跳过");
+            return false;
+        }
+        var d=(dst!==null && typeof dst.totalSeconds==="number"? dst.totalSeconds:0);
+        var s=(typeof src.totalSeconds==="number"? src.totalSeconds:0);
+        if(dst!==null && d>=s) {
+            Assist.dlog("存储目录","  合并 ",listenStateFileName,": 目标目录的记录较新, 以目标为准");
+            return false;
+        }
+        Assist.dlog("存储目录","  合并 ",listenStateFileName,": 采用来源目录的记录");
+        return writePayload(dstDir,listenStateFileName,src);
+    }
+    /* 合并登录记录: 两边都有记录时取登录时刻较新的一份, 只有一边有时直接搬过来;
+     * 登录状态秘钥随记录一起搬, 缺秘钥的旧记录搬过来后由 Account 复核时按未登录处理 */
     function mergeAccount(srcDir,dstDir) {
         var dst=readPayload(dstDir,accountFileName);
         var src=readPayload(srcDir,accountFileName);
@@ -563,7 +594,13 @@ Item {
         if(ac!==null) {
             account=({"email":(typeof ac.email==="string"? ac.email:""),
                       "loginAt":(typeof ac.loginAt==="number"? ac.loginAt:0),
-                      "sign":(typeof ac.sign==="string"? ac.sign:"")});
+                      "sign":(typeof ac.sign==="string"? ac.sign:""),
+                      "sessionKey":(typeof ac.sessionKey==="string"? ac.sessionKey:"")});
+        }
+        var ls2=readPayload(storageDirPath,listenStateFileName);
+        if(ls2!==null) {
+            listenState=({"totalSeconds":(typeof ls2.totalSeconds==="number"? ls2.totalSeconds:0),
+                          "pendingSeconds":(typeof ls2.pendingSeconds==="number"? ls2.pendingSeconds:0)});
         }
         Assist.dlog("落盘","读取完成: 手动歌曲 ",localScan.singleFiles.length,
                     " 项, 扫描文件夹 ",localScan.scanDirs.length,
@@ -574,7 +611,8 @@ Item {
                     " 项, 音量 ",playState.volume,
                     ", 页面 ",uiState.mainAreaPage,
                     ", 左侧栏展开 ",uiState.leftSidebarSpreaded,
-                    ", 登录邮箱 ",(account.email===""? "无":account.email));
+                    ", 登录邮箱 ",(account.email===""? "无":account.email),
+                    ", 累计听歌 ",listenState.totalSeconds," 秒");
         return true;
     }
     /* 写入全部落盘数据: 退出与数据迁移时使用 */
@@ -591,7 +629,12 @@ Item {
         writePayload(storageDirPath,playStateFileName,playState);
         writePayload(storageDirPath,uiStateFileName,uiState);
         writePayload(storageDirPath,accountFileName,account);
+        writePayload(storageDirPath,listenStateFileName,listenState);
         return true;
+    }
+    /* 只写听歌上报状态 */
+    function saveListenState() {
+        return writePayload(storageDirPath,listenStateFileName,listenState);
     }
     /* 只写扫描配置 */
     function saveLocalScan() {
@@ -624,24 +667,62 @@ Item {
     function saveAccount() {
         return writePayload(storageDirPath,accountFileName,account);
     }
-    /* 写入登录记录: 邮箱, 登录时刻与签名三件齐全才写, 缺一项都不落盘 */
-    function setAccount(email,loginAt,sign) {
+    /* 写入登录记录: 邮箱, 登录时刻, 签名与登录状态秘钥四件齐全才写, 缺一项都不落盘;
+     * 秘钥为空时视为未签发, 后续涉及用户的操作会因为缺少秘钥而失败 */
+    function setAccount(email,loginAt,sign,sessionKey) {
         var e=String(email===undefined || email===null? "":email);
         var t=(typeof loginAt==="number"? loginAt:0);
         var s=String(sign===undefined || sign===null? "":sign);
+        var k=String(sessionKey===undefined || sessionKey===null? "":sessionKey);
         if(e==="" || t<=0 || s==="") {
             Assist.dwarn("落盘","写入登录记录失败: 参数不完整");
             return false;
         }
+        if(k==="") {
+            Assist.dwarn("落盘","写入登录记录失败: 缺少登录状态秘钥");
+            return false;
+        }
         Assist.dlog("落盘","写入登录记录: ",e);
-        account=({"email":e,"loginAt":t,"sign":s});
+        account=({"email":e,"loginAt":t,"sign":s,"sessionKey":k});
         return saveAccount();
     }
-    /* 清除登录记录: 退出登录时使用 */
+    /* 清除登录记录: 退出登录时使用, 登录状态秘钥随之作废 */
     function clearAccount() {
         Assist.dlog("落盘","清除登录记录");
-        account=({"email":"","loginAt":0,"sign":""});
+        account=({"email":"","loginAt":0,"sign":"","sessionKey":""});
         return saveAccount();
+    }
+    /* 写入服务端给出的累计听歌秒数: 只在服务端确认过之后调用 */
+    function setListenTotalSeconds(seconds) {
+        var n=Math.floor(Number(seconds));
+        if(!(n>=0)) {
+            n=0;
+        }
+        var was=listenState.totalSeconds;
+        listenState=({"totalSeconds":n,
+                      "pendingSeconds":listenState.pendingSeconds});
+        if(was!==n) {
+            saveListenState();
+        }
+        return true;
+    }
+    /* 暂存一段本地已播出但服务端未确认的秒数: 上报失败时累加, 上报成功时清零 */
+    function addListenPendingSeconds(seconds) {
+        var n=Math.floor(Number(seconds));
+        if(!(n>0)) {
+            return false;
+        }
+        var p=(typeof listenState.pendingSeconds==="number"? listenState.pendingSeconds:0)+n;
+        listenState=({"totalSeconds":(typeof listenState.totalSeconds==="number"? listenState.totalSeconds:0),
+                      "pendingSeconds":p});
+        saveListenState();
+        return true;
+    }
+    /* 清零待补报秒数: 上报成功时调用 */
+    function clearListenPending() {
+        listenState=({"totalSeconds":(typeof listenState.totalSeconds==="number"? listenState.totalSeconds:0),
+                      "pendingSeconds":0});
+        return saveListenState();
     }
     /* 整体写回扫描规则 */
     function setMALocalP(a,b,c) {

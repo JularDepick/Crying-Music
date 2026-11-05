@@ -31,19 +31,27 @@ Item {
     /* 在途请求: 同一时刻只允许一个, 超时或新请求到来时中止它 */
     property var pendingXhr: null;
 
-    /* 落盘记录里的三个字段 */
+    /* 落盘记录里的字段: 邮箱, 登录时刻, 签名与登录状态秘钥 */
     readonly property string email:
         (typeof GlobalFileStorage.account.email==="string"? GlobalFileStorage.account.email:"");
     readonly property double loginAt:
         (typeof GlobalFileStorage.account.loginAt==="number"? GlobalFileStorage.account.loginAt:0);
     readonly property string sign:
         (typeof GlobalFileStorage.account.sign==="string"? GlobalFileStorage.account.sign:"");
+    readonly property string sessionKey:
+        (typeof GlobalFileStorage.account.sessionKey==="string"? GlobalFileStorage.account.sessionKey:"");
     /* 保留期截止时刻: 未登录时为 0 */
     readonly property double expireAt: (loginAt>0? loginAt+Define.loginKeepDays*86400000:0);
     /* 签名复核: 用内置密钥按服务端的同一口径重算, 与落盘值一致才算可信 */
     readonly property bool signOk: verifySign(email,loginAt,sign);
-    /* 是否已登录: 记录完整, 签名相符且未过保留期 */
-    readonly property bool loggedIn: (email!=="" && loginAt>0 && signOk===true && nowMs<expireAt);
+    /* 是否已登录: 记录完整, 签名相符且未过保留期, 且服务端签发过登录状态秘钥;
+     * 缺秘钥说明这次登录早于秘钥机制, 涉及用户的操作一律拒绝 */
+    readonly property bool loggedIn: (email!=="" && loginAt>0 && signOk===true
+                                      && sessionKey!=="" && nowMs<expireAt);
+    /* 服务端给出的累计听歌秒数: 用户等级由它派生 */
+    readonly property int totalListenSeconds:
+        (typeof GlobalFileStorage.listenState.totalSeconds==="number"
+         ? GlobalFileStorage.listenState.totalSeconds:0);
     /* 冷却剩余的秒数: 页面据此显示"重新发送(nn 秒)" */
     readonly property int resendLeftSeconds: (resendAt>nowMs? Math.ceil((resendAt-nowMs)/1000):0);
     /* 纯数字的 QQ 邮箱里的 QQ 号: 其余邮箱为空串 */
@@ -81,6 +89,38 @@ Item {
         }
         var want=AppFileHelper.hmacSha256Hex(key,"login|"+String(email)+"|"+String(issuedAt));
         return (String(want).toLowerCase()===String(sign).toLowerCase());
+    }
+    /* 累计听歌秒数换算等级: 与服务端 levelOf 同一套公式,
+     * t = 累计秒数 / levelScaleSeconds, 结果按 levelMax 封顶 */
+    function levelOf(totalSeconds) {
+        var sec=Math.floor(Number(totalSeconds));
+        if(!(sec>0)) {
+            return 0;
+        }
+        var t=sec/Define.levelScaleSeconds;
+        var n=Math.floor(Define.levelBase*Math.log(t/Define.levelDivisor+1));
+        if(n<0) {
+            return 0;
+        }
+        return (n>Define.levelMax? Define.levelMax:n);
+    }
+    /* 等级徽标图标: 按等级落在哪一档取, 高于末档用末档; 等级为 0 时也给第一档,
+     * 与未上线时的静态末档观感不同但同样保留徽标, 未登录时返回空串由调用方回退应用图标 */
+    function levelIconOf(level) {
+        if(loggedIn!==true) {
+            return "";
+        }
+        var n=Math.floor(Number(level));
+        if(!(n>0)) {
+            n=1;
+        }
+        var steps=Define.levelIconSteps;
+        for(var i=0;i<steps.length;i++) {
+            if(n<=steps[i]) {
+                return "qrc:/assets/iconfont/vip/vip"+String(i+1)+".svg";
+            }
+        }
+        return "qrc:/assets/iconfont/vip/vip"+String(steps.length)+".svg";
     }
     /* 接口地址: 基址与路径都来自 Server 的 api 配置, 末尾统一补斜杠 */
     function apiUrlOf(path) {
@@ -141,6 +181,22 @@ Item {
     /* 发一次 JSON POST: 无论成败都回一次 onDone(是否收到响应, 状态码, 解析后的对象);
      * 同一时刻只允许一个在途请求, 新请求会先中止旧的 */
     function post(path,payload,onDone) {
+        return sendJson("POST",path,payload,false,onDone);
+    }
+    /* 发一次 GET: 不带请求体, 供资料查询使用 */
+    function get(path,onDone) {
+        return sendJson("GET",path,null,false,onDone);
+    }
+    /* 带登录状态秘钥的 POST: 涉及用户的操作一律走这里, 秘钥放在请求头里 */
+    function postWithSession(path,payload,onDone) {
+        return sendJson("POST",path,payload,true,onDone);
+    }
+    /* 带登录状态秘钥的 GET */
+    function getWithSession(path,onDone) {
+        return sendJson("GET",path,null,true,onDone);
+    }
+    /* 发送 JSON 请求的公共实现: withSession 为真时把登录状态秘钥放进 X-Session-Key */
+    function sendJson(method,path,payload,withSession,onDone) {
         var old=pendingXhr;
         if(old!==null) {
             old.__aborted=true;
@@ -178,9 +234,14 @@ Item {
             onDone(true,xhr.status,body);
         };
         try {
-            xhr.open("POST",apiUrlOf(path));
-            xhr.setRequestHeader("Content-Type","application/json");
+            xhr.open(method,apiUrlOf(path));
+            if(method==="POST") {
+                xhr.setRequestHeader("Content-Type","application/json");
+            }
             xhr.setRequestHeader("X-Client-Secret",String(Server.api.client_secret));
+            if(withSession===true) {
+                xhr.setRequestHeader("X-Session-Key",sessionKey);
+            }
         } catch(e3) {
             Assist.dwarn("用户","请求发起失败: ",path,", ",e3);
             pendingXhr=null;
@@ -188,9 +249,10 @@ Item {
             return false;
         }
         reqTimer.restart();
-        Assist.dlog("用户","请求: ",apiUrlOf(path));
+        Assist.dlog("用户","请求: ",method," ",apiUrlOf(path));
         try {
-            xhr.send(JSON.stringify(payload));
+            xhr.send((method==="POST" && payload!==null && payload!==undefined)
+                     ? JSON.stringify(payload):null);
         } catch(e4) {
             Assist.dwarn("用户","请求发送失败: ",path,", ",e4);
             pendingXhr=null;
@@ -284,7 +346,13 @@ Item {
                 accountRoot.setHint(true,"登录凭证签名校验失败");
                 return;
             }
-            var saved=GlobalFileStorage.setAccount(body.email,body.issuedAt,body.sign);
+            /* 登录状态秘钥: 服务端没给就视为登录失败, 没有秘钥的后续用户操作一律被拒 */
+            if(typeof body.sessionKey!=="string" || body.sessionKey==="") {
+                Assist.dwarn("用户","服务端未下发登录状态秘钥: ",body.email);
+                accountRoot.setHint(true,"服务端未下发登录状态秘钥");
+                return;
+            }
+            var saved=GlobalFileStorage.setAccount(body.email,body.issuedAt,body.sign,body.sessionKey);
             accountRoot.codeSent=false;
             accountRoot.resendAt=0;
             accountRoot.nowMs=Date.now();
@@ -297,17 +365,93 @@ Item {
         });
         return true;
     }
-    /* 退出登录: 只清本地记录与头像, 不动服务端 */
+    /* 退出登录: 先请求服务端作废登录状态秘钥, 再清本地记录与头像;
+     * 服务端不在或拒绝也照常清本地, 本地清完之后这把秘钥没有再用的地方 */
     function logout() {
         if(email==="") {
             return false;
         }
         Assist.dlog("用户","退出登录: ",email);
+        if(sessionKey!=="") {
+            postWithSession("user/logout",{},function(sent,status,body) {
+                if(sent!==true || status<200 || status>=300) {
+                    Assist.dwarn("用户","服务端退出失败: 状态 ",status,", 本地记录仍按已退出处理");
+                    return;
+                }
+                Assist.dlog("用户","服务端已作废登录状态: ",email);
+            });
+        }
         GlobalFileStorage.clearAccount();
         codeSent=false;
         resendAt=0;
         nowMs=Date.now();
         setHint(false,"已退出登录");
+        return true;
+    }
+    /* 拉取用户资料: 服务端给出的累计听歌秒数落到本地, 等级由本地按公式派生;
+     * 登录后与每次成功上报后各拉一次 */
+    function requestProfile() {
+        if(loggedIn!==true || sessionKey==="") {
+            return false;
+        }
+        getWithSession("user/profile",function(sent,status,body) {
+            if(sent!==true || status<200 || status>=300 || body===null || body.ok!==true) {
+                if(status===401) {
+                    /* 秘钥被服务端判定无效: 本地登录状态立即失效 */
+                    Assist.dwarn("用户","登录状态已失效, 本地退出: ",status);
+                    GlobalFileStorage.clearAccount();
+                    nowMs=Date.now();
+                    setHint(true,"登录状态已失效, 请重新登录");
+                }
+                return;
+            }
+            if(typeof body.totalSeconds==="number") {
+                GlobalFileStorage.setListenTotalSeconds(body.totalSeconds);
+                Assist.dlog("用户","累计听歌: ",body.totalSeconds," 秒, 等级 ",levelOf(body.totalSeconds));
+            }
+        });
+        return true;
+    }
+    /* 上报一段听歌秒数: seconds 为本次要计入的秒数, 服务端按当日上限截断并回执累计值;
+     * 失败时把这段秒数暂存为待补报, 下次成功时随下一段一起上报 */
+    function reportListenSeconds(seconds) {
+        var chunk=Math.floor(Number(seconds));
+        if(!(chunk>0)) {
+            return false;
+        }
+        if(loggedIn!==true || sessionKey==="") {
+            return false;
+        }
+        var carry=(typeof GlobalFileStorage.listenState.pendingSeconds==="number"
+                   ? GlobalFileStorage.listenState.pendingSeconds:0);
+        var reportSeconds=chunk+carry;
+        postWithSession("user/listen",{"seconds":reportSeconds},function(sent,status,body) {
+            if(sent!==true) {
+                /* 网络不通: 这段先记在本地, 服务端恢复后补报 */
+                GlobalFileStorage.addListenPendingSeconds(chunk);
+                Assist.dwarn("用户","听歌上报未送达, 暂存 ",chunk," 秒待补报");
+                return;
+            }
+            if(status<200 || status>=300 || body===null || body.ok!==true) {
+                if(status===401) {
+                    Assist.dwarn("用户","登录状态已失效, 本地退出: ",status);
+                    GlobalFileStorage.clearAccount();
+                    nowMs=Date.now();
+                    setHint(true,"登录状态已失效, 请重新登录");
+                    return;
+                }
+                /* 服务端明确拒绝(如冷却中): 段落保留待补报 */
+                GlobalFileStorage.addListenPendingSeconds(chunk);
+                Assist.dwarn("用户","听歌上报被拒: 状态 ",status,", 暂存 ",chunk," 秒待补报");
+                return;
+            }
+            GlobalFileStorage.clearListenPending();
+            if(typeof body.totalSeconds==="number") {
+                GlobalFileStorage.setListenTotalSeconds(body.totalSeconds);
+            }
+            Assist.dlog("用户","听歌上报: 服务端确认 ",(typeof body.accepted==="number"? body.accepted:0),
+                        " 秒, 累计 ",(typeof body.totalSeconds==="number"? body.totalSeconds:0)," 秒");
+        });
         return true;
     }
     /* 拉取头像: 两种清晰度各一次, force 为真时忽略本地已有的文件;

@@ -346,6 +346,9 @@ ApplicationWindow {
             if(followMediaRootFailover()===true) {
                 return;
             }
+            /* 换根也救不回来: 数据根全部不可用, 回退到暂停并提示,
+              * 能用整曲缓存就改播缓存, 播放栏不再停在播放中 */
+            handleOnlinePlayFailure();
         }
         onMediaStatusChanged: {
             if(mediaStatus===MediaPlayer.LoadedMedia && pendingRestore===true) {
@@ -438,6 +441,34 @@ ApplicationWindow {
             source=next;
             player.play();
             return true;
+        }
+        /* 在线播放彻底失败: 数据根全部不可用, 界面不能停在播放中;
+          * 有整曲缓存或本地文件就改播缓存并按上次进度续播, 什么都没有就回退到暂停;
+          * 两种结局都用完成提示浮层告知, 提示文案只在在线条目上出现 */
+        function handleOnlinePlayFailure() {
+            if(Server.isOnlineKey(playingWhich)===false) {
+                return false;
+            }
+            var pos=Math.max(0,Math.floor(position));
+            var key=cacheKeyOfPlaying();
+            var cached=(key===""? "":Server.audioCachePathOf(key));
+            if(cached!=="") {
+                Assist.dwarn("播放","在线取用彻底失败, 改播整曲缓存: ",key,", 进度 ",pos);
+                if(pos>0) {
+                    GlobalFileStorage.setPlayPosition(pos);
+                    pendingRestore=true;
+                }
+                source=cached;
+                Server.touchAudioCache(key);
+                player.play();
+                loadingTip.showTip("在线取用失败, 已切换到本地缓存播放");
+                return true;
+            }
+            /* 缓存也没有: 停止播放, 进度保留, 数据根冷却到期前不再自动重试 */
+            Assist.dwarn("播放","在线取用彻底失败且无缓存可用, 回退到暂停: ",playingWhich);
+            pause();
+            loadingTip.showTip("在线取用失败, 暂时无法播放");
+            return false;
         }
         /* 播放前置校验: 在线条目无法离线校验, 交给播放器在失败时报告 */
         function playbackOk(one) {
@@ -1115,9 +1146,15 @@ ApplicationWindow {
                             }
                         }
                         Row {
+                            /* 等级徽标: 登录后按累计听歌时长换算的等级取档,
+                              * 未登录时保留原先的末档徽标 */
                             CustomButtonA {
                                 id: userVIP;
-                                icon.source: "qrc:/assets/iconfont/vip/vip10.svg";
+                                icon.source: (Account.loggedIn===true
+                                              ? (Account.levelIconOf(Account.levelOf(Account.totalListenSeconds))===""
+                                                 ? "qrc:/assets/iconfont/vip/vip10.svg"
+                                                 :Account.levelIconOf(Account.levelOf(Account.totalListenSeconds)))
+                                              :"qrc:/assets/iconfont/vip/vip10.svg");
                                 icon.color: Define.vipRed;
                                 transEnabled: false;
                                 hoverHandlerEnabled: false;
@@ -1665,6 +1702,27 @@ ApplicationWindow {
         target: Server;
         function onManifestUpdated() {
             player.recheckOnlineSource();
+        }
+    }
+    /* 听歌时长上报: 登录后音频处于播放状态时每隔一段时间上报一次,
+      * 计入的秒数按 Define.listenChunkSeconds 计, 一天最多累计 5 小时, 由服务端截断;
+      * 上报走 Account, 失败时段落暂存为待补报, 服务端恢复后自动补上 */
+    Timer {
+        id: listenReportTimer;
+        interval: Define.listenReportIntervalMs;
+        repeat: true;
+        running: (Account.loggedIn===true && player.playbackState===MediaPlayer.PlayingState);
+        onTriggered: {
+            Account.reportListenSeconds(Define.listenChunkSeconds);
+        }
+    }
+    /* 登录刚成立时拉一次用户资料: 累计听歌秒数与等级随后可用 */
+    Connections {
+        target: Account;
+        function onLoggedInChanged() {
+            if(Account.loggedIn===true) {
+                Account.requestProfile();
+            }
         }
     }
     Component.onCompleted: {
