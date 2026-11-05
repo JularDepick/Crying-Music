@@ -118,133 +118,115 @@ MainAreaFatherPage {
         contentWidth: width;
         contentHeight: ((Account.loggedIn? accountPanel.height:loginForm.height)+48);
 
-        /* 未登录: 邮箱加验证码的表单 */
+        /* 未登录: 邮箱与验证码分成两块, 每块自带标题与输入框;
+          * 输入框的底色与按钮同为一档亮灰, 聚焦时只换描边 */
         Column {
             id: loginForm;
             visible: (Account.loggedIn!==true);
             x: 40;
             width: profileFlick.width-80;
-            spacing: 10;
+            spacing: 20;
 
-            Text {
-                color: Define.textColor;
-                text: "邮箱";
-                font.pixelSize: 15;
-                font.weight: 400;
-            }
-            TextField {
-                id: emailField;
-                width: 360;
-                height: 36;
-                font.pixelSize: 14;
-                color: Define.textColor;
-                /* 初次进入用已登录的邮箱预填; 用户开始输入后绑定断开, 内容以输入为准 */
-                text: Account.email;
-                placeholderText: "QQ 邮箱, 例如 123456789@qq.com";
-                placeholderTextColor: Define.btnIconColor;
-                selectByMouse: true;
-                leftPadding: 12;
-                rightPadding: 12;
-                selectionColor: Define.choseCyanColor;
-                selectedTextColor: "white";
-                background: Rectangle {
-                    anchors.fill: parent;
-                    radius: 8;
-                    color: Define.forbdDarkColor;
-                    border.width: 1;
-                    border.color: (emailField.activeFocus? Define.choseCyanColor:Define.subGrey);
+            Column {
+                id: mailBlock;
+                width: parent.width;
+                spacing: 10;
+                Text {
+                    color: Define.textColor;
+                    text: "邮箱";
+                    font.pixelSize: 15;
+                    font.weight: 400;
                 }
-                onAccepted: {
-                    mainArea_ProfilePage.submitEmail();
-                }
-            }
-            CustomButtonA {
-                id: sendBtn;
-                width: 120;
-                height: 30;
-                transEnabled: false;
-                enabled: (Account.phase===0 && Account.resendLeftSeconds===0);
-                opacity: (enabled? 1:0.5);
-                background: Rectangle {
-                    anchors.fill: parent;
-                    radius: 15;
-                    color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                    Text {
-                        anchors.centerIn: parent;
-                        text: mainArea_ProfilePage.sendLabel();
-                        font.pixelSize: 13;
-                        color: Define.textColor;
+                Row {
+                    id: mailRow;
+                    spacing: 10;
+                    CustomTextField {
+                        id: emailField;
+                        width: Math.max(0,loginForm.width-sendBtn.width-mailRow.spacing);
+                        placeholderText: "QQ 邮箱, 例如 123456789@qq.com";
+                        text: Account.email;
+                        onAccepted: {
+                            mainArea_ProfilePage.submitEmail();
+                        }
+                    }
+                    CustomButtonA {
+                        id: sendBtn;
+                        width: 120;
+                        height: 36;
+                        transEnabled: false;
+                        enabled: (Account.phase===0 && Account.resendLeftSeconds===0);
+                        opacity: (enabled? 1:0.5);
+                        background: Rectangle {
+                            anchors.fill: parent;
+                            radius: 8;
+                            color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                            Text {
+                                anchors.centerIn: parent;
+                                text: mainArea_ProfilePage.sendLabel();
+                                font.pixelSize: 13;
+                                color: Define.textColor;
+                            }
+                        }
+                        onClicked: {
+                            mainArea_ProfilePage.submitEmail();
+                        }
                     }
                 }
-                onClicked: {
-                    mainArea_ProfilePage.submitEmail();
-                }
             }
-            /* 分隔线与验证码区一起出现: 没发过验证码时不留一条悬空的分隔线 */
             Rectangle {
-                visible: (Account.codeSent===true);
                 width: parent.width;
                 height: 2;
                 radius: 1;
                 color: Define.subGrey;
             }
-            /* 验证码只在发出过验证码之后出现: 没发过就没有可填的内容 */
-            Text {
+            /* 验证码区与分隔线一起出现: 没发过验证码时不留一条悬空的分隔线 */
+            Column {
+                id: codeBlock;
                 visible: (Account.codeSent===true);
-                color: Define.textColor;
-                text: "验证码";
-                font.pixelSize: 15;
-                font.weight: 400;
-            }
-            TextField {
-                id: codeField;
-                visible: (Account.codeSent===true);
-                width: 360;
-                height: 36;
-                font.pixelSize: 14;
-                color: Define.textColor;
-                placeholderText: "六位数字验证码";
-                placeholderTextColor: Define.btnIconColor;
-                selectByMouse: true;
-                leftPadding: 12;
-                rightPadding: 12;
-                maximumLength: 6;
-                selectionColor: Define.choseCyanColor;
-                selectedTextColor: "white";
-                /* 只接受数字: 邮箱里收到的验证码一定是六位数字 */
-                validator: RegularExpressionValidator { regularExpression: /[0-9]{0,6}/ }
-                background: Rectangle {
-                    anchors.fill: parent;
-                    radius: 8;
-                    color: Define.forbdDarkColor;
-                    border.width: 1;
-                    border.color: (codeField.activeFocus? Define.choseCyanColor:Define.subGrey);
+                width: parent.width;
+                spacing: 10;
+                Text {
+                    color: Define.textColor;
+                    text: "验证码";
+                    font.pixelSize: 15;
+                    font.weight: 400;
                 }
-                onAccepted: {
-                    mainArea_ProfilePage.submitCode();
-                }
-            }
-            CustomButtonA {
-                id: loginBtn;
-                visible: (Account.codeSent===true);
-                width: 100;
-                height: 30;
-                transEnabled: false;
-                enabled: (Account.phase===0);
-                opacity: (enabled? 1:0.5);
-                background: Rectangle {
-                    anchors.fill: parent;
-                    radius: 15;
-                    color: (parent.hovered? Qt.darker(Define.choseCyanColor,1.1):Define.choseCyanColor);
-                    Text {
-                        anchors.centerIn: parent;
-                        text: (Account.phase===2? "登录中":"登录");
-                        font.pixelSize: 13;
-                        color: "white";
+                Row {
+                    id: codeRow;
+                    spacing: 10;
+                    CustomTextField {
+                        id: codeField;
+                        width: Math.max(0,loginForm.width-loginBtn.width-codeRow.spacing);
+                        placeholderText: "六位数字验证码";
+                        maximumLength: 6;
+                        /* 只接受数字: 邮箱里收到的验证码一定是六位数字 */
+                        validator: RegularExpressionValidator { regularExpression: /[0-9]{0,6}/ }
+                        onAccepted: {
+                            mainArea_ProfilePage.submitCode();
+                        }
                     }
-                }
-                onClicked: {
-                    mainArea_ProfilePage.submitCode();
+                    CustomButtonA {
+                        id: loginBtn;
+                        width: 100;
+                        height: 36;
+                        transEnabled: false;
+                        enabled: (Account.phase===0);
+                        opacity: (enabled? 1:0.5);
+                        background: Rectangle {
+                            anchors.fill: parent;
+                            radius: 8;
+                            color: (parent.hovered? Qt.darker(Define.choseCyanColor,1.1):Define.choseCyanColor);
+                            Text {
+                                anchors.centerIn: parent;
+                                text: (Account.phase===2? "登录中":"登录");
+                                font.pixelSize: 13;
+                                color: "white";
+                            }
+                        }
+                        onClicked: {
+                            mainArea_ProfilePage.submitCode();
+                        }
+                    }
                 }
             }
             /* 提示行: 错误为红, 正常为选中青 */
@@ -259,13 +241,13 @@ MainAreaFatherPage {
             }
         }
 
-        /* 已登录: 头像, 邮箱与登录时间 */
+        /* 已登录: 头像与身份信息在上, 累计听歌与等级在下 */
         Column {
             id: accountPanel;
             visible: (Account.loggedIn===true);
             x: 40;
             width: profileFlick.width-80;
-            spacing: 10;
+            spacing: 20;
             Row {
                 id: avatarRow;
                 spacing: 20;
@@ -294,6 +276,8 @@ MainAreaFatherPage {
                         font.pixelSize: 18;
                         font.weight: 500;
                         color: Define.textColor;
+                        elide: Text.ElideRight;
+                        width: Math.max(0,accountPanel.width-bigAvatar.width-avatarRow.spacing);
                     }
                     Text {
                         text: "登录时间 " + mainArea_ProfilePage.stampOf(Account.loginAt);
@@ -306,11 +290,50 @@ MainAreaFatherPage {
                         font.pixelSize: 13;
                         color: Define.btnIconColor;
                     }
-                    Text {
-                        text: "累计听歌 " + mainArea_ProfilePage.listenStamp(Account.totalListenSeconds)
-                              + ", 等级 Lv." + String(Account.levelOf(Account.totalListenSeconds));
-                        font.pixelSize: 13;
-                        color: Define.btnIconColor;
+                }
+            }
+            Rectangle {
+                width: parent.width;
+                height: 2;
+                radius: 1;
+                color: Define.subGrey;
+            }
+            Column {
+                width: parent.width;
+                spacing: 10;
+                Text {
+                    color: Define.textColor;
+                    text: "听歌与等级";
+                    font.pixelSize: 15;
+                    font.weight: 400;
+                }
+                Row {
+                    id: levelRow;
+                    spacing: 20;
+                    /* 等级徽标: 与左侧栏同一套取档, 等级为 0 时给第一档 */
+                    CustomButtonA {
+                        id: levelIcon;
+                        width: 40;
+                        height: 40;
+                        icon.source: Account.levelIconOf(Account.levelOf(Account.totalListenSeconds));
+                        icon.color: Define.vipRed;
+                        transEnabled: false;
+                        hoverHandlerEnabled: false;
+                    }
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        spacing: 4;
+                        Text {
+                            text: "Lv." + String(Account.levelOf(Account.totalListenSeconds));
+                            font.pixelSize: 20;
+                            font.weight: 700;
+                            color: Define.textColor;
+                        }
+                        Text {
+                            text: "累计听歌 " + mainArea_ProfilePage.listenStamp(Account.totalListenSeconds);
+                            font.pixelSize: 13;
+                            color: Define.btnIconColor;
+                        }
                     }
                 }
             }
@@ -325,11 +348,11 @@ MainAreaFatherPage {
                 CustomButtonA {
                     id: logoutBtn;
                     width: 100;
-                    height: 30;
+                    height: 36;
                     transEnabled: false;
                     background: Rectangle {
                         anchors.fill: parent;
-                        radius: 15;
+                        radius: 8;
                         color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
                         Text {
                             anchors.centerIn: parent;
