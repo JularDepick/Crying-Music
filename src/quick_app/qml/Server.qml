@@ -1671,7 +1671,42 @@ Item {
         var s=audioCacheStats();
         Assist.dlog("在线","音频缓存接管: ",n," 份, 占用 ",s["bytes"]," 字节");
         _audioCacheTrim();
+        _backfillPlayedSizeFromCache();
         return true;
+    }
+    /* 用音频缓存索引里的真实字节数补齐已播放元数据: 缓存文件还在就说明整曲确实取回来过,
+     * 这些大小比远端探测可靠, 一次性合并写盘, 不逐条写 */
+    function _backfillPlayedSizeFromCache() {
+        var patch=({});
+        var count=0;
+        for(var k in audioCacheIndex) {
+            var one=audioCacheIndex[k];
+            var sz=(one!==null && typeof one==="object" && typeof one["size"]==="number"? one["size"]:0);
+            if(sz<=0) {
+                continue;
+            }
+            var pm=playedMetaOf(k);
+            if(pm!==null && pm["size"]>0) {
+                continue;
+            }
+            patch[k]=sz;
+            count=count+1;
+        }
+        if(count<=0) {
+            return 0;
+        }
+        var m=({});
+        for(var k2 in playedMeta) {
+            m[k2]=playedMeta[k2];
+        }
+        for(var k3 in patch) {
+            var old=m[k3];
+            m[k3]=({"duration":(old===undefined || old===null? 0:old["duration"]),"size":patch[k3]});
+        }
+        playedMeta=m;
+        savePlayedMeta();
+        Assist.dlog("在线","已用音频缓存补齐已播放大小: ",count," 首");
+        return count;
     }
     /* 写缓存索引 */
     function saveAudioCacheIndex() {
@@ -1714,6 +1749,10 @@ Item {
         _audioIndexDirty=true;
         _audioCacheTrim();
         Assist.dlog("在线","音频已缓存: ",onlineId,", 大小 ",size);
+        /* 整曲已经真的取回来了: 顺带把大小记进已播放元数据, 列表就能直接显示 */
+        if(size>0) {
+            rememberSize(onlineId,size);
+        }
         return true;
     }
     /* 超出上限时按最近使用时间淘汰, 直到不超限; 上限为 0 表示不约束 */
@@ -1959,10 +1998,23 @@ Item {
         Assist.dlog("在线","普通歌词候选: ",_srcPrefixes(spec.audio_lyrics_lrc_src).join(" "));
         Assist.dlog("在线","增强歌词候选: ",_srcPrefixes(spec.audio_lyrics_elrc_src).join(" "));
     }
-    /* 取一首在线歌曲的已播放缓存: 没有记录时返回 null */
+    /* 取一首在线歌曲的已播放缓存: 没有记录时返回 null;
+     * 早期落盘的下载记录与队列条目里, 在线标识只有文件名没有前缀, 补上前缀再查一次 */
     function playedMetaOf(key) {
-        var one=playedMeta[key];
-        return (one===undefined? null:one);
+        var k=String(key===undefined || key===null? "":key);
+        if(k==="") {
+            return null;
+        }
+        var one=playedMeta[k];
+        if(one!==undefined) {
+            return one;
+        }
+        var tag=String(Define.onlineKeyTag);
+        if(k.indexOf(tag)!==0) {
+            var two=playedMeta[tag+k];
+            return (two===undefined? null:two);
+        }
+        return null;
     }
     /* 记一次在线歌曲的时长: 只接受正数秒, 值没变时不写盘 */
     function rememberDuration(key,seconds) {

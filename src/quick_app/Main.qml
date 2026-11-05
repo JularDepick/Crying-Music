@@ -347,27 +347,16 @@ ApplicationWindow {
                 return;
             }
         }
-        /* 在线音频开始加载时探测一次字节数: 作为元数据就绪前的临时显示数据 */
-        onSourceChanged: {
-            /* 字节数按在线标识记录: 流式播放走远端探测, 播的是缓存或已下载文件时直接取文件大小,
-             * 两种情况都会落进已播放元数据, 下次启动直接复用
-             */
-            if(Server.isOnlineKey(playingWhich)===false) {
-                return;
-            }
-            var src=String(source);
-            if(src.indexOf("http")!==0) {
-                Server.rememberSizeFromFile(playingWhich,src);
-                return;
-            }
-            Server.ensureSize(playingWhich,src);
-        }
         onMediaStatusChanged: {
             if(mediaStatus===MediaPlayer.LoadedMedia && pendingRestore===true) {
                 /* 断点恢复: 音频加载完成后回到上次的播放进度, 但不自动播放 */
                 pendingRestore=false;
                 position=(GlobalFileStorage.playState.playingPosition===undefined? 0:GlobalFileStorage.playState.playingPosition);
                 Assist.dlog("播放","断点恢复: ",source," 进度 ",position);
+            }
+            /* 数据真的到位(加载完成或已缓冲)之后才写已播放元数据: 源刚设上、加载失败或解码失败都不写 */
+            if(mediaStatus===MediaPlayer.LoadedMedia || mediaStatus===MediaPlayer.BufferedMedia) {
+                cachePlayingMeta();
             }
             if(mediaStatus===MediaPlayer.EndOfMedia) {
                 Assist.dlog("播放","播放结束: ",source);
@@ -470,12 +459,46 @@ ApplicationWindow {
             }
             return null;
         }
-        /* 在线歌曲的时长缓存: 播放器拿到时长后记进在线曲库, 供列表在元数据就绪前显示 */
-        function rememberOnlineDuration() {
-            if(Server.isOnlineKey(playingWhich)===false) {
+        /* 当前播放项的在线标识: 在线条目直接用条目字段, 早期记录里的标识没有前缀就补上;
+         * 已下载到本地再播放时 playingWhich 是本地路径, 因此不能只认它 */
+        function cacheKeyOfPlaying() {
+            var one=playingEntry();
+            if(one!==null && one["online"]===true) {
+                var raw=(one["onlineId"]===undefined || one["onlineId"]===null? "":String(one["onlineId"]));
+                if(raw!=="") {
+                    var tag=String(Define.onlineKeyTag);
+                    return (raw.indexOf(tag)===0? raw:tag+raw);
+                }
+            }
+            return (Server.isOnlineKey(playingWhich)===true? playingWhich:"");
+        }
+        /* 当前播放项的数据真正取到之后写缓存: 播的是本地文件时直接取文件大小,
+         * 流式播放到这时才发起远端字节数探测; 时长同样在这一步记下, 列表在元数据就绪前就能显示 */
+        function cachePlayingMeta() {
+            var key=cacheKeyOfPlaying();
+            if(key==="") {
                 return false;
             }
-            return Server.rememberDuration(playingWhich,Math.floor(duration/1000));
+            var src=String(source);
+            if(src.indexOf("http")!==0) {
+                Server.rememberSizeFromFile(key,src);
+            } else {
+                Server.ensureSize(key,src);
+            }
+            Server.rememberDuration(key,Math.floor(duration/1000));
+            return true;
+        }
+        /* 时长变化时补记一次: 只在数据已经到位时写, 不提前落盘 */
+        function rememberOnlineDuration() {
+            if(mediaStatus!==MediaPlayer.LoadedMedia && mediaStatus!==MediaPlayer.BufferedMedia
+               && mediaStatus!==MediaPlayer.BufferingMedia) {
+                return false;
+            }
+            var key=cacheKeyOfPlaying();
+            if(key==="") {
+                return false;
+            }
+            return Server.rememberDuration(key,Math.floor(duration/1000));
         }
         /* 播放状态: 本模块自己持有, 每次改动后同步到存储枢纽 */
         property string playingWhich: "";
@@ -771,7 +794,9 @@ ApplicationWindow {
             return true;
         }
         /* 在线清单就绪后校正队列里的在线条目: 曲名与歌手一律以清单为准,
-         * 因此清单就绪前按地址末段显示的临时名称会被改回清单值 */
+         * 因此清单就绪前按地址末段显示的临时名称会被改回清单值;
+         * 下载到本地再播的条目 absfpath 是本地路径, 按条目的在线标识查,
+         * 同时补齐清单与已播放缓存里的大小与时长, 列表与面板据此显示 */
         function refreshOnlineTitles() {
             var l=sortlist.length;
             var res=sortlist.slice();
@@ -781,7 +806,9 @@ ApplicationWindow {
                 if(one===undefined || one===null || one["online"]!==true) {
                     continue;
                 }
-                var e=Server.onlineEntryOfKey(one["absfpath"]);
+                var e=(Server.isOnlineKey(one["absfpath"])===true
+                       ? Server.onlineEntryOfKey(one["absfpath"])
+                       : Server.onlineEntryOfId(one["onlineId"]));
                 if(e===null) {
                     continue;
                 }
@@ -792,6 +819,14 @@ ApplicationWindow {
                 }
                 if(e["cover"]!=="" && one["cover"]!==e["cover"]) {
                     one["cover"]=e["cover"];
+                    changed=true;
+                }
+                if(!(one["duration"]>0) && e["duration"]>0) {
+                    one["duration"]=e["duration"];
+                    changed=true;
+                }
+                if(!(one["size"]>0) && e["size"]>0) {
+                    one["size"]=e["size"];
                     changed=true;
                 }
             }

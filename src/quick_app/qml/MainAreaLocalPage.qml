@@ -1584,13 +1584,21 @@ MainAreaFatherPage {
             var name=(typeof one["songname"]==="string" && one["songname"]!==""
                       ? one["songname"]:mainArea_LocalPage.nameOfFile(p));
             var singer=(typeof one["singer"]==="string" && one["singer"]!==""? one["singer"]:"未知歌手");
-            var sz=(one["size"]>0? one["size"]:AppFileHelper.fileSize(p));
+            /* 记录只是下载当时的快照: 时长与大小缺失时先看已播放缓存, 时长再缺就按在线标识查清单 */
+            var pm=Server.playedMetaOf(one["onlineId"]);
+            var dur=(one["duration"]>0? one["duration"]:(pm===null? 0:pm["duration"]));
+            if(!(dur>0)) {
+                var ent=Server.onlineEntryOfId(one["onlineId"]);
+                dur=(ent===null? 0:ent["duration"]);
+            }
+            var sz=(one["size"]>0? one["size"]
+                    :(pm!==null && pm["size"]>0? pm["size"]:AppFileHelper.fileSize(p)));
             v.push({"songname": name,
                     "singer": singer,
                     "absfpath": p,
                     "absipath": "",
                     "size": (sz>0? sz:0),
-                    "duration": (one["duration"]>0? one["duration"]:0),
+                    "duration": (dur>0? dur:0),
                     "source": "downloaded",
                     "online": true,
                     "onlineId": one["onlineId"],
