@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Controls.Basic
 import "./"
 
@@ -79,7 +80,7 @@ MainAreaFatherPage {
             font.weight: 700;
         }
         Text {
-            text: "使用邮箱验证码登录, 无需注册; 登录与否都不影响听歌";
+            text: "邮箱验证码登录, 无需注册";
             font.pixelSize: 13;
             color: Define.btnIconColor;
             wrapMode: Text.WordWrap;
@@ -110,7 +111,7 @@ MainAreaFatherPage {
 
             Text {
                 color: Define.textColor;
-                text: "邮箱登录";
+                text: "邮箱";
                 font.pixelSize: 15;
                 font.weight: 400;
             }
@@ -140,46 +141,31 @@ MainAreaFatherPage {
                     mainArea_ProfilePage.submitEmail();
                 }
             }
-            Text {
-                text: "建议使用 QQ 号邮箱登录, 纯数字 QQ 邮箱登录后会自动缓存 QQ 头像";
-                font.pixelSize: 12;
-                color: Define.btnIconColor;
-                wrapMode: Text.WordWrap;
-                width: loginForm.width;
-            }
-            Row {
-                id: sendRow;
-                spacing: 10;
-                CustomButtonA {
-                    id: sendBtn;
-                    width: 120;
-                    height: 30;
-                    transEnabled: false;
-                    enabled: (Account.phase===0 && Account.resendLeftSeconds===0);
-                    opacity: (enabled? 1:0.5);
-                    background: Rectangle {
-                        anchors.fill: parent;
-                        radius: 15;
-                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Text {
-                            anchors.centerIn: parent;
-                            text: mainArea_ProfilePage.sendLabel();
-                            font.pixelSize: 13;
-                            color: Define.textColor;
-                        }
-                    }
-                    onClicked: {
-                        mainArea_ProfilePage.submitEmail();
+            CustomButtonA {
+                id: sendBtn;
+                width: 120;
+                height: 30;
+                transEnabled: false;
+                enabled: (Account.phase===0 && Account.resendLeftSeconds===0);
+                opacity: (enabled? 1:0.5);
+                background: Rectangle {
+                    anchors.fill: parent;
+                    radius: 15;
+                    color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                    Text {
+                        anchors.centerIn: parent;
+                        text: mainArea_ProfilePage.sendLabel();
+                        font.pixelSize: 13;
+                        color: Define.textColor;
                     }
                 }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter;
-                    text: "同一邮箱 "+String(Define.loginResendFallbackSeconds)+" 秒内只发一封, 验证码有时效";
-                    font.pixelSize: 12;
-                    color: Define.btnIconColor;
+                onClicked: {
+                    mainArea_ProfilePage.submitEmail();
                 }
             }
+            /* 分隔线与验证码区一起出现: 没发过验证码时不留一条悬空的分隔线 */
             Rectangle {
+                visible: (Account.codeSent===true);
                 width: parent.width;
                 height: 2;
                 radius: 1;
@@ -221,36 +207,27 @@ MainAreaFatherPage {
                     mainArea_ProfilePage.submitCode();
                 }
             }
-            Row {
+            CustomButtonA {
+                id: loginBtn;
                 visible: (Account.codeSent===true);
-                spacing: 10;
-                CustomButtonA {
-                    id: loginBtn;
-                    width: 100;
-                    height: 30;
-                    transEnabled: false;
-                    enabled: (Account.phase===0);
-                    opacity: (enabled? 1:0.5);
-                    background: Rectangle {
-                        anchors.fill: parent;
-                        radius: 15;
-                        color: (parent.hovered? Qt.darker(Define.choseCyanColor,1.1):Define.choseCyanColor);
-                        Text {
-                            anchors.centerIn: parent;
-                            text: (Account.phase===2? "登录中":"登录");
-                            font.pixelSize: 13;
-                            color: "white";
-                        }
-                    }
-                    onClicked: {
-                        mainArea_ProfilePage.submitCode();
+                width: 100;
+                height: 30;
+                transEnabled: false;
+                enabled: (Account.phase===0);
+                opacity: (enabled? 1:0.5);
+                background: Rectangle {
+                    anchors.fill: parent;
+                    radius: 15;
+                    color: (parent.hovered? Qt.darker(Define.choseCyanColor,1.1):Define.choseCyanColor);
+                    Text {
+                        anchors.centerIn: parent;
+                        text: (Account.phase===2? "登录中":"登录");
+                        font.pixelSize: 13;
+                        color: "white";
                     }
                 }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter;
-                    text: "验证通过后登录状态在本地保留 "+String(Define.loginKeepDays)+" 天";
-                    font.pixelSize: 12;
-                    color: Define.btnIconColor;
+                onClicked: {
+                    mainArea_ProfilePage.submitCode();
                 }
             }
             /* 提示行: 错误为红, 正常为选中青 */
@@ -260,19 +237,6 @@ MainAreaFatherPage {
                 text: Account.hint;
                 font.pixelSize: 13;
                 color: (Account.hintError? Define.btnIconRed:Define.choseCyanColor);
-                wrapMode: Text.WordWrap;
-                width: loginForm.width;
-            }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
-            }
-            Text {
-                text: "首次登录即完成注册, 不需要单独的注册流程; 登录后只多出用户头像与邮箱展示, 听歌功能不受影响";
-                font.pixelSize: 12;
-                color: Define.btnIconColor;
                 wrapMode: Text.WordWrap;
                 width: loginForm.width;
             }
@@ -297,6 +261,13 @@ MainAreaFatherPage {
                     outlineColor: Define.subGrey;
                     source: (Account.avatarSource(Define.avatarSpecLarge)===""
                              ? "qrc:/favicon.jpg":Account.avatarSource(Define.avatarSpecLarge));
+                    HoverHandler {
+                        id: avatarHh;
+                    }
+                    /* 非纯数字 QQ 邮箱没有头像可缓存, 用悬停提示代替常驻说明文字 */
+                    ToolTip.visible: (avatarHh.hovered && Account.qqNumber==="");
+                    ToolTip.text: "该邮箱不是纯数字 QQ 邮箱, 不展示 QQ 头像";
+                    ToolTip.delay: 600;
                 }
                 Column {
                     anchors.verticalCenter: parent.verticalCenter;
@@ -318,12 +289,6 @@ MainAreaFatherPage {
                         font.pixelSize: 13;
                         color: Define.btnIconColor;
                     }
-                    Text {
-                        visible: (Account.qqNumber==="");
-                        text: "该邮箱不是纯数字 QQ 邮箱, 不展示 QQ 头像";
-                        font.pixelSize: 12;
-                        color: Define.btnIconColor;
-                    }
                 }
             }
             Rectangle {
@@ -331,13 +296,6 @@ MainAreaFatherPage {
                 height: 2;
                 radius: 1;
                 color: Define.subGrey;
-            }
-            Text {
-                text: "头像与邮箱只保存在本机, 退出登录后即清除登录记录";
-                font.pixelSize: 12;
-                color: Define.btnIconColor;
-                wrapMode: Text.WordWrap;
-                width: accountPanel.width;
             }
             Row {
                 spacing: 10;
