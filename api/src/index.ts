@@ -2,7 +2,7 @@
  * 作者: JularDepick (https://github.com/JularDepick)
  *
  * node --watch src/index.ts 即可运行, 也可以用 pm2 / systemd 托管.
- * 只有三个路由: 发送验证码, 校验验证码, 健康检查.
+ * 路由分两组: 验证码的发送与校验, 以及登录状态与听歌时长.
  */
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -10,7 +10,8 @@ import { loadConfig } from "./config.ts";
 import { ApiStore } from "./db.ts";
 import { MailService } from "./mailer.ts";
 import { CodeRoutes, authorized } from "./code.ts";
-import { replyError, replyJson, stampOf } from "./http.ts";
+import { UserRoutes } from "./user.ts";
+import { replyError, replyJson, sessionKeyOfHeader, stampOf } from "./http.ts";
 
 const API_PREFIX = "/api/";
 
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
     const store = new ApiStore(config.dbFile);
     const mail = new MailService(config);
     const routes = new CodeRoutes(config, store, mail);
+    const userRoutes = new UserRoutes(config, store);
     /* 过期数据每十分钟清一次, 保持库文件不无限增长 */
     const pruneTimer = setInterval(() => {
         try {
@@ -45,6 +47,11 @@ async function main(): Promise<void> {
             replyJson(res, 200, { ok: true, service: "crying-music-code", time: Date.now() });
             return;
         }
+        /* 登录状态与听歌时长另走一套分发: 身份验证用的是请求头里的登录状态秘钥 */
+        if (path.indexOf(API_PREFIX + "user/") === 0) {
+            await handleUser(req, res);
+            return;
+        }
         const isSend = (path === API_PREFIX + "code/send");
         const isVerify = (path === API_PREFIX + "code/verify");
         if (isSend === false && isVerify === false) {
@@ -65,6 +72,55 @@ async function main(): Promise<void> {
             return;
         }
         await routes.verify(req, res);
+    }
+
+    /* 登录状态与听歌时长: 鉴权用客户端密钥, 身份验证用请求头里的登录状态秘钥 */
+    async function handleUser(req: IncomingMessage, res: ServerResponse): Promise<void> {
+        const url = new URL(req.url ?? "/", "http://" + (req.headers.host ?? "localhost"));
+        const path = url.pathname;
+        const isLogout = (path === API_PREFIX + "user/logout");
+        const isRefresh = (path === API_PREFIX + "user/refresh");
+        const isListen = (path === API_PREFIX + "user/listen");
+        const isProfile = (path === API_PREFIX + "user/profile");
+        if (isLogout === false && isRefresh === false && isListen === false && isProfile === false) {
+            replyError(res, 404, "bad_request", "接口不存在");
+            return;
+        }
+        /* 资料查询用 GET, 其余三个操作用 POST */
+        if (isProfile === true) {
+            if (req.method !== "GET") {
+                replyError(res, 405, "bad_request", "只接受 GET");
+                return;
+            }
+        } else if (req.method !== "POST") {
+            replyError(res, 405, "bad_request", "只接受 POST");
+            return;
+        }
+        if (authorized(req, config.clientSecret) === false) {
+            console.warn("[服务] 拒绝未授权的用户请求: " + path + ", 来源 "
+                         + (req.socket.remoteAddress ?? ""));
+            replyError(res, 401, "unauthorized", "客户端密钥无效");
+            return;
+        }
+        if (sessionKeyOfHeader(req) === "") {
+            console.warn("[服务] 拒绝缺少登录状态秘钥的请求: " + path + ", 来源 "
+                         + (req.socket.remoteAddress ?? ""));
+            replyError(res, 401, "session_required", "缺少登录状态秘钥, 请重新登录");
+            return;
+        }
+        if (isLogout) {
+            userRoutes.logout(req, res);
+            return;
+        }
+        if (isRefresh) {
+            userRoutes.refresh(req, res);
+            return;
+        }
+        if (isProfile) {
+            userRoutes.profile(req, res);
+            return;
+        }
+        userRoutes.listen(req, res);
     }
 
     /* 地址留空时交给系统按默认的双栈地址监听, 有值时只绑在该地址上 */

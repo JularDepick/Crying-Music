@@ -3,15 +3,16 @@
  *
  * 两个接口:
  *   发送  POST api/code/send    {"email":"..."}            -> 发一封六位验证码邮件
- *   校验  POST api/code/verify  {"email":"...","code":"..."} -> 通过时回一份带签名的登录凭证
+ *   校验  POST api/code/verify  {"email":"...","code":"..."} -> 通过时回一份带签名的登录凭证与登录状态秘钥
  * 登录凭证的签名覆盖"邮箱 + 签发时刻", 客户端用同一个客户端密钥复核后落盘, 有效期由客户端决定.
+ * 登录状态秘钥由同一密钥签出, 后续涉及用户的操作都要凭它做身份验证.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomInt } from "node:crypto";
 import type { ApiConfig } from "./config.ts";
 import type { ApiStore } from "./db.ts";
 import type { MailService } from "./mailer.ts";
-import { codeDigestOf, loginSignOf, sameHex } from "./sign.ts";
+import { codeDigestOf, loginSignOf, saltOf, sessionKeyOf, sameHex } from "./sign.ts";
 import {
     clientIpOf,
     headerOf,
@@ -27,6 +28,8 @@ const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}$/;
 const EMAIL_MAX_LENGTH = 254;
 /* 验证码固定六位数字 */
 const CODE_PATTERN = /^[0-9]{6}$/;
+/* 登录状态秘钥的十六进制长度 */
+const SESSION_KEY_HEX_LENGTH = 64;
 
 /* 规整邮箱: 去掉首尾空白并统一小写, 大小写不同视为同一邮箱 */
 function normalizeEmail(raw: string): string {
@@ -153,12 +156,26 @@ export class CodeRoutes {
         const ip = clientIpOf(req);
         this.store.recordLogin(email, now, ip);
         const sign = loginSignOf(this.config.clientSecret, email, now);
+        /* 登录状态秘钥: 同一个客户端密钥签出, 之后涉及用户的操作都要凭它;
+         * 每次登录换一个新秘钥, 同一邮箱的旧秘钥同时作废 */
+        const sessionKey = sessionKeyOf(this.config.clientSecret, email, now,
+                                        saltOf(SESSION_KEY_HEX_LENGTH));
+        const sessionExpiresAt = now + this.config.sessionKeepDays * 86400000;
+        this.store.issueSession({
+            key: sessionKey,
+            email: email,
+            issuedAt: now,
+            expiresAt: sessionExpiresAt,
+            revokedAt: 0
+        });
         console.log("[校验] 通过: " + email + ", 时间 " + stampOf(now) + ", 来源 " + ip);
         replyJson(res, 200, {
             ok: true,
             email: email,
             issuedAt: now,
             sign: sign,
+            sessionKey: sessionKey,
+            sessionExpiresAt: sessionExpiresAt,
             message: "登录成功"
         });
     }

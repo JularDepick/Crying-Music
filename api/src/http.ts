@@ -18,6 +18,9 @@ export type ApiErrorCode =
     | "attempts_exceeded"
     | "bad_code"
     | "smtp_failed"
+    | "session_required"
+    | "session_expired"
+    | "listen_cooldown"
     | "internal_error";
 
 /* 回一份 JSON: 一律带 ok 字段, 失败时另有 code 与 message */
@@ -90,6 +93,18 @@ export function stringField(payload: unknown, key: string): string {
     }
     const value = (payload as Record<string, unknown>)[key];
     return (typeof value === "string" ? value : "");
+}
+
+/* 取请求头里的秘钥: 登录状态秘钥放在 X-Session-Key 里 */
+export function sessionKeyOfHeader(req: IncomingMessage): string {
+    return headerOf(req, "x-session-key");
+}
+
+/* 按本地时区取日期: 形如 2026-01-01, 每日上限按它汇总 */
+export function dayOf(ms: number): string {
+    const d = new Date(ms);
+    const pad = (n: number): string => (n < 10 ? "0" + String(n) : String(n));
+    return String(d.getFullYear()) + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
 }
 
 /* 时间戳转日志里的可读时间: 一律用本地时区 */

@@ -36,6 +36,14 @@ export interface ApiConfig {
     verifyMaxAttempts: number;
     /* 单次请求体上限(字节) */
     bodyLimitBytes: number;
+    /* 登录状态秘钥的有效天数 */
+    sessionKeepDays: number;
+    /* 一次听歌上报计入的秒数 */
+    listenChunkSeconds: number;
+    /* 同一邮箱每天最多计入的听歌秒数 */
+    listenDailyMaxSeconds: number;
+    /* 同一邮箱两次听歌上报的最短间隔(秒) */
+    listenCooldownSeconds: number;
 }
 
 /* 服务目录: .env 与默认数据库文件都相对它定位, 与启动时的工作目录无关 */
@@ -145,7 +153,11 @@ export function loadConfig(): ApiConfig {
         sendCooldownSeconds: intOf(env, "SEND_COOLDOWN_SECONDS", 60),
         sendDailyLimit: intOf(env, "SEND_DAILY_LIMIT", 10),
         verifyMaxAttempts: intOf(env, "VERIFY_MAX_ATTEMPTS", 5),
-        bodyLimitBytes: intOf(env, "BODY_LIMIT_BYTES", 8192)
+        bodyLimitBytes: intOf(env, "BODY_LIMIT_BYTES", 8192),
+        sessionKeepDays: intOf(env, "SESSION_KEEP_DAYS", 7),
+        listenChunkSeconds: intOf(env, "LISTEN_CHUNK_SECONDS", 10),
+        listenDailyMaxSeconds: intOf(env, "LISTEN_DAILY_MAX_SECONDS", 18000),
+        listenCooldownSeconds: intOf(env, "LISTEN_COOLDOWN_SECONDS", 5)
     };
     return config;
 }
