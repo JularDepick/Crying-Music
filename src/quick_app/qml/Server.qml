@@ -134,14 +134,26 @@ Item {
     property bool _escalateOn: false;
     /* 元信息声明的数据根基址, 用于识别 404 是否来自元信息指向的数据根 */
     property var _ossRoots: [];
-    /* 数据根健康表: 键为元信息声明的数据根基址, 值为 true 表示本次运行内已判死;
-     * 在线音频的播放或下载在这个根上失败时置位, 之后取用地址跳过它
+    /* 数据根健康表: 键为元信息声明的数据根基址, 值为冷却到期的时刻, 连续失败次数另记一份;
+     * 在线音频的播放或下载在这个根上失败时冷却一段时间, 到期自动回到候选里, 不整轮运行弃用
      */
-    property var _rootDown: ({})
+    property var _rootDownUntil: ({})
+    property var _rootDownHits: ({})
     /* 已实证可用的主机来源(小写) -> true: 元信息, 清单, 封面与歌词的任一次成功都算一次实证,
      * 在线音频优先取用这些来源的数据根, 避免把不可达的数据根排在前面
      */
     property var _liveOrigins: ({})
+    /* 失败来源表: 键为主机来源, 值为 {fails:连续失败次数, at:最近一次失败时刻};
+     * 冷却期内这个来源排到候选末尾, 冷却结束重新参与排序, 因此坏源不会每次都被先撞一遍
+     */
+    property var _originFails: ({})
+    /* 单个来源失败后的冷却窗口: 冷却只是降级排序, 候选不会被剔除 */
+    readonly property int originCooldownMs: 45000
+    /* 数据根冷却: 首次 60 秒, 连续失败按倍数拉长, 到上限封顶地重复冷却, 到期自动回来 */
+    readonly property int rootCooldownMs: 60000
+    readonly property int rootCooldownMaxMs: 300000
+    /* 一组候选的总预算: 超过它不再开新一轮, 免得界面一直等 */
+    readonly property int netGroupBudgetMs: 9000
     /* 失败后的重试节拍: 首次按退避下限等待, 每次重试先把间隔拉长一个步长, 到上限封顶;
      * 拉取成功即停表并复位
      */
@@ -242,7 +254,11 @@ Item {
             if(req===undefined || req===null || req.closed===true) {
                 return;
             }
-            serverRoot._netLose(req,reason);
+            /* 连接与内容类失败记在来源头上, 本地参数与竞争取消不记 */
+            if(serverRoot._coverBlamesOrigin(reason)===true) {
+                serverRoot.noteOriginLoss(req.url);
+            }
+            serverRoot._netLose(req,reason,true);
         }
         /* 4xx 或 5xx 状态: 404 交给元信息侧判断缓存里的元信息是否已过时 */
         function onHttpError(url,status) {
@@ -498,16 +514,91 @@ Item {
         var j=u.indexOf("/",i+3);
         return (j<0? u:u.substring(0,j)).toLowerCase();
     }
-    /* 记一次实证: 某次拉取成功即说明这台主机本次运行内可用 */
+    /* 记一次实证: 某次拉取成功即说明这台主机本次运行内可用, 同时清掉它的失败记录 */
     function noteOriginLive(url) {
         var o=_originOf(url);
         if(o==="") {
             return false;
         }
         _liveOrigins[o]=true;
+        if(_originFails[o]!==undefined) {
+            delete _originFails[o];
+        }
         return true;
     }
-    /* 在线音频的实际取用地址: 跳过本次运行内已判死的数据根, 优先取已实证可用的主机;
+    /* 记一次失败: 连接层失败与超时算这台主机不可用, 冷却期内把它排到候选末尾 */
+    function noteOriginLoss(url) {
+        var o=_originOf(url);
+        if(o==="") {
+            return false;
+        }
+        var one=_originFails[o];
+        var fails=(one!==undefined && one!==null && typeof one["fails"]==="number"? one["fails"]+1:1);
+        _originFails[o]=({"fails":fails,"at":Date.now()});
+        if(_liveOrigins[o]!==undefined) {
+            delete _liveOrigins[o];
+        }
+        return true;
+    }
+    /* 某个来源是否还在失败冷却期内 */
+    function _originCooling(o) {
+        var one=_originFails[String(o)];
+        if(one===undefined || one===null || typeof one["at"]!=="number") {
+            return false;
+        }
+        return ((Date.now()-one["at"])<originCooldownMs);
+    }
+    /* 按来源健康度重排候选: 健康的按原顺序在前, 冷却中的按原顺序在后;
+     * 冷却只降级不剔除, 因此任何一份资源都还有全部候选可用 */
+    function _rankUrls(urls) {
+        var hot=[];
+        var cold=[];
+        if(Array.isArray(urls)!==true) {
+            return hot;
+        }
+        for(var i=0;i<urls.length;i++) {
+            var u=String(urls[i]);
+            if(u==="") {
+                continue;
+            }
+            if(_originCooling(_originOf(u))===true) {
+                cold.push(u);
+            } else {
+                hot.push(u);
+            }
+        }
+        for(var j=0;j<cold.length;j++) {
+            hot.push(cold[j]);
+        }
+        return hot;
+    }
+    /* 封面失败是否记在来源头上: 参数, 缓存目录, 写盘与竞争取消都是本地原因, 其余算来源不可用 */
+    function _coverBlamesOrigin(reason) {
+        var r=String(reason===undefined || reason===null? "":reason);
+        if(r.indexOf("参数")===0 || r.indexOf("缓存")===0 || r.indexOf("已被")===0) {
+            return false;
+        }
+        return true;
+    }
+    /* 数据根是否处于冷却期: 到期即放行并清掉这次冷却, 连续失败次数留给下一次失败累加 */
+    function _rootDead(root) {
+        var r=String(root===undefined || root===null? "":root);
+        if(r==="") {
+            return false;
+        }
+        var until=_rootDownUntil[r];
+        if(until===undefined || until===null || typeof until!=="number") {
+            return false;
+        }
+        if(Date.now()<until) {
+            return true;
+        }
+        delete _rootDownUntil[r];
+        delete _rootDownHits[r];
+        Assist.dlog("在线","数据根冷却结束, 重新参与取用: ",r);
+        return false;
+    }
+    /* 在线音频的实际取用地址: 跳过冷却中的数据根, 优先取已实证可用的主机;
      * 候选全部判死时退回 fallback(缺省取第一个候选), 保持判死之前的行为;
      * 它只决定实际请求哪个地址, 不改变在线标识本身
      */
@@ -520,7 +611,7 @@ Item {
         var first="";
         for(var i=0;i<list.length;i++) {
             var u=list[i];
-            if(_rootDown[_rootOf(u)]===true) {
+            if(_rootDead(_rootOf(u))===true) {
                 continue;
             }
             if(_liveOrigins[_originOf(u)]===true) {
@@ -541,26 +632,26 @@ Item {
         var cur=String(currentUrl);
         for(var i=0;i<list.length;i++) {
             var u=list[i];
-            if(u===cur || _rootDown[_rootOf(u)]===true) {
+            if(u===cur || _rootDead(_rootOf(u))===true) {
                 continue;
             }
             return u;
         }
         return "";
     }
-    /* 把某个数据根判死: 在线音频在它上面播放或下载失败时调用, 只认元信息声明的数据根;
-     * 判死只作用于本次运行, 下次启动重新从元信息的声明顺序开始
+    /* 给某个数据根判冷却: 在线音频在它上面播放或下载失败时调用, 只认元信息声明的数据根;
+     * 首次冷却一分钟, 连续失败按倍数拉长到五分钟封顶, 冷却结束自动重新参与
      */
     function markMediaDead(url) {
         var root=_rootOf(url);
         if(root==="") {
             return false;
         }
-        if(_rootDown[root]===true) {
-            return false;
-        }
-        _rootDown[root]=true;
-        Assist.dwarn("在线","数据根本次运行内判为不可用: ",root);
+        var hits=(typeof _rootDownHits[root]==="number"? _rootDownHits[root]+1:1);
+        _rootDownHits[root]=hits;
+        var gap=rootCooldownMs*Math.pow(2,Math.min(hits-1,3));
+        _rootDownUntil[root]=Date.now()+(gap>rootCooldownMaxMs? rootCooldownMaxMs:gap);
+        Assist.dwarn("在线","数据根进入冷却: ",root,", ",Math.round(Math.min(gap,rootCooldownMaxMs)/1000)," 秒后再参与");
         return true;
     }
     /* 是否为在线键: 在线歌曲在存储里的标识是固定前缀加文件名, 不是播放地址 */
@@ -671,24 +762,44 @@ Item {
             "checked": false
         });
     }
-    /* 按在线标识反查条目: 下载记录里存的是在线标识(主文件名加音频扩展名), 不是播放地址 */
+    /* 按在线标识反查条目: 下载记录里存的是在线标识(主文件名加音频扩展名), 不是播放地址;
+     * 早于当前写法的记录只有文件名没有前缀, 补上前缀再比一次, 免得封面与歌词一直按旧名字取不到 */
     function onlineEntryOfId(onlineId) {
         if(typeof onlineId!=="string" || onlineId==="") {
             return null;
         }
         var rows=manifestRows();
         for(var i=0;i<rows.length;i++) {
-            if(onlineIdOfRow(rows[i])===onlineId) {
+            var id=onlineIdOfRow(rows[i]);
+            if(id===onlineId || id===String(Define.onlineKeyTag)+onlineId) {
                 return onlineEntryOfRow(rows[i]);
             }
         }
         return null;
     }
+    /* 某个条目要显示的歌词名: 条目自带就用它; 没有时按在线标识回查清单, 标识也缺就按本地路径查下载记录;
+     * 早期落盘的队列条目既没有歌词名, 在线标识也可能没有前缀, 因此这一层兜底 */
+    function lyricsNameOfEntry(entry) {
+        if(entry===null || entry===undefined) {
+            return "";
+        }
+        var own=(entry["lyrics"]===undefined || entry["lyrics"]===null? "":String(entry["lyrics"]));
+        if(own!=="") {
+            return own;
+        }
+        var id=(entry["onlineId"]===undefined || entry["onlineId"]===null? "":String(entry["onlineId"]));
+        if(id==="") {
+            var rec=GlobalFileStorage.downloadOfPath(entry["absfpath"]);
+            id=(rec===null || rec===undefined? "":String(rec["onlineId"]));
+        }
+        var ent=onlineEntryOfId(id);
+        return (ent===null? "":String(ent["lyrics"]));
+    }
     /* 拉取失败后的一次性放弃: 每个资源记为 {tries:失败次数, at:最近一次失败时刻};
      * 失败次数用尽后本次运行不再重试, 未用尽时冷却一段时间再放行, 以便瞬时故障自愈
      */
     readonly property int missMaxTries: 3
-    readonly property int missCooldownMs: 60000
+    readonly property int missCooldownMs: 30000
     /* 某个资源当前是否仍处于放弃状态 */
     function _missActive(map,name) {
         var one=map[name];
@@ -1018,7 +1129,7 @@ Item {
         var path=lyricsIndexPath();
         var m=({});
         if(path!=="") {
-            var txt=AppFileHelper.readFile(path,"UTF-8");
+            var txt=(AppFileHelper.existsFile(path)===true? AppFileHelper.readFile(path,"UTF-8"):"");
             if(txt!=="") {
                 try {
                     var obj=JSON.parse(txt);
@@ -1296,7 +1407,7 @@ Item {
     /* 每项最多尝试的次数 */
     readonly property int assetMaxTries: 3
     /* 失败后的退避节拍: 30 秒, 2 分钟, 10 分钟 */
-    readonly property var assetBackoffMs: [30000,120000,600000]
+    readonly property var assetBackoffMs: [15000,90000,300000]
     /* 一次尝试的等待窗口: 请求仍在途(含排队等并发额度)时只延长等待, 不算一次失败;
      * 从发起起超过三倍窗口仍未结算才判失败
      */
@@ -2203,8 +2314,12 @@ Item {
                 }
             }
         }
+        /* 候选按来源健康度排序: 刚失败过的镜像排到后面, 因此不必每次都先撞一遍坏源 */
+        list=_rankUrls(list);
         var group=({"kind":kind, "key":String(key), "urls":list, "next":0, "live":0,
                     "done":false, "hedgeMs":_netHedgeMs(kind),
+                    "pass":0, "passes":_netPassesOf(kind), "transient":0,
+                    "deadline":Date.now()+netGroupBudgetMs,
                     "validate":(opts? opts["validate"]:null),
                     "ok":(opts? opts["ok"]:null),
                     "fail":(opts? opts["fail"]:null),
@@ -2218,6 +2333,12 @@ Item {
         }
         _netLaunch(group);
         return true;
+    }
+    /* 一组候选最多走几轮: 元信息与清单直接影响曲库可用性, 允许再走一轮;
+     * 封面与歌词由各自的失败冷却兜底, 不再加轮次, 免得成倍放大请求
+     */
+    function _netPassesOf(kind) {
+        return ((kind==="meta" || kind==="manifest")? 2:1);
     }
     /* 每类资源的对冲等待时长 */
     function _netHedgeMs(kind) {
@@ -2328,8 +2449,9 @@ Item {
             xhr.open("GET",url);
             xhr.send();
         } catch(e2) {
+            serverRoot.noteOriginLoss(url);
             Assist.dwarn("在线","请求发起失败: ",url,", ",e2);
-            _netLose(req,"请求发起失败");
+            _netLose(req,"请求发起失败",true);
             return false;
         }
         return true;
@@ -2337,13 +2459,20 @@ Item {
     /* XHR 到齐: 取数据交给该组的校验与胜出判定 */
     function _netSettle(req,xhr) {
         var group=req.group;
+        /* 没有状态码就是连接层失败: 这台主机记一次失败并立刻换下一个候选, 不等硬超时 */
+        if(xhr.status===0) {
+            serverRoot.noteOriginLoss(req.url);
+            Assist.dwarn("在线","连接失败: ",req.url);
+            _netLose(req,"连接失败",true);
+            return false;
+        }
         if(xhr.status<200 || xhr.status>=300 || xhr.responseText==="") {
             Assist.dwarn("在线","地址不可用: ",req.url,", 状态 ",xhr.status);
             if(xhr.status===404) {
                 /* 404 可能意味着缓存里的元信息指向的对象存储已过时, 交给元信息侧判断 */
                 serverRoot._noteOssStatus(req.url);
             }
-            _netLose(req,"地址不可用");
+            _netLose(req,"地址不可用",false);
             return false;
         }
         var payload=xhr.responseText;
@@ -2352,7 +2481,7 @@ Item {
                 payload=JSON.parse(xhr.responseText);
             } catch(e) {
                 Assist.dwarn("在线","内容解析失败: ",req.url,", ",e);
-                _netLose(req,"内容解析失败");
+                _netLose(req,"内容解析失败",true);
                 return false;
             }
         }
@@ -2363,8 +2492,10 @@ Item {
         }
         return _netWin(req,payload);
     }
-    /* 一次尝试失败: 关闭它并立即拉起该组的下一个候选 */
-    function _netLose(req,reason) {
+    /* 一次尝试失败: 关闭它并立即拉起该组的下一个候选, 不等对冲计时, 也不等硬超时;
+     * retryable 表示这次失败属于超时或连接类, 元信息与清单会在预算内再走一轮
+     */
+    function _netLose(req,reason,retryable) {
         var group=req.group;
         if(group===undefined || group===null || group.done===true || req.closed===true) {
             return false;
@@ -2372,6 +2503,9 @@ Item {
         req.closed=true;
         _netDrop(req);
         group.live=Math.max(0,group.live-1);
+        if(retryable===true) {
+            group.transient=group.transient+1;
+        }
         Assist.dwarn("在线","候选源失败: ",req.url,", 原因 ",reason);
         _netLaunch(group);
         _netPrune(group);
@@ -2407,12 +2541,22 @@ Item {
         }
         return true;
     }
-    /* 收尾判定: 候选全部拉起过且没有在途请求时判整组失败 */
+    /* 收尾判定: 候选全部拉起过且没有在途请求时, 要么按新的健康度再走一轮, 要么判整组失败;
+     * 第二轮只在出现过超时或连接类失败且还在总预算内时进行, 因此不会无限重试
+     */
     function _netPrune(group) {
         if(group.done===true) {
             return false;
         }
         if(group.next<group.urls.length || group.live>0) {
+            return false;
+        }
+        if(group.pass+1<group.passes && group.transient>0 && Date.now()<group.deadline) {
+            group.pass=group.pass+1;
+            group.next=0;
+            group.urls=_rankUrls(group.urls);
+            Assist.dlog("在线","候选源再走一轮: ",group.kind," ",group.key,", 第 ",group.pass+1," 轮");
+            _netLaunch(group);
             return false;
         }
         group.done=true;
@@ -2461,8 +2605,9 @@ Item {
             }
             var elapsed=now-req.startAt;
             if(elapsed>=Define.onlineSourceTimeoutMs) {
+                serverRoot.noteOriginLoss(req.url);
                 Assist.dwarn("在线","候选源超时: ",req.url);
-                _netLose(req,"超时");
+                _netLose(req,"超时",true);
                 continue;
             }
             if(req.hedged===false && elapsed>=req.group.hedgeMs) {

@@ -69,23 +69,23 @@ Item {
     /* 在线标识的前缀: 存储里的在线条目一律以它开头, 与本地路径区分开;
      * 标识与数据根无关, 因此换根或以后新增数据源都不会让已经存下的键失效 */
     property string onlineKeyTag: "online:";
-    /* 对冲拉取: 某个候选源超过各自的等待时长仍未返回, 就并行拉起下一个备用源;
-     * 从发起时刻起超过 onlineSourceTimeoutMs 仍未返回即判该源失败 */
-    property int onlineMetaHedgeMs: 1000;
-    property int onlineManifestHedgeMs: 1000;
-    property int onlineCoverHedgeMs: 2000;
-    property int onlineLyricsHedgeMs: 1500;
+    /* 对冲拉取: 某个候选源超过各自的等待时长仍未返回就并行拉起下一个, 明确失败时立即换源;
+     * 从单个源发起时刻起超过 onlineSourceTimeoutMs 仍未返回即判该源失败 */
+    property int onlineMetaHedgeMs: 600;
+    property int onlineManifestHedgeMs: 600;
+    property int onlineCoverHedgeMs: 800;
+    property int onlineLyricsHedgeMs: 800;
     property int onlineSourceTimeoutMs: 3000;
     /* 缓存模式下的后台元信息轮询节拍: meta 源全部失败后按此节拍持续取最新元信息,
      * 只更新缓存文件, 不打断本次运行已生效的数据; 缓存指向的对象存储失效时改为立即重取
      */
-    property int onlineMetaPollMs: 60000;
-    /* 在线曲库整组失败后的重试退避: 首次按下限等待, 每失败一次加一个步长, 到上限封顶, 成功后复位;
-     * 缓存模式下的元信息轮询不受它影响, 仍按 onlineMetaPollMs 的固定节拍
+    property int onlineMetaPollMs: 30000;
+    /* 在线曲库整组失败后的重试退避: 首次用很短的间隔就重试, 之后每失败一次加一个步长,
+     * 到上限封顶, 成功后复位; 缓存模式下的元信息轮询仍按 onlineMetaPollMs 的固定节拍
      */
-    property int onlineRetryBaseMs: 60000;
-    property int onlineRetryMaxMs: 300000;
-    property int onlineRetryStepMs: 60000;
+    property int onlineRetryBaseMs: 5000;
+    property int onlineRetryMaxMs: 60000;
+    property int onlineRetryStepMs: 5000;
     /* 歌词页字号: 默认值与调节步长, 全部歌词行同一字号 */
     property int lyricsFontSizeDefault: 16;
     property int lyricsFontSizeMin: 16;

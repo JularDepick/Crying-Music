@@ -1170,6 +1170,20 @@ Item {
         }
         return null;
     }
+    /* 按本地路径取下载记录: 已经下载成文件再播放的条目只有路径, 靠它回查在线标识, 没有时返回 null */
+    function downloadOfPath(absfpath) {
+        var p=String(absfpath===undefined || absfpath===null? "":absfpath);
+        if(p==="") {
+            return null;
+        }
+        var l=downloads.length;
+        for(var i=0;i<l;i++) {
+            if(String(downloads[i]["absfpath"])===p) {
+                return downloads[i];
+            }
+        }
+        return null;
+    }
     /* 判断某个在线标识是否已下载 */
     function isDownloaded(onlineId) {
         return (downloadOf(onlineId)!==null);
