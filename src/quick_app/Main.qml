@@ -865,7 +865,7 @@ ApplicationWindow {
     /* 任务栏按钮在窗口已展开时按下会先最小化: 借这一步把窗口收起到托盘,
      * 使任务栏按钮与托盘图标都成为收起与展开的开关;
      * 操控栏自己按下的最小化会先把 selfMinimized 置位, 那种情况保持最小化到任务栏 */
-    onVisibilityChanged: {
+    onVisibilityChanged: (visibility)=> {
         if(visibility===Window.Minimized) {
             if(selfMinimized===true) {
                 selfMinimized=false;

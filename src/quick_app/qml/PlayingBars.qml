@@ -58,7 +58,8 @@ Item {
         duration: root.cycleMs;
         loops: Animation.Infinite;
         running: (root.visible===true);
-        paused: (root.active!==true);
+        /* 只在动画运行时才设暂停: 不可见时动画本就停着, 这时设 paused 会让 QML 刷警告 */
+        paused: (root.visible===true && root.active!==true);
     }
     Repeater {
         model: 4;
