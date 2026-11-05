@@ -1133,21 +1133,19 @@ ApplicationWindow {
                         anchors.topMargin: 15;
                         spacing: 5;
                         visible: leftSidebar.spreaded;
+                        Text {
+                            color: Define.textColor;
+                            id: userName;
+                            /* 登录后直接显示邮箱地址, 未登录显示未登录; 过长时右侧省略 */
+                            text: (Account.loggedIn===true? Account.email:"未登录");
+                            font.pixelSize: 13;
+                            width: 130;
+                            elide: Text.ElideRight;
+                        }
+                        /* 等级徽标与等级文本并排: 徽标按累计听歌时长换算的等级取档,
+                          * 未登录时沿用原先的末档徽标与 Lv.100 文案 */
                         Row {
                             spacing: 4;
-                            Text {
-                                color: Define.textColor;
-                                id: userName;
-                                /* 登录后直接显示邮箱地址, 未登录显示未登录; 过长时右侧省略 */
-                                text: (Account.loggedIn===true? Account.email:"未登录");
-                                font.pixelSize: 13;
-                                width: 130;
-                                elide: Text.ElideRight;
-                            }
-                        }
-                        Row {
-                            /* 等级徽标: 登录后按累计听歌时长换算的等级取档,
-                              * 未登录时保留原先的末档徽标 */
                             CustomButtonA {
                                 id: userVIP;
                                 icon.source: (Account.loggedIn===true
@@ -1158,6 +1156,16 @@ ApplicationWindow {
                                 icon.color: Define.vipRed;
                                 transEnabled: false;
                                 hoverHandlerEnabled: false;
+                            }
+                            Text {
+                                color: Define.textColor;
+                                id: userLevel;
+                                /* 登录后按累计听歌时长换算的等级, 未登录显示末档 */
+                                text: "Lv."+String(Account.loggedIn===true
+                                                   ? Account.levelOf(Account.totalListenSeconds)
+                                                   :Define.levelMax);
+                                anchors.verticalCenter: parent.verticalCenter;
+                                font.pixelSize: 13;
                             }
                         }
                     }
