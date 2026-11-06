@@ -69,6 +69,8 @@ quick_app/
 | Qt 版权 | Copyright (C) The Qt Company Ltd. and contributors |
 | 许可全文 | 见本目录 [LICENSE.Qt](./LICENSE.Qt), 内含 GNU GPLv3 与 GNU LGPLv3 全文以及 Qt 版权声明 |
 | Qt 源码获取 | https://download.qt.io/official_releases/qt/6.11/6.11.1/ , 该链接不可用时向项目作者索取 |
+| 修改与重新链接 | Qt 以独立的动态库形式分发, 使用者可以自行替换程序目录下的 Qt 动态库, 用修改后的版本重新链接并运行本程序; 本程序不静态链接 Qt, 不以任何方式阻止这种替换 |
+| 本项目许可 | GNU AGPL version 3, 全文见 [LICENSE](./LICENSE) , 对应源码见 https://github.com/JularDepick/Crying-Music |
 | 可替换性 | Qt 以动态库形式随程序分发, 用户可自行替换应用目录下的 Qt 动态库 |
 | 其它第三方组件 | Qt 随附的第三方组件(如多媒体后端的 FFmpeg)见本目录 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md), 该文件随发布包分发 |
 | 本项目许可 | AGPL-3.0, 见仓库根目录 LICENSE 与 COPYRIGHT |

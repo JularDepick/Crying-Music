@@ -69,6 +69,8 @@ This program uses Qt through dynamic linking, Qt is licensed under GNU LGPL vers
 | Qt copyright | Copyright (C) The Qt Company Ltd. and contributors |
 | License text | See [LICENSE.Qt](./LICENSE.Qt) in this directory, it contains the full GNU GPLv3 and GNU LGPLv3 texts and the Qt copyright notice |
 | Qt source code | https://download.qt.io/official_releases/qt/6.11/6.11.1/ , ask the project author if the link is unavailable |
+| Modify and relink | Qt ships as separate dynamic libraries, so anyone may replace the Qt libraries in the program directory, relink with a modified build and run this program; the program does not link Qt statically and does not prevent such a replacement |
+| Project license | GNU AGPL version 3, full text in [LICENSE](./LICENSE) , corresponding source at https://github.com/JularDepick/Crying-Music |
 | Replaceability | Qt is distributed as dynamic libraries, users may replace the Qt libraries in the application directory |
 | Other third party components | See [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md) in this directory for the components shipped with Qt (for example the FFmpeg multimedia backend), that file is shipped with the release package |
 | Project license | AGPL-3.0, see LICENSE and COPYRIGHT in the repository root |

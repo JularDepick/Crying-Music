@@ -16,6 +16,11 @@ on:
 permissions:
   contents: write
 
+# 同一个 tag 的发布只允许一个构建在跑: 重复触发时取消先到的, 避免两个构建互相覆盖 release 资产
+concurrency:
+  group: release-quick-app-${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: true
+
 jobs:
   release:
     runs-on: windows-latest
@@ -27,6 +32,10 @@ jobs:
     steps:
       - name: 拉取仓库
         uses: actions/checkout@v4
+        with:
+          # 手动触发时按输入的 tag 检出, 不取默认分支的源码, 否则可能用开发分支构建出同名 tag 的包
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
 
       - name: 配置Python
         uses: actions/setup-python@v5
@@ -61,7 +70,8 @@ jobs:
 
       - name: 配置CMake
         shell: cmd
-        run: cmake -S src/quick_app -B src/quick_app/build/Desktop_Qt_6_11_1_MinGW_64_bit_Release -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH=%Qt6_DIR%\.. -DCMAKE_BUILD_TYPE=Release
+        # QT_ROOT_DIR 是 Qt 套件的安装根(如 C:\Qt\6.11.1\mingw_64), Qt6_DIR 指向其中的 lib/cmake/Qt6, 不能当前缀
+        run: cmake -S src/quick_app -B src/quick_app/build/Desktop_Qt_6_11_1_MinGW_64_bit_Release -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH=%QT_ROOT_DIR% -DCMAKE_BUILD_TYPE=Release
 
       - name: 构建Release
         shell: cmd

@@ -125,6 +125,9 @@ EXTRA_SOURCES: list[tuple[Path, str]] = [
     ((SCRIPT_DIR / "../THIRD-PARTY-NOTICES.md").resolve(), "THIRD-PARTY-NOTICES.md"),
 ]
 
+# 允许在源目录中缺失的清单条目: 只有标注为可选的项, 其余条目缺失即视为打包失败
+OPTIONAL_TARGETS: set[str] = {"opengl32sw.dll"}
+
 # 构建产物中属于开发用途或刻意不分发的条目，自检时跳过
 IGNORED_UNCOVERED = {"qmltooling", "Qt6Quick3DUtils.dll"}
 
@@ -174,8 +177,8 @@ def copy_extras(dst: Path) -> int:
     return count
 
 
-def check_uncovered(src: Path, covered: set[str]) -> None:
-    """自检构建产物中未纳入清单的 DLL 与插件目录，提示可能漏带的依赖。"""
+def check_uncovered(src: Path, covered: set[str]) -> int:
+    """自检构建产物中未纳入清单的 DLL 与插件目录，提示可能漏带的依赖；返回未覆盖项数量。"""
     uncovered: list[str] = []
     for item in sorted(src.iterdir()):
         if item.name in covered or item.name in IGNORED_UNCOVERED:
@@ -187,12 +190,13 @@ def check_uncovered(src: Path, covered: set[str]) -> None:
             uncovered.append(item.name)
 
     if not uncovered:
-        return
+        return 0
 
     print()
     print("提示: 以下构建产物未纳入复制清单，若为新增依赖请补充 COPY_TARGETS:")
     for name in uncovered:
         print(f"  - {name}")
+    return len(uncovered)
 
 
 def main() -> None:
@@ -226,11 +230,15 @@ def main() -> None:
     total += copy_extras(DEST_DIR)
 
     print()
-    if skipped:
-        print(f"注意: {len(skipped)} 个清单条目在源目录中不存在: {', '.join(skipped)}")
-    check_uncovered(SOURCE_DIR, {name.rstrip("/") for name in COPY_TARGETS})
+    missing = [name for name in skipped if name not in OPTIONAL_TARGETS]
+    if missing:
+        print(f"错误: {len(missing)} 个必需条目在源目录中不存在: {', '.join(missing)}")
+    uncovered = check_uncovered(SOURCE_DIR, {name.rstrip("/") for name in COPY_TARGETS})
 
     print()
+    if missing or uncovered > 0:
+        print(f"自检未通过: 必需条目缺 {len(missing)} 个, 未覆盖的产物 {uncovered} 项")
+        sys.exit(1)
     print(f"完成。共复制 {total} 个文件到 {DEST_DIR}")
 
 
