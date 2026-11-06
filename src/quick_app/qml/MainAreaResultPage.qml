@@ -15,6 +15,13 @@ MainAreaFatherPage {
     property var resultModel: ([]);
     /* 发起搜索的页面: 刷新与再次搜索时回到它取结果 */
     property var originPage: null;
+    /* 请求回到来源页并定位到某一条目, 具体路由由主界面处理 */
+    signal locateRequested(var one);
+    /* 来源页是否支持定位回跳: 只对实现了 locateSong 的页面显示定位入口 */
+    function canLocate() {
+        return (originPage!==null && originPage!==undefined
+                && typeof originPage.locateSong==="function");
+    }
     /* 标题与功能行 */
     Column {
         id: headColum;
@@ -302,6 +309,19 @@ MainAreaFatherPage {
                                         }
                                         Assist.dlog("下载","列表内开始下载: ",modelData["songname"]);
                                         theMemStorage.startDownload(modelData);
+                                    }
+                                }
+                                /* 定位: 回到来源页的列表里滚动到这一条并高亮它;
+                                 * 来源页没有列表能力时不出现 */
+                                CustomButtonA {
+                                    id: songLocateBtn;
+                                    visible: (box.hoveredRow && mainArea_ResultPage.canLocate());
+                                    height: 20;
+                                    width: 20;
+                                    icon.source: "qrc:/assets/iconfont/function/jump2playing.svg";
+                                    transEnabled: false;
+                                    onClicked: {
+                                        mainArea_ResultPage.locateRequested(modelData);
                                     }
                                 }
                             }

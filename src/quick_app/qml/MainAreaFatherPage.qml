@@ -18,4 +18,9 @@ Rectangle {
     function search(keyword) {
         return [];
     }
+    /* 钩子: 在列表里定位到指定条目并滚动过去高亮它, 供搜索结果页回跳时调用;
+     * 无列表的页面返回 false, 结果页据此决定是否显示定位入口 */
+    function locateSong(one) {
+        return false;
+    }
 }

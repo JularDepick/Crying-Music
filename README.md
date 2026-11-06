@@ -44,7 +44,8 @@
 Crying-Music/
 ├── .github/workflows/      # GitHub Actions 工作流(静态站点部署, Quick App 发布)
 ├── src/                    # 源码目录
-│   └── quick_app/          # Quick App(内部结构见 src/quick_app/README.md)
+│   └── quick_app/          # Quick App(其余内部结构见 src/quick_app/README.md)
+│       └── .qtcreator/     # Qt Creator 工程用户文件(被 git 追踪)
 ├── docs/                   # 开发参考文档
 ├── .gitignore              # Git 忽略配置
 ├── README.md               # 项目说明文档
@@ -70,5 +71,7 @@ Copyright &copy; 2026 JularDepick
 ## 许可证
 
 本仓库采用 [AGPL-3.0 许可证](./LICENSE)
+
+按 AGPL-3.0 第 6 条, 本程序的 Corresponding Source(对应源码)发布于本仓库: https://github.com/JularDepick/Crying-Music
 
 各子模块的第三方组件声明与相关义务见对应子模块的 README(如 [Quick App](./src/quick_app/README.md))

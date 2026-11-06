@@ -491,6 +491,15 @@ Rectangle {
                     root.thePlayer.playNext(false);
                 }
             }
+            /* 停止: 进入停止态并把进度归零, 队列与当前项保留;
+             * 与暂停的分工是暂停记住进度, 停止回到开头 */
+            PlayerBarButton {
+                id: stopOne;
+                icon.source: "qrc:/assets/iconfont/playerbar/stop.svg";
+                onClicked: {
+                    root.thePlayer.stopPlayback();
+                }
+            }
             PlayerBarButton {
                 id: soundCtrl;
                 icon.source: (volume==0? "qrc:/assets/iconfont/playerbar/soundless.svg":"qrc:/assets/iconfont/playerbar/sound.svg");

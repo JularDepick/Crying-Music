@@ -45,8 +45,14 @@ Rectangle {
     property bool _pointerInPage: false;
     property real _pointerX: 0;
     property real _pointerY: 0;
-    /* 锚定比例: 当前行固定在歌词视口高度的这个位置, 与封面从上往下 1/3 处对齐 */
-    readonly property real anchorRatio: (1.0/3.0);
+    /* 锚定比例: 当前行固定在歌词视口高度的这个位置, 默认与封面从上往下 1/3 处对齐;
+     * 用户在右键菜单里改过的比例来自界面偏好, 未设置时回落到设计默认值 */
+    readonly property real anchorRatio: (GlobalFileStorage.lyricsAnchorRatio()>0
+                                         ? GlobalFileStorage.lyricsAnchorRatio():(1.0/3.0));
+    /* 当前行颜色: 界面偏好里设置过就用它, 否则用主题的图标色;
+     * 已唱层仍用主题的选中色, 两层颜色互不影响 */
+    readonly property color currentLineColor: (GlobalFileStorage.lyricsTextColor()!==""
+                                               ? GlobalFileStorage.lyricsTextColor():Define.btnIconColor);
     /* 封面边长: 封面取正方形, 边长 32% 窗口宽; 过宽的窗口按可用高度收一档, 避免压到播放条 */
     readonly property real coverSide: Math.min(root.width*0.32, root.height*0.6);
     /* 基准高度范围的度量: 单独一份, 只跟歌词字号绑定, 不与逐字测量的共享对象互相触发 */
@@ -256,7 +262,7 @@ Rectangle {
                 /* 全部歌词行同一字号与同一字重: 当前行只用颜色区分, 不放大也不加粗 */
                 font.pixelSize: root.baseFontSize;
                 font.bold: false;
-                color: (index===root.currentLine? Define.btnIconColor:Define.forbdDarkColor);
+                color: (index===root.currentLine? root.currentLineColor:Define.forbdDarkColor);
             }
             /* 已唱层: 同一份文本, 同一套排版, 只换颜色; 露出多少由遮罩按像素决定,
              * 因此边界可以停在字的中间而不是整字跳变 */
@@ -436,7 +442,7 @@ Rectangle {
     Rectangle {
         id: lyricMenu;
         visible: false;
-        width: 250;
+        width: 300;
         height: menuColumn.implicitHeight+24;
         radius: Define.mainAreaRaduis;
         color: Define.mainAreaColor;
@@ -499,6 +505,71 @@ Rectangle {
                         Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 13; color: Define.textColor; }
                     }
                     onClicked: { root.adjustFontSize(Define.lyricsFontSizeStep); }
+                }
+            }
+            /* 歌词颜色: 一排候选色块, 空串那一档表示跟随主题 */
+            Row {
+                spacing: 8;
+                Text {
+                    color: Define.textColor;
+                    width: 62;
+                    text: "歌词颜色";
+                    font.pixelSize: 13;
+                    anchors.verticalCenter: parent.verticalCenter;
+                }
+                Repeater {
+                    model: Define.lyricsColorOptions;
+                    delegate: Rectangle {
+                        width: 20;
+                        height: 20;
+                        radius: 10;
+                        anchors.verticalCenter: parent.verticalCenter;
+                        color: (modelData["id"]===""? Define.btnIconColor:modelData["id"]);
+                        border.width: ((GlobalFileStorage.lyricsTextColor()===modelData["id"])? 2:0);
+                        border.color: Define.choseCyanColor;
+                        MouseArea {
+                            anchors.fill: parent;
+                            onClicked: {
+                                GlobalFileStorage.setLyricsTextColor(modelData["id"]);
+                                root.closeMenu();
+                            }
+                        }
+                    }
+                }
+            }
+            /* 显示位置: 当前行在歌词视口高度上的锚定比例 */
+            Row {
+                spacing: 8;
+                Text {
+                    color: Define.textColor;
+                    width: 62;
+                    text: "显示位置";
+                    font.pixelSize: 13;
+                    anchors.verticalCenter: parent.verticalCenter;
+                }
+                Repeater {
+                    model: Define.lyricsAnchorOptions;
+                    delegate: CustomButtonA {
+                        width: 42;
+                        height: 24;
+                        transEnabled: false;
+                        background: Rectangle {
+                            anchors.fill: parent;
+                            radius: 12;
+                            color: (Math.abs(root.anchorRatio-modelData)<0.01
+                                    ? Define.choseCyanColor:Define.hoverDarkColor);
+                            Text {
+                                anchors.centerIn: parent;
+                                text: Math.round(modelData*100)+"%";
+                                font.pixelSize: 12;
+                                color: Define.textColor;
+                            }
+                        }
+                        onClicked: {
+                            GlobalFileStorage.setLyricsAnchorRatio(modelData);
+                            root.closeMenu();
+                        }
+                    }
                 }
             }
             Row {

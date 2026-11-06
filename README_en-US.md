@@ -44,7 +44,8 @@ A desktop music player built as an implementation of mainstream players, with th
 Crying-Music/
 ├── .github/workflows/      # GitHub Actions workflows (static site deployment, Quick App release)
 ├── src/                    # Source directory
-│   └── quick_app/          # Quick App (see src/quick_app/README.md)
+│   └── quick_app/          # Quick App (see src/quick_app/README_en-US.md for the rest of its structure)
+│       └── .qtcreator/     # Qt Creator project user files (tracked by git)
 ├── docs/                   # Documentation
 ├── .gitignore              # Git ignore configuration
 ├── README.md               # Project documentation (Chinese)
@@ -57,7 +58,7 @@ Crying-Music/
 
 
 ## Source Directory Index
-- [Quick App](./src/quick_app/README.md)
+- [Quick App](./src/quick_app/README_en-US.md)
 
 
 ## Copyright
@@ -71,4 +72,6 @@ See [COPYRIGHT](./COPYRIGHT) for details.
 
 This repository is licensed under the [AGPL-3.0 License](./LICENSE)
 
-Third party statements of each submodule live in that submodule's README (for example [Quick App](./src/quick_app/README.md))
+Under section 6 of AGPL-3.0, the Corresponding Source of this program is published in this repository: https://github.com/JularDepick/Crying-Music
+
+Third party statements of each submodule live in that submodule's README (for example [Quick App](./src/quick_app/README_en-US.md))

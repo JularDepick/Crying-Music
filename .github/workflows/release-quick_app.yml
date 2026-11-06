@@ -87,8 +87,20 @@ jobs:
         shell: pwsh
         run: |
           $pkg = "src/quick_app/release/Crying-Music"
+          # 主程序, Qt 运行库与随包分发的许可文本缺任一项即失败
+          $required = @(
+            "CryingMusic.exe",
+            "Qt6Core.dll",
+            "Qt6Quick.dll",
+            "Qt6Multimedia.dll",
+            "LICENSE",
+            "COPYRIGHT",
+            "LICENSE.FDL",
+            "LICENSE.Qt",
+            "THIRD-PARTY-NOTICES.md"
+          )
           $missing = @()
-          foreach ($name in @("CryingMusic.exe", "Qt6Core.dll", "Qt6Quick.dll", "Qt6Multimedia.dll")) {
+          foreach ($name in $required) {
             if (-not (Test-Path (Join-Path $pkg $name))) {
               $missing += $name
             }
@@ -103,14 +115,18 @@ jobs:
         run: |
           $pkg = "src/quick_app/release/Crying-Music"
           $stage = "pkg/CryingMusic"
+          # 压缩包名只在此处生成, 上传步骤复用 ZIP_NAME, 版本号已带 v 前缀时不重复添加
+          $ver = $env:VER -replace '^v', ''
+          $ZIP_NAME = "Crying-Music-Quick-App-v$ver-Windows_x64-Portable.zip"
+          # GITHUB_ENV 只认 NAME=value 的行格式, 直接写值不会导出到后续步骤
+          "ZIP_NAME=$ZIP_NAME" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           New-Item -ItemType Directory -Path "pkg" -Force | Out-Null
           Move-Item $pkg $stage
-          $zip = "Crying-Music-Quick-App-v" + $env:VER + "Windows_x64-Portable .zip"
-          Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
-          Write-Host "已生成 $zip"
+          Compress-Archive -Path $stage -DestinationPath $ZIP_NAME -CompressionLevel Optimal
+          Write-Host "已生成 $ZIP_NAME"
 
       - name: 上传到release
         shell: cmd
-        run: gh release upload %TAG% "Crying-Music-Quick-App-v%VER%Windows_x64-Portable .zip" --clobber
+        run: gh release upload %TAG% %ZIP_NAME% --clobber
         env:
           GH_TOKEN: ${{ github.token }}

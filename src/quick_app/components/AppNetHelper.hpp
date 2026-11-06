@@ -53,6 +53,11 @@ public:
         if (m_cachedFileReplies.contains(cacheKey)) {
             return;
         }
+        /* 强制刷新要求覆盖同名文件: 先撤回本轮已胜出的记录,
+         * 否则响应回来会被“另一个源已经写过”判为抢占而丢弃, 封面永远刷不新 */
+        if (force) {
+            m_cachedFileWon.remove(targetName);
+        }
         QNetworkReply *reply = m_nam.get(buildRequest(url));
         m_cachedFileReplies.insert(cacheKey, reply);
         connect(reply, &QNetworkReply::finished, this, [this, reply, cacheKey, targetPath, targetName]() {
@@ -140,7 +145,9 @@ public:
         task.reply = reply;
         m_downloads.insert(taskKey, task);
         connect(reply, &QNetworkReply::readyRead, this, [this, reply, taskKey]() {
-            writeChunk(taskKey, reply);
+            if (verifyAudioContentType(taskKey, reply)) {
+                writeChunk(taskKey, reply);
+            }
         });
         connect(reply, &QNetworkReply::downloadProgress, this,
                 [this, taskKey](qint64 received, qint64 total) {
@@ -215,9 +222,13 @@ private:
         QNetworkReply *reply = nullptr;
         QFile *file = nullptr;
         QString dstPath;
+        /* 取消或拒收的具体原因: 非空时取代默认的已取消上报 */
+        QString failReason;
         qint64 received = 0;
         qint64 total = -1;
         bool cancelled = false;
+        /* 响应头的内容类型是否已经判定过, 只判一次 */
+        bool contentChecked = false;
         qint64 lastStamp = 0;
     };
 
@@ -294,6 +305,30 @@ private:
         }
     }
 
+    /* 音频下载的内容类型校验: 镜像用 200 返回的 HTML 或 JSON 错误页不是音频,
+     * 一旦识别立即中止请求并记下原因, 避免把错误页原样落盘成音频文件;
+     * 未声明类型或声明为二进制流的照旧接受, 只拦明确是文本的两类 */
+    bool verifyAudioContentType(const QString &taskKey, QNetworkReply *reply) {
+        if (!m_downloads.contains(taskKey)) {
+            return false;
+        }
+        DownloadTask &task = m_downloads[taskKey];
+        if (task.contentChecked) {
+            return !task.cancelled;
+        }
+        task.contentChecked = true;
+        const QString contentType =
+            reply->header(QNetworkRequest::ContentTypeHeader).toString().toLower();
+        if (!contentType.startsWith(QStringLiteral("text/"))
+            && !contentType.startsWith(QStringLiteral("application/json"))) {
+            return true;
+        }
+        task.cancelled = true;
+        task.failReason = QStringLiteral("内容不是音频: ") + contentType;
+        reply->abort();
+        return false;
+    }
+
     /* 进度上报: 按时间节流, 避免逐块刷新界面 */
     void emitDownloadProgress(const QString &taskKey, qint64 received, qint64 total) {
         Q_UNUSED(received);
@@ -326,12 +361,22 @@ private:
         }
         if (task.cancelled) {
             QFile::remove(task.dstPath);
-            emit downloadFailed(taskKey, QStringLiteral("已取消"));
+            emit downloadFailed(taskKey, (task.failReason.isEmpty()
+                                          ? QStringLiteral("已取消"):task.failReason));
             return;
         }
         if (reply->error()!=QNetworkReply::NoError) {
             QFile::remove(task.dstPath);
             emit downloadFailed(taskKey, reply->errorString());
+            return;
+        }
+        /* 收尾再确认一次内容类型: 首字节到达前就结束的响应不会走 readyRead */
+        const QString finalContentType =
+            reply->header(QNetworkRequest::ContentTypeHeader).toString().toLower();
+        if (finalContentType.startsWith(QStringLiteral("text/"))
+            || finalContentType.startsWith(QStringLiteral("application/json"))) {
+            QFile::remove(task.dstPath);
+            emit downloadFailed(taskKey, QStringLiteral("内容不是音频: ") + finalContentType);
             return;
         }
         const QFileInfo info(task.dstPath);

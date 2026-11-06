@@ -121,6 +121,10 @@ Item {
         coverCacheTtlDays: 0,
         lyricsEnhanced: true,
         lyricsFontSize: 0,
+        /* 歌词当前行颜色: 空串表示跟随主题 */
+        lyricsTextColor: "",
+        /* 歌词当前行锚定比例: 0 表示用设计默认值 */
+        lyricsAnchorRatio: 0,
         audioCacheCapMb: 0
     });
     /* 目录决策: 指针优先, 其次 A, 再 B, 最后兜底 C; 三个候选都不可用时退出应用。
@@ -1142,6 +1146,36 @@ Item {
         }
         Assist.dlog("落盘","写入歌词字号: ",n," px");
         uiState=_uiStateWith({"lyricsFontSize":n});
+        return saveUIState();
+    }
+    /* 歌词当前行颜色: 空串表示跟随主题, 取值由设计常量给出候选 */
+    function lyricsTextColor() {
+        var c=uiState.lyricsTextColor;
+        return (typeof c==="string"? c:"");
+    }
+    /* 写入歌词当前行颜色: 空串写回跟随主题 */
+    function setLyricsTextColor(color) {
+        var c=String(color===undefined || color===null? "":color);
+        Assist.dlog("落盘","写入歌词颜色: ",(c===""? "跟随主题":c));
+        uiState=_uiStateWith({"lyricsTextColor":c});
+        return saveUIState();
+    }
+    /* 歌词当前行锚定比例: 越界或未设置时返回 0, 由界面回落到设计默认值 */
+    function lyricsAnchorRatio() {
+        var r=uiState.lyricsAnchorRatio;
+        if(typeof r!=="number" || !(r>0) || !(r<1)) {
+            return 0;
+        }
+        return r;
+    }
+    /* 写入歌词锚定比例: 非法值按 0 处理, 即回到设计默认值 */
+    function setLyricsAnchorRatio(ratio) {
+        var r=Number(ratio);
+        if(!(r>0) || !(r<1)) {
+            r=0;
+        }
+        Assist.dlog("落盘","写入歌词锚定比例: ",r);
+        uiState=_uiStateWith({"lyricsAnchorRatio":r});
         return saveUIState();
     }
     /* 下载目录: 用户指定过目录时用指定的, 否则用存储目录下的默认目录;

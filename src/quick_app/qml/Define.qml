@@ -97,6 +97,18 @@ Item {
     /* 歌词偏移: 调节步长与上下限(毫秒), 正值表示歌词提前显示; 偏移量按歌词名落盘 */
     property int lyricsOffsetStepMs: 100;
     property int lyricsOffsetMaxMs: 5000;
+    /* 歌词当前行颜色候选: 空串表示跟随主题的图标色, 其余为固定色值, 便于在深色主题下改白 */
+    property var lyricsColorOptions:
+    ([
+        {"id": "", "label": "跟随主题"},
+        {"id": "#00cc65", "label": "青"},
+        {"id": "#2f9cf4", "label": "蓝"},
+        {"id": "#e2568a", "label": "粉"},
+        {"id": "#e0a33c", "label": "金"},
+        {"id": "#f0f0f0", "label": "白"}
+    ]);
+    /* 歌词当前行在歌词视口高度上的锚定比例候选: 0.33 即原设计的三分之一处 */
+    property var lyricsAnchorOptions: [0.25,(1.0/3.0),0.5,0.67];
     /* 歌词页底部播放条的自动隐藏: 离开热区后的等待时长, 淡出时长与热区外扩像素 */
     property int playerBarHideDelayMs: 3000;
     property int playerBarFadeMs: 150;
@@ -132,6 +144,19 @@ Item {
     property int listenReportIntervalMs: 10000;
     property int listenChunkSeconds: 10;
     property int listenDailyMaxSeconds: 18000;
+    /* 全局键盘快捷键: 动作名到按键序列的映射, 界面按它注册 Shortcut 并随界面状态启停;
+     * 输入框获得焦点时统一不响应, 避免吞掉打字; 改键位只动这张表 */
+    property var shortcutKeys:
+    ({
+        "playPause": "Space",
+        "stopPlay": "Ctrl+Space",
+        "prevSong": "Ctrl+Left",
+        "nextSong": "Ctrl+Right",
+        "volumeUp": "Ctrl+Up",
+        "volumeDown": "Ctrl+Down"
+    });
+    /* 音量快捷键的单次步长(百分比) */
+    property int volumeStep: 5;
     /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;
      * 输出的统一格式为 [分类标签]<具体信息>, 由 Assist 的输出函数拼装 */
     property var debugCategoryOn:

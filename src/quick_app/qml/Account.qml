@@ -205,6 +205,15 @@ Item {
             } catch(e0) {
             }
             pendingXhr=null;
+            /* 被中止的请求同样要回调, 否则调用方的在途状态(登录 phase, 待补报秒数)
+             * 会永远停在中间态; 延后一拍执行, 避免回调里再发请求时覆盖本函数新建的请求 */
+            var oldDone=old.__onDone;
+            old.__onDone=null;
+            if(typeof oldDone==="function") {
+                Qt.callLater(function() {
+                    oldDone(false,0,null);
+                });
+            }
         }
         var xhr=null;
         try {
@@ -215,12 +224,14 @@ Item {
             return false;
         }
         pendingXhr=xhr;
+        xhr.__onDone=onDone;
         var settled=false;
         xhr.onreadystatechange=function() {
             if(settled===true || xhr.__aborted===true || xhr.readyState!==XMLHttpRequest.DONE) {
                 return;
             }
             settled=true;
+            xhr.__onDone=null;
             if(accountRoot.pendingXhr===xhr) {
                 accountRoot.pendingXhr=null;
             }
@@ -245,6 +256,7 @@ Item {
         } catch(e3) {
             Assist.dwarn("用户","请求发起失败: ",path,", ",e3);
             pendingXhr=null;
+            xhr.__onDone=null;
             onDone(false,0,null);
             return false;
         }
@@ -256,6 +268,7 @@ Item {
         } catch(e4) {
             Assist.dwarn("用户","请求发送失败: ",path,", ",e4);
             pendingXhr=null;
+            xhr.__onDone=null;
             reqTimer.stop();
             onDone(false,0,null);
             return false;

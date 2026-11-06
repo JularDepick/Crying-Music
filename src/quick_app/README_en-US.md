@@ -11,8 +11,9 @@
 - Online library: meta and manifest hosted on the online-data branch of this repository, recommendation grid on the home page, streaming playback and download, covers and lyrics cached, silent asset backfill for downloaded songs
 - Search: top bar keyword search, exact and fuzzy recall plus unified ranking on the C++ side
 - Lyrics page: full screen overlay, line highlight, per word progress for enhanced lyrics, font size and offset from the context menu, streaming lyrics shown while downloading
-- Settings: tabs by category, online play strategy, three download naming templates, download folder, cover cache lifetime and immediate cleanup, lyrics enhancement switch
-- Themes: four preset color schemes, the choice is saved as a UI preference
+- Settings: tabs by category, online play strategy, two download naming templates (title-artist, artist-title), download folder, cover cache lifetime and immediate cleanup, lyrics enhancement switch
+- Themes: six preset color schemes (four light and two dark), the choice is saved as a UI preference
+- User: email code login without registration, login kept on disk for 7 days, QQ mailboxes get a cached QQ avatar, playback is unaffected when signed out
 - Play list panel: one instance on the main window and one on the lyrics page, shared queue, independent switches
 
 # Architecture and Technology
@@ -30,26 +31,28 @@
 
 ```
 quick_app/
-├── CMakeLists.txt  # CMake build configuration
-├── defines.hpp     # Global macros
-├── main.cpp        # Entry point
-├── Main.qml        # Main QML UI
-├── DesignTask.md   # Design tasks
-├── README.md       # Chinese documentation
-├── README_en-US.md # English documentation
-├── LICENSE         # Full project license (same as the file in the repository root)
-├── COPYRIGHT       # Copyright information (same as the file in the repository root)
-├── LICENSE.Qt      # Full Qt license texts (GPLv3 and LGPLv3) and Qt copyright notice
-├── LICENSE.FDL     # GNU Free Documentation License (Qt documentation is not distributed here)
-├── resource.qrc    # Qt resource manifest (license texts embedded under the licenses/ alias)
-├── resource.rc     # Windows resource file
-├── favicon.jpg     # Application icon
-├── icon.ico        # Windows icon
-├── reference.png   # UI reference image
-├── assets/         # SVG icons (grouped by UI area under assets/iconfont)
-├── components/     # C++ helper components
-├── qml/            # QML components and singletons
-└── scripts/        # Helper scripts
+├── CMakeLists.txt         # CMake build configuration
+├── defines.hpp            # Global macros
+├── main.cpp               # Entry point
+├── Main.qml               # Main QML UI
+├── DesignTask.md          # Design tasks
+├── README.md              # Chinese documentation
+├── README_en-US.md        # English documentation
+├── LICENSE                # Full project license (same as the file in the repository root)
+├── COPYRIGHT              # Copyright information (same as the file in the repository root)
+├── LICENSE.Qt             # Full Qt license texts (GPLv3 and LGPLv3) and Qt copyright notice
+├── LICENSE.FDL            # GNU Free Documentation License (Qt documentation is not distributed here)
+├── THIRD-PARTY-NOTICES.md # Third party notices (Qt and FFmpeg licensing and source links)
+├── resource.qrc           # Qt resource manifest (license texts embedded under the licenses/ alias)
+├── resource.rc            # Windows resource file
+├── favicon.jpg            # Application icon
+├── icon.ico               # Windows icon
+├── reference.png          # UI reference image
+├── .qtcreator/            # Qt Creator project user files (CMakeLists.txt.user, tracked by git)
+├── assets/                # SVG icons (grouped by UI area under assets/iconfont)
+├── components/            # C++ helper components
+├── qml/                   # QML components and singletons
+└── scripts/               # Helper scripts
 ```
 
 # Version Index
@@ -60,12 +63,12 @@ quick_app/
 This program uses Qt through dynamic linking, Qt is licensed under GNU LGPL version 3
 
 | Item | Description |
-|:---:|:---|
+|:---:|:---:|
 | Framework | Qt 6.11.1, distributed as dynamic libraries with the program |
 | Qt license | GNU LGPL version 3, this program uses the LGPL licensed parts under LGPLv3 |
 | Qt copyright | Copyright (C) The Qt Company Ltd. and contributors |
 | License text | See [LICENSE.Qt](./LICENSE.Qt) in this directory, it contains the full GNU GPLv3 and GNU LGPLv3 texts and the Qt copyright notice |
 | Qt source code | https://download.qt.io/official_releases/qt/6.11/6.11.1/ , ask the project author if the link is unavailable |
 | Replaceability | Qt is distributed as dynamic libraries, users may replace the Qt libraries in the application directory |
-| Other third party components | Licenses of components shipped with Qt (for example the FFmpeg multimedia backend) are covered by the upstream Qt license and SBOM documents |
+| Other third party components | See [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md) in this directory for the components shipped with Qt (for example the FFmpeg multimedia backend), that file is shipped with the release package |
 | Project license | AGPL-3.0, see LICENSE and COPYRIGHT in the repository root |

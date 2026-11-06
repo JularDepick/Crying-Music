@@ -706,6 +706,18 @@ ApplicationWindow {
             }
             return playIndex(prev);
         }
+        /* 停止播放: 进入停止态并把进度归零, 队列与当前播放项保留;
+         * 与暂停的区别是暂停记住进度, 停止回到开头 */
+        function stopPlayback() {
+            if(playingWhich==="") {
+                return false;
+            }
+            GlobalFileStorage.setPlayPosition(0);
+            position=0;
+            stop();
+            Assist.dlog("播放","停止播放: ",playingWhich);
+            return true;
+        }
         /* 切换播放顺序: 切到随机时立即打乱当前队列 */
         function setPlayMode(mode) {
             Assist.dlog("播放","切换播放顺序: ",mode);
@@ -1524,6 +1536,15 @@ ApplicationWindow {
                 thePlayer: player;
                 theMemStorage: memStorage;
                 anchors.fill: parent;
+                /* 结果页请求回到来源页定位: 先切回来源页, 再让它滚动到该条并高亮 */
+                onLocateRequested: (one)=>{
+                    var page=mainArea_ResultPage.originPage;
+                    if(page===null || page===undefined) {
+                        return;
+                    }
+                    mainArea.undo();
+                    page.locateSong(one);
+                }
             }
         }
         /* 播放栏 */
@@ -1648,6 +1669,75 @@ ApplicationWindow {
                 loadingTip.visible=false;
                 loadingTip.tipText="";
             }
+        }
+    }
+    /* 快捷键的生效条件: 输入框获得焦点时不响应, 避免吞掉打字用的空格与方向键 */
+    function shortcutAllowed() {
+        var one=activeFocusItem;
+        return !(one!==null && one!==undefined && one.text!==undefined);
+    }
+    /* 音量快捷键: 按步长增减并夹在 0 到 100 之间, 变化立即落盘 */
+    function changeVolume(delta) {
+        var v=Math.round(window.outputVolume+delta);
+        if(v<0) {
+            v=0;
+        }
+        if(v>100) {
+            v=100;
+        }
+        if(v===Math.round(window.outputVolume)) {
+            return;
+        }
+        window.outputVolume=v;
+        GlobalFileStorage.setVolume(v);
+        Assist.dlog("播放","音量: ",v);
+    }
+    /* 全局键盘快捷键: 键位表集中在 Define.shortcutKeys, 这里只做动作映射;
+     * 输入焦点在输入框里时统一不响应, 由 shortcutAllowed 判定 */
+    Shortcut {
+        sequence: Define.shortcutKeys["playPause"];
+        enabled: window.shortcutAllowed();
+        onActivated: {
+            if(player.playing) {
+                player.pause();
+            } else {
+                player.play();
+            }
+        }
+    }
+    Shortcut {
+        sequence: Define.shortcutKeys["stopPlay"];
+        enabled: window.shortcutAllowed();
+        onActivated: {
+            player.stopPlayback();
+        }
+    }
+    Shortcut {
+        sequence: Define.shortcutKeys["prevSong"];
+        enabled: window.shortcutAllowed();
+        onActivated: {
+            player.playPrev();
+        }
+    }
+    Shortcut {
+        sequence: Define.shortcutKeys["nextSong"];
+        enabled: window.shortcutAllowed();
+        onActivated: {
+            player.playNext(false);
+        }
+    }
+    Shortcut {
+        sequence: Define.shortcutKeys["volumeUp"];
+        enabled: window.shortcutAllowed();
+        onActivated: {
+            window.changeVolume(Define.volumeStep);
+        }
+    }
+    Shortcut {
+        sequence: Define.shortcutKeys["volumeDown"];
+        enabled: window.shortcutAllowed();
+        onActivated: {
+            window.changeVolume(-Define.volumeStep);
         }
     }
     function subsHide(scenePos) {
