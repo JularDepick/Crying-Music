@@ -1406,7 +1406,7 @@ Item {
     property var _assetItems: []
     /* 每项最多尝试的次数 */
     readonly property int assetMaxTries: 3
-    /* 失败后的退避节拍: 30 秒, 2 分钟, 10 分钟 */
+    /* 失败后的退避节拍: 15 秒, 90 秒, 5 分钟 */
     readonly property var assetBackoffMs: [15000,90000,300000]
     /* 一次尝试的等待窗口: 请求仍在途(含排队等并发额度)时只延长等待, 不算一次失败;
      * 从发起起超过三倍窗口仍未结算才判失败

@@ -10,7 +10,7 @@
 | `README.md` | 5 | `badge/Version-` | 版本徽章 |
 | `README_en-US.md` | 5 | `badge/Version-` | 版本徽章 |
 | `src/quick_app/CMakeLists.txt` | 5 | `project(CryingMusic VERSION` | 项目版本声明 |
-| `src/quick_app/defines.hpp` | 1 | `#define VERSION` | 版本宏 |
+| `src/quick_app/defines.hpp` | 2 | `#define VERSION` | 版本宏 |
 | `src/quick_app/resource.rc` | 4, 5 | `FILEVERSION` / `PRODUCTVERSION` | 可执行文件版本, 四段十进制数 |
 | `src/quick_app/resource.rc` | 18, 23 | `FileVersion` / `ProductVersion` | 可执行文件版本, 字符串 |
 | `version.index.md` | 3 | `- 当前版本:` | 本索引自身的当前版本行 |
