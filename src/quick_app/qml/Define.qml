@@ -22,6 +22,11 @@ Item {
     property color textColor: "#1a1a1a";
     property int btnSize: 20;
     property int btnSpacing: 20;
+    /* 用户页登录卡片: 卡片宽度, 内边距, 输入框与主按钮高度 */
+    property int loginCardWidth: 420;
+    property int loginCardPadding: 32;
+    property int loginFieldHeight: 36;
+    property int loginButtonHeight: 40;
     property int recentListSize: 200; /* 最近播放列表的条数上限 */
     property int probeTimeoutMs: 1000; /* FakePlayer 探测元数据的超时阈值, 超时转 AppFileHelper 兜底 */
     property int probeFallbackMs: 4000; /* AppFileHelper 兜底读取的超时阈值 */
