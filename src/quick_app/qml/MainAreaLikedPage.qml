@@ -430,7 +430,7 @@ MainAreaFatherPage {
                                 text: modelData["songname"];
                                 font.pixelSize: 14;
                                 font.weight: 400;
-                                color: (box.playingRow? Define.choseCyanColor:"black");
+                                color: (box.playingRow? Define.choseCyanColor:Define.textColor);
                                 elide: Text.ElideRight;
                                 wrapMode: Text.NoWrap;
                                 HoverHandler {
@@ -445,7 +445,7 @@ MainAreaFatherPage {
                                 text: modelData["singer"];
                                 font.pixelSize: 13;
                                 font.weight: 400;
-                                color: (box.playingRow? Define.choseCyanColor:"black");
+                                color: (box.playingRow? Define.choseCyanColor:Define.textColor);
                                 elide: Text.ElideRight;
                                 wrapMode: Text.NoWrap;
                                 HoverHandler {
@@ -534,7 +534,7 @@ MainAreaFatherPage {
                         text: Assist.fileSize2text(modelData["size"]);
                         font.pixelSize: 13;
                         font.weight: 400;
-                        color: (box.playingRow? Define.choseCyanColor:"black");
+                        color: (box.playingRow? Define.choseCyanColor:Define.textColor);
                         elide: Text.ElideRight;
                         wrapMode: Text.NoWrap;
                     }
@@ -545,7 +545,7 @@ MainAreaFatherPage {
                         text: Assist.int2mmss(modelData["duration"]);
                         font.pixelSize: 13;
                         font.weight: 400;
-                        color: (box.playingRow? Define.choseCyanColor:"black");
+                        color: (box.playingRow? Define.choseCyanColor:Define.textColor);
                         elide: Text.ElideRight;
                         wrapMode: Text.NoWrap;
                     }

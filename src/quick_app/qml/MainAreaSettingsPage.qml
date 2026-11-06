@@ -166,7 +166,7 @@ MainAreaFatherPage {
                             anchors.centerIn: parent;
                             text: (modelData===undefined || modelData===null? "":String(modelData["label"]));
                             font.pixelSize: 14;
-                            color: (parent.selected||parent.parent.hovered? Define.choseCyanColor:"black");
+                            color: (parent.selected||parent.parent.hovered? Define.choseCyanColor:Define.textColor);
                             transform: Translate {
                                 x: (parent.pressed? 2:0);
                                 y: (parent.pressed? 2:0);

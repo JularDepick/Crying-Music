@@ -419,6 +419,8 @@ Rectangle {
         cardStyle: false;
         /* 歌词页里这枚封面按钮的作用是退出歌词页, 悬停图标用关闭图形 */
         lyricsCloseIcon: true;
+        /* 本实例就处在歌词页里, 歌词卡片按钮常亮 */
+        lyricsOpened: true;
         opacity: (root.barVisible? 1:0);
         enabled: root.barVisible;
         Behavior on opacity {

@@ -234,7 +234,7 @@ Rectangle {
                                 text: modelData["songname"];
                                 font.pixelSize: 14;
                                 font.weight: 400;
-                                color: (playingBox.playingRow? Define.choseCyanColor:"black");
+                                color: (playingBox.playingRow? Define.choseCyanColor:Define.textColor);
                                 elide: Text.ElideRight;
                                 wrapMode: Text.NoWrap;
                                 HoverHandler {
@@ -249,7 +249,7 @@ Rectangle {
                                 text: modelData["singer"];
                                 font.pixelSize: 13;
                                 font.weight: 400;
-                                color: (playingBox.playingRow? Define.choseCyanColor:"black");
+                                color: (playingBox.playingRow? Define.choseCyanColor:Define.textColor);
                                 elide: Text.ElideRight;
                                 wrapMode: Text.NoWrap;
                                 HoverHandler {

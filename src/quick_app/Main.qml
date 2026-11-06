@@ -25,8 +25,10 @@ ApplicationWindow {
     /* 由窗口操控栏自己按下的最小化: 置位后最小化保持到任务栏,
      * 未置位时的最小化由可见性钩子改判为收起到托盘 */
     property bool selfMinimized: false;
-    /* 音频输出的音量百分比: 由播放栏的音量滑块实时驱动, 音频输出绑定它 */
-    property real outputVolume: (GlobalFileStorage.playState.volume===undefined? 100:GlobalFileStorage.playState.volume);
+    /* 音频输出的音量百分比: 由播放栏的音量滑块与快捷键驱动, 音频输出绑定它;
+     * 这里是普通属性而不是对存储的绑定: 拖动与快捷键都会给它赋值, 绑定一旦被赋值打断
+     * 就再也不会跟随存储; 初值在启动链里从存储读入 */
+    property real outputVolume: 100;
 
     /* 内存枢纽: 只存内存的临时状态, 不落盘; 由主界面持有并注入给各页。
      * 声明在页面之前, 保证页面构建时它已存在 */
@@ -1627,6 +1629,8 @@ ApplicationWindow {
             theMemStorage: memStorage;
             sidebarSpreaded: leftSidebar.spreaded;
             ownsPlayerSideEffects: true;
+            /* 歌词卡片按钮的点亮状态跟随歌词页的真实可见性 */
+            lyricsOpened: lyricsSubTab.visible;
             anchors {left:leftSidebar.right; right:parent.right; bottom:parent.bottom;}
             anchors.rightMargin: Define.windowPadding;
             anchors.bottomMargin: Define.windowPadding;
@@ -1896,6 +1900,9 @@ ApplicationWindow {
     }
     Component.onCompleted: {
         Assist.dlog("界面","UI 加载成功, 开始读取程序储存");
+        /* 音量初值从存储读入: outputVolume 是普通属性, 声明处不对存储做绑定 */
+        window.outputVolume=(GlobalFileStorage.playState.volume===undefined
+                             ? 100:GlobalFileStorage.playState.volume);
         /* 托盘先就位: 窗口隐藏到托盘后从它恢复, 因此要在读盘与显示之前建好;
          * 菜单内容先推一次, 免得第一次右键看到的是初始文案 */
         SystemTray.show(qsTr("泣水音乐"));

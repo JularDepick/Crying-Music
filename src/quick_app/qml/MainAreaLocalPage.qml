@@ -65,7 +65,7 @@ MainAreaFatherPage {
                             anchors.centerIn: parent;
                             text: tabname;
                             font.pixelSize: 14;
-                            color: (parent.selected||parent.parent.hovered? Define.choseCyanColor:"black");
+                            color: (parent.selected||parent.parent.hovered? Define.choseCyanColor:Define.textColor);
                             transform: Translate {
                                 x: (parent.pressed? 2:0);
                                 y: (parent.pressed? 2:0);
@@ -674,7 +674,7 @@ MainAreaFatherPage {
                                 text: modelData["songname"];
                                 font.pixelSize: 14;
                                 font.weight: 400;
-                                color: (box.playingRow? Define.choseCyanColor:"black");
+                                color: (box.playingRow? Define.choseCyanColor:Define.textColor);
                                 elide: Text.ElideRight;
                                 wrapMode: Text.NoWrap;
                                 HoverHandler {
@@ -689,7 +689,7 @@ MainAreaFatherPage {
                                 text: modelData["singer"];
                                 font.pixelSize: 13;
                                 font.weight: 400;
-                                color: (box.playingRow? Define.choseCyanColor:"black");
+                                color: (box.playingRow? Define.choseCyanColor:Define.textColor);
                                 elide: Text.ElideRight;
                                 wrapMode: Text.NoWrap;
                                 HoverHandler {
@@ -801,7 +801,7 @@ MainAreaFatherPage {
                                : Assist.fileSize2text(modelData["size"]));
                         font.pixelSize: 13;
                         font.weight: 400;
-                        color: (box.playingRow? Define.choseCyanColor:"black");
+                        color: (box.playingRow? Define.choseCyanColor:Define.textColor);
                         elide: Text.ElideRight;
                         wrapMode: Text.NoWrap;
                     }
@@ -815,7 +815,7 @@ MainAreaFatherPage {
                                : Assist.int2mmss(modelData["duration"]));
                         font.pixelSize: 13;
                         font.weight: 400;
-                        color: (box.playingRow? Define.choseCyanColor:"black");
+                        color: (box.playingRow? Define.choseCyanColor:Define.textColor);
                         elide: Text.ElideRight;
                         wrapMode: Text.NoWrap;
                     }

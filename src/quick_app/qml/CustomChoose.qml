@@ -43,7 +43,7 @@ Item {
                 contentItem: Text {
                     text: optionItem.text;
                     font: optionItem.font;
-                    color: ((optionItem.checked||optionItem.hovered)? Define.choseCyanColor:"black");
+                    color: ((optionItem.checked||optionItem.hovered)? Define.choseCyanColor:Define.textColor);
                     verticalAlignment: Text.AlignVCenter;
                     leftPadding: optionItem.indicator.width+optionItem.spacing;
                 }

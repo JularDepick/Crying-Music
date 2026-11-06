@@ -258,7 +258,7 @@ MainAreaFatherPage {
                         text: modelData["songname"];
                         font.pixelSize: 14;
                         font.weight: 400;
-                        color: (cardBox.playingRow? Define.choseCyanColor:"black");
+                        color: (cardBox.playingRow? Define.choseCyanColor:Define.textColor);
                         elide: Text.ElideRight;
                         wrapMode: Text.NoWrap;
                     }
