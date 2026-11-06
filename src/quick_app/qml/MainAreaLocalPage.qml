@@ -751,7 +751,11 @@ MainAreaFatherPage {
                                                         ? null:theMemStorage.downloadTaskOf(onlineId));
                                     property bool downloaded: (onlineId!=="" && GlobalFileStorage.isDownloaded(onlineId));
                                     property bool downloading: (task!==null);
-                                    visible: (modelData["online"]===true && box.hoveredRow===true && mainListView.batchMode!==true && headRow.curr!=="downloadingSongs");
+                                    /* 已下载的条目常驻显示对勾, 未下载的仍随行悬停出现;
+                                     * 正在下载标签里不出现这一列 */
+                                    visible: ((modelData["online"]===true && mainListView.batchMode!==true
+                                               && headRow.curr!=="downloadingSongs")
+                                              && (box.hoveredRow===true || downloaded===true));
                                     height: 20;
                                     width: 20;
                                     enabled: (!downloaded && !downloading);

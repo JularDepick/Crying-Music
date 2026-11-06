@@ -121,9 +121,7 @@ Item {
         coverCacheTtlDays: 0,
         lyricsEnhanced: true,
         lyricsFontSize: 0,
-        /* 歌词当前行颜色: 空串表示跟随主题 */
         lyricsTextColor: "",
-        /* 歌词当前行锚定比例: 0 表示用设计默认值 */
         lyricsAnchorRatio: 0,
         audioCacheCapMb: 0
     });
@@ -592,6 +590,10 @@ Item {
                        "coverCacheTtlDays":(typeof us.coverCacheTtlDays==="number"? us.coverCacheTtlDays:0),
                        "lyricsEnhanced":(us.lyricsEnhanced!==false),
                        "lyricsFontSize":(typeof us.lyricsFontSize==="number"? us.lyricsFontSize:0),
+                       /* 歌词当前行颜色: 空串表示跟随主题 */
+                       "lyricsTextColor":(typeof us.lyricsTextColor==="string"? us.lyricsTextColor:""),
+                       /* 歌词当前行锚定比例: 0 表示用设计默认值 */
+                       "lyricsAnchorRatio":(typeof us.lyricsAnchorRatio==="number"? us.lyricsAnchorRatio:0),
                        "audioCacheCapMb":(typeof us.audioCacheCapMb==="number"? us.audioCacheCapMb:0)});
         }
         var ac=readPayload(storageDirPath,accountFileName);
@@ -1031,6 +1033,8 @@ Item {
                  "coverCacheTtlDays":(typeof uiState.coverCacheTtlDays!=="number"? 0:uiState.coverCacheTtlDays),
                  "lyricsEnhanced":(uiState.lyricsEnhanced===true),
                  "lyricsFontSize":(typeof uiState.lyricsFontSize!=="number"? 0:uiState.lyricsFontSize),
+                 "lyricsTextColor":(typeof uiState.lyricsTextColor!=="string"? "":uiState.lyricsTextColor),
+                 "lyricsAnchorRatio":(typeof uiState.lyricsAnchorRatio!=="number"? 0:uiState.lyricsAnchorRatio),
                  "audioCacheCapMb":(typeof uiState.audioCacheCapMb!=="number"? 0:uiState.audioCacheCapMb)});
         for(var k in overrides) {
             st[k]=overrides[k];

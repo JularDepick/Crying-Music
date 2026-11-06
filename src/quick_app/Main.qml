@@ -367,8 +367,8 @@ ApplicationWindow {
         }
         property var id2obj: new Map();
         property var songobjs: ([]);
-        /* 播放目标: 在线条目已下载到本地时复用本地文件, 否则按数据根健康度取实际地址流式播放;
-         * 在线标识仍然是条目自带的规范地址, 换根只影响本次请求打到哪个数据根
+        /* 播放目标: 在线条目已下载到本地或已有整曲缓存时复用本地文件, 否则按数据根健康度取实际地址流式播放;
+         * 条目标识仍然是在线标识, 换根只影响本次请求打到哪个数据根
          */
         function playbackTarget(one) {
             if(one===undefined || one===null) {
@@ -1102,28 +1102,47 @@ ApplicationWindow {
                         onClicked: {
                             mainArea.jump2(leftSidebar.svg2obj["profile"]);
                         }
-                        background: Image {
+                        background: Item {
                             anchors.fill: parent;
-                            id: userAvatar;
-                            /* 登录后显示缓存的 QQ 头像小图, 未登录或不是纯数字 QQ 邮箱时用应用图标 */
-                            source: (Account.avatarSource(Define.avatarSpecSmall)===""
-                                     ? "qrc:/favicon.jpg":Account.avatarSource(Define.avatarSpecSmall));
-                            fillMode: Image.PreserveAspectCrop;
-                            layer.enabled: true;
-                            layer.effect: MultiEffect {
-                                maskEnabled: true;
-                                maskSource: userAvatarMasker;
-                            }
-                            Item {
-                                id: userAvatarMasker;
+                            /* 未登录: 亮灰底圆加未登录字样, 不再借用应用图标 */
+                            Rectangle {
                                 anchors.fill: parent;
-                                visible: false;
+                                radius: height/2;
+                                color: Define.hoverDarkColor;
+                                border.color: Define.subGrey;
+                                border.width: 0.5;
+                                visible: (Account.loggedIn!==true);
+                                Text {
+                                    anchors.centerIn: parent;
+                                    text: "未登录";
+                                    font.pixelSize: 10;
+                                    color: Define.btnIconColor;
+                                }
+                            }
+                            /* 已登录: 缓存的 QQ 头像小图, 非纯数字 QQ 邮箱时回退应用图标 */
+                            Image {
+                                anchors.fill: parent;
+                                id: userAvatar;
+                                visible: (Account.loggedIn===true);
+                                source: (Account.avatarSource(Define.avatarSpecSmall)===""
+                                         ? "qrc:/favicon.jpg":Account.avatarSource(Define.avatarSpecSmall));
+                                fillMode: Image.PreserveAspectCrop;
                                 layer.enabled: true;
-                                Rectangle {
+                                layer.effect: MultiEffect {
+                                    maskEnabled: true;
+                                    maskSource: userAvatarMasker;
+                                }
+                                Item {
+                                    id: userAvatarMasker;
                                     anchors.fill: parent;
-                                    radius: height/2;
-                                    border.color: Define.subGrey;
-                                    border.width: 0.5;
+                                    visible: false;
+                                    layer.enabled: true;
+                                    Rectangle {
+                                        anchors.fill: parent;
+                                        radius: height/2;
+                                        border.color: Define.subGrey;
+                                        border.width: 0.5;
+                                    }
                                 }
                             }
                         }

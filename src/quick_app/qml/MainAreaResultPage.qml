@@ -293,7 +293,9 @@ MainAreaFatherPage {
                                                         ? null:theMemStorage.downloadTaskOf(onlineId));
                                     property bool downloaded: (onlineId!=="" && GlobalFileStorage.isDownloaded(onlineId));
                                     property bool downloading: (task!==null);
-                                    visible: (modelData["online"]===true && box.hoveredRow===true);
+                                    /* 已下载的条目常驻显示对勾, 未下载的仍随行悬停出现 */
+                                    visible: (modelData["online"]===true
+                                              && (box.hoveredRow===true || downloaded===true));
                                     height: 20;
                                     width: 20;
                                     enabled: (!downloaded && !downloading);
