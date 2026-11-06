@@ -275,23 +275,39 @@ MainAreaFatherPage {
                 }
             }
         }
-        /* 曲库为空时的提示: 拉取失败不做视觉反馈, 由拉取层按退避节拍自动重试 */
+        /* 曲库为空时的提示: 按加载状态分加载中, 失败与空库三种文案;
+         * 失败态点一下即手动重拉, 后台仍按退避节拍自动重试 */
         Rectangle {
             id: onlineTipArea;
             anchors.centerIn: parent;
-            width: onlineTipText.width+40;
+            width: Math.max(onlineTipText.width+40, 200);
             height: 40;
             radius: 8;
             color: Define.mainAreaColor;
             border.color: Define.subGrey;
             border.width: 1;
             visible: (mainArea_HomePage.recommendModel.length<=0);
+            MouseArea {
+                anchors.fill: parent;
+                enabled: (Server.loadState===3);
+                onClicked: {
+                    mainArea_HomePage.refreshCatalog();
+                }
+            }
             Text {
                 id: onlineTipText;
                 anchors.centerIn: parent;
                 font.pixelSize: 14;
                 color: Define.btnIconColor;
-                text: "正在加载在线曲库...";
+                text: {
+                    if(Server.loadState===3) {
+                        return "在线曲库加载失败, 点击重试";
+                    }
+                    if(Server.loadState===2) {
+                        return "在线曲库暂无曲目";
+                    }
+                    return "正在加载在线曲库...";
+                }
             }
         }
     }

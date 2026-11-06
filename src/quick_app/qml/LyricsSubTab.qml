@@ -386,6 +386,9 @@ Rectangle {
             theMemStorage: root.theMemStorage;
             headEnabled: true;
             headClearable: false;
+            /* 面板不跟随当前播放行滚动: 歌词页本身已按播放进度锚定歌词,
+             * 两个位置同时跳动会互相干扰, 主界面那份实例保持跟随 */
+            autoFollow: false;
         }
     }
     /* 播放条常驻热区: 播放条隐藏(禁用)时由它接住悬停与点击, 指针一进来就把整条播放条唤回;
