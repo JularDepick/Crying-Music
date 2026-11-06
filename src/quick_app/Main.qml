@@ -1629,12 +1629,13 @@ ApplicationWindow {
             theMemStorage: memStorage;
             sidebarSpreaded: leftSidebar.spreaded;
             ownsPlayerSideEffects: true;
-            /* 歌词卡片按钮的点亮状态跟随歌词页的真实可见性 */
-            lyricsOpened: lyricsSubTab.visible;
+            /* 歌词卡片按钮对应桌面悬浮歌词, 点亮状态跟随悬浮窗的真实可见性 */
+            lyricsOpened: desktopLyrics.visible;
             anchors {left:leftSidebar.right; right:parent.right; bottom:parent.bottom;}
             anchors.rightMargin: Define.windowPadding;
             anchors.bottomMargin: Define.windowPadding;
             onLyricsOpenerClicked: lyricsSubTab.tshow();
+            onDesktopLyricsRequested: window.toggleDesktopLyrics();
             onVolumeMoved: (value)=> {
                 window.outputVolume=value;
             }
@@ -1924,6 +1925,89 @@ ApplicationWindow {
         Assist.dlog("播放","恢复上次的播放状态: ",player.restoreFromState());
         window.visible=true;
         Assist.dlog("界面","窗口已显示");
+    }
+    /* 桌面悬浮歌词: 独立窗口, 无边框置顶且不进任务栏, 由播放栏的歌词卡片按钮开关.
+     * 歌词解析与当前行判定直接复用歌词页那一份状态, 因此打开时不必另起一套解析,
+     * 换歌, 调偏移与切歌词档位都会跟着同步 */
+    Window {
+        id: desktopLyrics;
+        width: 860;
+        height: 128;
+        visible: false;
+        color: "transparent";
+        flags: Qt.Window | Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint;
+        title: "桌面歌词";
+        /* 只有第一次打开时落默认位置, 之后尊重用户拖到的地方 */
+        property bool placedOnce: false;
+        /* 当前行与下一行: 直接取歌词页解析出来的行数组 */
+        readonly property var lineNow: ((lyricsSubTab.currentLine>=0
+                                         && lyricsSubTab.currentLine<lyricsSubTab.lyricLines.length)
+                                        ? lyricsSubTab.lyricLines[lyricsSubTab.currentLine]:null);
+        readonly property var lineNext: ((lyricsSubTab.currentLine>=0
+                                          && (lyricsSubTab.currentLine+1)<lyricsSubTab.lyricLines.length)
+                                         ? lyricsSubTab.lyricLines[lyricsSubTab.currentLine+1]:null);
+
+        Rectangle {
+            anchors.fill: parent;
+            radius: 12;
+            color: "#B8000000";
+            border.color: "#26FFFFFF";
+            border.width: 1;
+            Column {
+                anchors.centerIn: parent;
+                width: parent.width-88;
+                spacing: 10;
+                Text {
+                    width: parent.width;
+                    horizontalAlignment: Text.AlignHCenter;
+                    text: (desktopLyrics.lineNow===null? "暂无歌词":String(desktopLyrics.lineNow["text"]));
+                    font.pixelSize: 26;
+                    font.weight: 600;
+                    color: (desktopLyrics.lineNow===null? "#99FFFFFF":"white");
+                    wrapMode: Text.NoWrap;
+                    elide: Text.ElideRight;
+                }
+                Text {
+                    width: parent.width;
+                    horizontalAlignment: Text.AlignHCenter;
+                    visible: (desktopLyrics.lineNext!==null);
+                    text: (desktopLyrics.lineNext===null? "":String(desktopLyrics.lineNext["text"]));
+                    font.pixelSize: 15;
+                    color: "#A6FFFFFF";
+                    wrapMode: Text.NoWrap;
+                    elide: Text.ElideRight;
+                }
+            }
+        }
+        /* 整窗拖动交给系统移动, 不自绘拖影 */
+        MouseArea {
+            anchors.fill: parent;
+            acceptedButtons: Qt.LeftButton;
+            onPressed: {
+                desktopLyrics.startSystemMove();
+            }
+        }
+    }
+    /* 桌面歌词的开关状态: 供歌词页里的播放栏副本点亮按钮 */
+    readonly property bool desktopLyricsVisible: desktopLyrics.visible;
+    /* 悬浮歌词的默认位置: 所在屏幕底部居中, 距底 120 */
+    function placeDesktopLyrics() {
+        var s=desktopLyrics.screen;
+        if(s===null || s===undefined) {
+            return;
+        }
+        desktopLyrics.x=Math.round((s.width-desktopLyrics.width)/2);
+        desktopLyrics.y=Math.round(s.height-desktopLyrics.height-120);
+    }
+    /* 桌面悬浮歌词的开关: 播放栏的歌词卡片按钮与歌词页里的副本都走这里 */
+    function toggleDesktopLyrics() {
+        desktopLyrics.visible=!desktopLyrics.visible;
+        if(desktopLyrics.visible===true && desktopLyrics.placedOnce!==true) {
+            window.placeDesktopLyrics();
+            desktopLyrics.placedOnce=true;
+        }
+        Assist.dlog("界面","桌面歌词: ",(desktopLyrics.visible? "开":"关"));
+        window.syncTrayMenu();
     }
     Component.onDestruction: {
         /* 退出前把当前播放进度与全部数据落盘 */

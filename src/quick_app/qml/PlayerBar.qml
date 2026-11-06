@@ -24,11 +24,12 @@ Rectangle {
     property bool ownsPlayerSideEffects: false;
     /* 实例开关: 封面上的悬停图标用关闭歌词页的图形(歌词页实例)还是打开歌词页的图形(主界面实例) */
     property bool lyricsCloseIcon: false;
-    /* 歌词页当前是否可见: 由宿主注入, 让右侧的歌词卡片按钮保持点亮;
-     * 卡片按钮与左侧封面按钮共用同一个歌词页入口 */
+    /* 桌面悬浮歌词当前是否开启: 由宿主注入, 让右侧的歌词卡片按钮保持点亮 */
     property bool lyricsOpened: false;
     /* 左侧封面被点击: 主界面用来进入歌词页, 歌词页用来退出 */
     signal lyricsOpenerClicked();
+    /* 右侧歌词卡片被点击: 开关桌面悬浮歌词, 与歌词页是两件事 */
+    signal desktopLyricsRequested();
     /* 音量被拖动: 宿主据此更新音频输出, 避免两侧各存一份音量 */
     signal volumeMoved(int value);
     /* 供宿主绑定的播放列表面板开关状态 */
@@ -616,11 +617,11 @@ Rectangle {
         rightPadding: 25;
         PlayerBarButton {
             id: lyricsCardBtn;
-            /* 点亮状态跟随歌词页的真实可见性, 不再是本地布尔 */
+            /* 桌面悬浮歌词的开关: 点亮状态跟随悬浮窗的真实可见性 */
             icon.color: (((hovered&&hoverColorEnabled)||root.lyricsOpened)? Define.btnHoverColor:Define.btnIconColor);
             icon.source: "qrc:/assets/iconfont/playerbar/lyricsflow.svg";
             onClicked: {
-                root.lyricsOpenerClicked();
+                root.desktopLyricsRequested();
             }
         }
         PlayerBarButton {

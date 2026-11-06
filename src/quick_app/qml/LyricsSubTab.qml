@@ -419,8 +419,8 @@ Rectangle {
         cardStyle: false;
         /* 歌词页里这枚封面按钮的作用是退出歌词页, 悬停图标用关闭图形 */
         lyricsCloseIcon: true;
-        /* 本实例就处在歌词页里, 歌词卡片按钮常亮 */
-        lyricsOpened: true;
+        /* 歌词页里这份播放栏同样控制桌面悬浮歌词, 点亮状态跟随悬浮窗 */
+        lyricsOpened: (root.theWindow!==null && root.theWindow.desktopLyricsVisible===true);
         opacity: (root.barVisible? 1:0);
         enabled: root.barVisible;
         Behavior on opacity {
@@ -435,6 +435,11 @@ Rectangle {
         anchors.bottomMargin: Define.windowPadding;
         onLyricsOpenerClicked: {
             root.hide();
+        }
+        onDesktopLyricsRequested: {
+            if(root.theWindow!==null && root.theWindow.toggleDesktopLyrics!==undefined) {
+                root.theWindow.toggleDesktopLyrics();
+            }
         }
         onVolumeMoved: (value)=> {
             if(root.theWindow!==null) {
@@ -695,17 +700,14 @@ Rectangle {
         Server.requestLyrics(playingLyricsName);
         loadLyricText();
     }
-    /* 歌词增强开关变化会换掉实际使用的歌词名: 页面可见时按新的一档重新同步 */
+    /* 歌词同步与页面可见性脱钩: 桌面悬浮歌词在歌词页关闭时同样需要当前行与下一行,
+     * 因此切歌与切档一律重新同步, 解析开销只是一次读文件 */
     onActiveLyricsNameChanged: {
-        if(root.visible===true) {
-            root.syncLyrics();
-        }
+        root.syncLyrics();
     }
     /* 增强开关本身也决定是否解析逐字信息: 开关一变就按新口径重解析一次 */
     onEnhancedOnChanged: {
-        if(root.visible===true) {
-            root.syncLyrics();
-        }
+        root.syncLyrics();
     }
     /* 读盘并解析歌词: 没有缓存时清空显示, 缓存就绪时由 lyricsUpdated 再次触发 */
     function loadLyricText() {
