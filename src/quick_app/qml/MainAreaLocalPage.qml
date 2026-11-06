@@ -2110,8 +2110,23 @@ MainAreaFatherPage {
     function refresh() {
         mainListView.rebuild();
     }
-    function jump2list() {
-        ;
+    /* 钩子: 在当前标签页的列表里定位到指定条目并滚动过去高亮它,
+     * 供搜索结果页回跳时调用; 条目不在当前标签的列表里时返回 false */
+    function locateSong(one) {
+        if(one===undefined || one===null) {
+            return false;
+        }
+        var key=String(one["absfpath"]);
+        var v=mainArea_LocalPage.mainListViewModel;
+        for(var i=0;i<v.length;i++) {
+            if(String(v[i]["absfpath"])===key) {
+                mainListView.selectedWhich=key;
+                mainListView.positionViewAtIndex(i,ListView.Center);
+                Assist.dlog("列表","搜索结果定位: 下标 ",i);
+                return true;
+            }
+        }
+        return false;
     }
     /* 关键字搜索: 走统一的搜索匹配算法过滤当前标签的列表条目 */
     function search(keyword) {

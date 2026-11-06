@@ -33,22 +33,22 @@ MainAreaFatherPage {
         var ms=Account.expireAt-Account.nowMs;
         return (ms>0? Math.ceil(ms/86400000):0);
     }
-    /* 累计听歌时长: 按时分秒格式化, 不足一小时只给分秒 */
+    /* 累计听歌时长: 只精确到分钟, 不再显示秒;
+     * 不足一分钟按 0 分钟计, 整小时时省略多余的 0 分 */
     function listenStamp(totalSeconds) {
         var sec=Math.floor(Number(totalSeconds));
         if(!(sec>0)) {
-            return "0 秒";
+            return "0 分钟";
         }
         var h=Math.floor(sec/3600);
         var m=Math.floor((sec%3600)/60);
-        var s=sec%60;
+        if(h>0 && m>0) {
+            return String(h)+" 小时 "+String(m)+" 分";
+        }
         if(h>0) {
-            return String(h)+" 小时 "+String(m)+" 分 "+String(s)+" 秒";
+            return String(h)+" 小时";
         }
-        if(m>0) {
-            return String(m)+" 分 "+String(s)+" 秒";
-        }
-        return String(s)+" 秒";
+        return String(m)+" 分钟";
     }
     /* 发送按钮的文案: 依次覆盖发送中, 冷却中与已有验证码三种情况 */
     function sendLabel() {
