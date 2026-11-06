@@ -899,15 +899,74 @@ ApplicationWindow {
         }
     }
 
-    /* 系统托盘: 由 C++ 侧的 SystemTrayHelper 承载, 图标与菜单都在那边构建,
-     * 这里只接住切换窗口与退出两个意图, 收起与展开仍然走 toggleShown */
+    /* 系统托盘: 由 C++ 侧的 SystemTrayHelper 承载, 图标与菜单都在那边构建;
+     * 这里接住菜单发出的各个意图, 并把播放状态与窗口可见性推回去 */
     Connections {
         target: SystemTray;
         function onToggleRequested() {
             window.toggleShown();
         }
+        function onPlayPauseRequested() {
+            if(player.playing) {
+                player.pause();
+            } else {
+                player.play();
+            }
+        }
+        function onPreviousRequested() {
+            player.playPrev();
+        }
+        function onNextRequested() {
+            player.playNext(false);
+        }
+        function onPlayModeRequested(mode) {
+            player.setPlayMode(mode);
+        }
+        function onLikeRequested() {
+            window.toggleTrayLike();
+        }
         function onQuitRequested() {
             Qt.exit(0);
+        }
+    }
+    /* 托盘菜单的动态文案: 曲目与歌手, 播放状态, 是否有当前项, 是否已喜欢,
+     * 当前播放顺序与窗口可见性; 只推状态, 判定都在 C++ 侧做 */
+    function syncTrayMenu() {
+        var title=String(player.playingTitle);
+        var singer=String(player.playingSinger);
+        var info="";
+        if(title!=="") {
+            info=(singer===""? title:title+" - "+singer);
+        }
+        var hasTrack=(player.playingWhich!==undefined && player.playingWhich!=="");
+        var liked=(hasTrack && GlobalFileStorage.isLiked(player.playingWhich)===true);
+        SystemTray.syncMenu(info,(player.playing===true),hasTrack,liked,
+                            (player.playMode===undefined? 1:player.playMode),
+                            (window.visible===true));
+    }
+    /* 托盘里的喜欢开关: 与播放栏走同一个存储入口, 取反后立即回推菜单 */
+    function toggleTrayLike() {
+        if(player.playingWhich===undefined || player.playingWhich==="") {
+            return;
+        }
+        var next=(GlobalFileStorage.isLiked(player.playingWhich)!==true);
+        GlobalFileStorage.setLiked(player.playingWhich,next);
+        window.syncTrayMenu();
+    }
+    /* 播放状态一变就回推一次, 托盘菜单因此在打开前就已是最新 */
+    Connections {
+        target: player;
+        function onPlayingChanged() {
+            window.syncTrayMenu();
+        }
+        function onPlayingTitleChanged() {
+            window.syncTrayMenu();
+        }
+        function onPlayingSingerChanged() {
+            window.syncTrayMenu();
+        }
+        function onPlayModeChanged() {
+            window.syncTrayMenu();
         }
     }
     /* 收起与展开的唯一开关: 托盘图标与任务栏按钮都走这一条路径 */
@@ -941,10 +1000,15 @@ ApplicationWindow {
         }
     }
     onClosing: (close)=> {
-        if (stIcon.visible) {
+        /* 有托盘可收时才把关闭改成隐藏, 否则按正常退出处理 */
+        if (SystemTray.visible()===true) {
             close.accepted=false;
             window.hide();
         }
+    }
+    /* 窗口显隐一变就回推托盘菜单的文案 */
+    onVisibleChanged: {
+        window.syncTrayMenu();
     }
 
     /* 窗口边框拖拽 */
@@ -1832,8 +1896,10 @@ ApplicationWindow {
     }
     Component.onCompleted: {
         Assist.dlog("界面","UI 加载成功, 开始读取程序储存");
-        /* 托盘先就位: 窗口隐藏到托盘后从它恢复, 因此要在读盘与显示之前建好 */
+        /* 托盘先就位: 窗口隐藏到托盘后从它恢复, 因此要在读盘与显示之前建好;
+         * 菜单内容先推一次, 免得第一次右键看到的是初始文案 */
         SystemTray.show(qsTr("泣水音乐"));
+        window.syncTrayMenu();
         /* 先确定存储目录, 再读取落盘数据; 子项先于本处理器完成构建, 因此列表需在读盘后重建一次 */
         GlobalFileStorage.verifyStorageDir();
         GlobalFileStorage.load();
