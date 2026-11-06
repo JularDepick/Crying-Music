@@ -4,7 +4,6 @@ import QtQuick.Effects
 import QtQuick.Controls.Basic
 import QtQuick.Controls.impl
 import QtMultimedia
-import Qt.labs.platform
 
 import AppHelper 1.0
 
@@ -900,26 +899,15 @@ ApplicationWindow {
         }
     }
 
-    /* 系统托盘 */
-    SystemTrayIcon {
-        id: stIcon;
-        visible: true;
-        icon.source: "qrc:/favicon.jpg";
-        tooltip: "泣水音乐";
-        menu: Menu {
-            id: stMenu;
-            MenuItem {
-               text: "退出";
-               onTriggered: Qt.exit(0);
-           }
-           MenuSeparator {}
-       }
-        /* 左键单击切换收起与展开: 收起是隐藏到托盘, 展开时恢复上次的显示状态 */
-        onActivated: (reason)=> {
-            if(reason===SystemTrayIcon.Trigger || reason===SystemTrayIcon.DoubleClick
-               || reason===SystemTrayIcon.MiddleClick) {
-                window.toggleShown();
-            }
+    /* 系统托盘: 由 C++ 侧的 SystemTrayHelper 承载, 图标与菜单都在那边构建,
+     * 这里只接住切换窗口与退出两个意图, 收起与展开仍然走 toggleShown */
+    Connections {
+        target: SystemTray;
+        function onToggleRequested() {
+            window.toggleShown();
+        }
+        function onQuitRequested() {
+            Qt.exit(0);
         }
     }
     /* 收起与展开的唯一开关: 托盘图标与任务栏按钮都走这一条路径 */
@@ -1825,6 +1813,8 @@ ApplicationWindow {
     }
     Component.onCompleted: {
         Assist.dlog("界面","UI 加载成功, 开始读取程序储存");
+        /* 托盘先就位: 窗口隐藏到托盘后从它恢复, 因此要在读盘与显示之前建好 */
+        SystemTray.show(qsTr("泣水音乐"));
         /* 先确定存储目录, 再读取落盘数据; 子项先于本处理器完成构建, 因此列表需在读盘后重建一次 */
         GlobalFileStorage.verifyStorageDir();
         GlobalFileStorage.load();

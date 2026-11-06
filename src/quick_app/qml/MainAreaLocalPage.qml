@@ -963,6 +963,16 @@ MainAreaFatherPage {
                         }
                         v[i]["duration"]=(m.duration>0? m.duration:0);
                     }
+                    /* 内嵌封面与内嵌歌词可能晚于条目构造到位, 回填时一并补上;
+                     * 空值不覆盖已有值, 没有内嵌封面与歌词的条目保持原样 */
+                    var cp=mainArea_LocalPage.coverPathOf(v[i]["absfpath"]);
+                    if(cp!=="") {
+                        v[i]["absipath"]=cp;
+                    }
+                    var ln=mainArea_LocalPage.lyricNameOf(v[i]["absfpath"]);
+                    if(ln!=="") {
+                        v[i]["lyrics"]=ln;
+                    }
                     if(v[i]["source"]==="scan" && m && m.duration>=0
                        && m.duration<GlobalFileStorage.localScan.scanRadio) {
                         /* 扫描项时长不满足扫描规则, 不进入列表 */
@@ -972,6 +982,12 @@ MainAreaFatherPage {
                 }
                 mainArea_LocalPage.mainListViewModel=sortList(nv);
                 Assist.dlog("元数据","回填列表: 应用 ",nv.length," 项");
+                /* 本地内嵌歌词已按缓存格式落盘: 刷新一次歌词缓存索引,
+                 * 歌词页按歌词名直接取到文件, 不会再为这些名字发起在线拉取 */
+                if(mainArea_LocalPage.lyricsCacheDirty===true) {
+                    mainArea_LocalPage.lyricsCacheDirty=false;
+                    Server.loadLyricsCache();
+                }
                 /* 队列与列表共享条目对象, 回填后通知播放模块刷新播放栏显示的曲名与歌手 */
                 if(thePlayer!==undefined && thePlayer!==null) {
                     thePlayer.syncPlayingInfo();
@@ -1646,6 +1662,14 @@ MainAreaFatherPage {
     property int probeDone: 0;
     /* 探测进度在加载条上的使用者标识 */
     property string loadingId: "probeMeta";
+    /* 内嵌封面: 本地路径 -> 封面文件标准化路径, 探测到之后才有键;
+     * 列表条目构造与元数据回填都从这里取, 没有内嵌封面时保持空串并回退应用图标 */
+    property var coverPathCache: ({});
+    /* 内嵌歌词: 本地路径 -> 歌词缓存主名(不含扩展名), 空串表示该文件没有内嵌歌词;
+     * 歌词页按这个主名取歌词, 本地曲目与在线曲目因此走同一套歌词显示 */
+    property var lyricNameCache: ({});
+    /* 本批是否写出了新的本地歌词: 探测队列排空后据此统一刷新一次歌词缓存索引 */
+    property bool lyricsCacheDirty: false;
     Timer {
         id: probeTimeout;
         interval: Define.probeTimeoutMs;
@@ -1658,6 +1682,15 @@ MainAreaFatherPage {
         interval: Define.probeFallbackMs;
         onTriggered: {
             mainArea_LocalPage.finishProbe({"duration":-1,"title":"","artist":""});
+        }
+    }
+    /* 封面陆续回传: 合并成一次列表刷新, 避免每回来一首就换一次模型 */
+    Timer {
+        id: coverApplyTimer;
+        interval: 500;
+        repeat: false;
+        onTriggered: {
+            mainArea_LocalPage.applyCoverPaths();
         }
     }
     /* theProber 由 Main.qml 注入, 注入后继续排队中的探测 */
@@ -1674,6 +1707,9 @@ MainAreaFatherPage {
         target: AppFileHelper;
         function onAudioMetaReady(absfpath,duration,title,artist) {
             mainArea_LocalPage.onFallbackMeta(absfpath,duration,title,artist);
+        }
+        function onAudioCoverReady(absfpath,coverPath) {
+            mainArea_LocalPage.onCoverReady(absfpath,coverPath);
         }
     }
     /* 下载进度变化: 正在下载标签就地换模型 */
@@ -1738,11 +1774,17 @@ MainAreaFatherPage {
             return;
         }
         var sz=AppFileHelper.fileSize(absfpath);
+        /* 封面: 本次已探到或上次运行已缓存时直接带上, 都没有时保持空串, 等探测回填 */
+        var cover=coverPathOf(absfpath);
+        if(cover==="") {
+            cover=AppFileHelper.cachedCoverPath(absfpath);
+        }
         v.push({
             "songname": (m && m.title!==""? m.title:nameOfFile(absfpath)),
             "singer": (m && m.artist!==""? m.artist:"未知歌手"),
             "absfpath": absfpath,
-            "absipath": "",
+            "absipath": cover,
+            "lyrics": lyricNameOf(absfpath),
             "size": (sz>0? sz:0),
             "duration": (dur>0? dur:0),
             "source": source,
@@ -1752,6 +1794,109 @@ MainAreaFatherPage {
         if(theMemStorage.hasMeta(absfpath)===false) {
             probeMeta(absfpath);
         }
+    }
+    /* 取某路径已探到的内嵌封面路径: 还没探测或该文件没有内嵌封面时返回空字符串 */
+    function coverPathOf(absfpath) {
+        var p=coverPathCache[absfpath];
+        return (p===undefined? "":String(p));
+    }
+    /* 取某路径的内嵌歌词主名: 还没探测或该文件没有内嵌歌词时返回空字符串 */
+    function lyricNameOf(absfpath) {
+        var p=lyricNameCache[absfpath];
+        return (p===undefined? "":String(p));
+    }
+    /* 记一条内嵌歌词结果: 空串表示该文件没有内嵌歌词, 有键即视为已处理过 */
+    function setLyricName(absfpath,name) {
+        var m=({});
+        for(var k in lyricNameCache) {
+            m[k]=lyricNameCache[k];
+        }
+        m[absfpath]=(name===undefined? "":String(name));
+        lyricNameCache=m;
+    }
+    /* 内嵌封面就绪: 记进缓存并合并成一次列表刷新 */
+    function onCoverReady(absfpath,coverPath) {
+        if(absfpath===undefined || absfpath==="") {
+            return;
+        }
+        var m=({});
+        for(var k in coverPathCache) {
+            m[k]=coverPathCache[k];
+        }
+        m[absfpath]=(coverPath===undefined? "":String(coverPath));
+        coverPathCache=m;
+        coverApplyTimer.restart();
+    }
+    /* 把封面路径写回列表条目: 只换条目内容并整体替换模型, 滚动位置保持不变 */
+    function applyCoverPaths() {
+        var v=mainArea_LocalPage.mainListViewModel;
+        var l=v.length;
+        var changed=false;
+        for(var i=0;i<l;i++) {
+            if(v[i]["online"]===true) {
+                continue;
+            }
+            var p=coverPathOf(v[i]["absfpath"]);
+            if(p!=="" && v[i]["absipath"]!==p) {
+                v[i]["absipath"]=p;
+                changed=true;
+            }
+        }
+        if(changed) {
+            replaceModelKeepScroll(v.slice());
+        }
+    }
+    /* 内嵌封面与内嵌歌词: 每首本地曲目在元数据探测结束后处理一次;
+     * 歌词只按帧长跳跃读标签头, 封面交给 AppFileHelper 自己的读取队列, 都不占用探测超时 */
+    function cacheEmbeddedOf(absfpath,durationSec) {
+        if(absfpath===undefined || absfpath==="") {
+            return;
+        }
+        var cover=AppFileHelper.cachedCoverPath(absfpath);
+        if(cover!=="") {
+            onCoverReady(absfpath,cover);
+        } else {
+            AppFileHelper.readAudioCover(absfpath);
+        }
+        if(lyricNameCache[absfpath]!==undefined) {
+            return;
+        }
+        var dir=GlobalFileStorage.lyricsCacheDir();
+        if(dir==="") {
+            setLyricName(absfpath,"");
+            return;
+        }
+        /* 歌词主名沿用缓存命名习惯: local 前缀加路径摘要, 与在线歌词的文件名不会撞车 */
+        var mainName="local_"+AppFileHelper.sha256Hex(absfpath).substring(0,16);
+        /* 歌词页按歌词增强开关取不同的扩展名, 两档文件名各写一份, 切换档位时同样有歌词;
+         * 清单还没就绪时档位名不带扩展名, 这个兜底名也一并写上 */
+        var tierName=Server.lyricsVariantName(mainName);
+        var names=[tierName,mainName+".lrc"];
+        var ready=true;
+        for(var i=0;i<names.length;i++) {
+            if(AppFileHelper.existsFile(dir+"/"+names[i])!==true) {
+                ready=false;
+            }
+        }
+        if(ready) {
+            setLyricName(absfpath,mainName);
+            return;
+        }
+        var ms=Math.floor((durationSec>0? durationSec:0)*1000);
+        var text=AppFileHelper.readAudioLyrics(absfpath,ms);
+        if(text==="") {
+            setLyricName(absfpath,"");
+            return;
+        }
+        for(var j=0;j<names.length;j++) {
+            var p=dir+"/"+names[j];
+            if(AppFileHelper.existsFile(p)!==true) {
+                AppFileHelper.writeFile(p,text,"UTF-8");
+            }
+        }
+        setLyricName(absfpath,mainName);
+        lyricsCacheDirty=true;
+        Assist.dlog("元数据","内嵌歌词已缓存: ",mainName);
     }
     /* 由标准化路径取歌曲名 */
     function nameOfFile(absfpath) {
@@ -1950,6 +2095,8 @@ MainAreaFatherPage {
         theMemStorage.setMeta(done,{"duration":(meta.duration>0? meta.duration:-1),
                                         "title":(meta.title===undefined? "":meta.title),
                                         "artist":(meta.artist===undefined? "":meta.artist)});
+        /* 探测收尾时补内嵌封面与内嵌歌词, 两者都不占用探测与兜底的超时 */
+        mainArea_LocalPage.cacheEmbeddedOf(done,(meta.duration>0? meta.duration:0));
         probeDone=probeDone+1;
         mainArea_LocalPage.pushProbeRate();
         startProbe();
