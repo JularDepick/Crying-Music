@@ -84,12 +84,15 @@ MainAreaFatherPage {
             Account.refresh();
         }
     }
-    /* 验证码发出后把焦点交给验证码框: 少一次点击, 键盘一路走完整个流程 */
+    /* 验证码发出后把焦点交给验证码框: 少一次点击, 键盘一路走完整个流程;
+     * 延后一拍, 等验证码区块完成可见性与布局再抢焦点 */
     Connections {
         target: Account;
         function onCodeSentChanged() {
             if(Account.codeSent===true && loginArea.visible===true) {
-                codeField.forceActiveFocus();
+                Qt.callLater(function() {
+                    codeField.forceActiveFocus();
+                });
             }
         }
     }
