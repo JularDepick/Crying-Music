@@ -114,6 +114,23 @@ Item {
     ]);
     /* 歌词当前行在歌词视口高度上的锚定比例候选: 0.33 即原设计的三分之一处 */
     property var lyricsAnchorOptions: [0.25,(1.0/3.0),0.5,0.67];
+    /* 桌面悬浮歌词: 窗口宽高与距所在屏幕底部的默认间距 */
+    property int desktopLyricsWidth: 860;
+    property int desktopLyricsHeight: 128;
+    property int desktopLyricsBottomGap: 120;
+    /* 桌面悬浮歌词字号: 当前行取歌词页基准字号的这个倍数(基准默认 16, 1.625 即 26),
+     * 下一行再乘下一行倍数(15/26), 因此跟随歌词页字号一起变 */
+    property real desktopLyricsFontScale: 1.625;
+    property real desktopLyricsNextLineScale: (15.0/26.0);
+    /* 桌面悬浮歌词下一行的不透明度: 与当前行同色, 只压低不透明度 */
+    property real desktopLyricsNextLineOpacity: 0.65;
+    /* 桌面悬浮歌词拖动后的位置落盘防抖时长(毫秒): 拖动过程中不逐像素写盘 */
+    property int desktopLyricsPosSaveDelayMs: 400;
+    /* 就地二次确认的确认态时长(毫秒): 首击进入确认态, 此时长内再击才执行, 超时回归 */
+    property int confirmTimeoutMs: 3000;
+    /* 设置页关于与许可的许可文本区: 固定高度与内边距, 文本不撑开页面 */
+    property int licenseTextAreaHeight: 320;
+    property int licenseTextAreaPadding: 10;
     /* 歌词页底部播放条的自动隐藏: 离开热区后的等待时长, 淡出时长与热区外扩像素 */
     property int playerBarHideDelayMs: 3000;
     property int playerBarFadeMs: 150;

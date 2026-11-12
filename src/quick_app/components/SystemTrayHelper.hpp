@@ -15,7 +15,7 @@
  * 经 syncMenu 推回来, 因此本类不持有播放器, 也不做任何业务判断.
  *
  * 菜单结构: 正在播放(信息行) / 播放暂停, 上一曲, 下一曲, 播放顺序子菜单, 喜欢
- * / 显示或隐藏主窗口 / 退出 */
+ * / 显示或隐藏桌面歌词 / 显示或隐藏主窗口 / 退出 */
 class SystemTrayHelper : public QObject {
     Q_OBJECT
 public:
@@ -51,6 +51,10 @@ public:
         QObject::connect(m_like, &QAction::triggered, this, &SystemTrayHelper::likeRequested);
 
         m_menu->addSeparator();
+        /* 桌面歌词: 文案随开关状态切换, 由 syncMenu 同步 */
+        m_desktopLyrics = m_menu->addAction(QStringLiteral("显示桌面歌词"));
+        QObject::connect(m_desktopLyrics, &QAction::triggered,
+                         this, &SystemTrayHelper::desktopLyricsRequested);
         m_windowAction = m_menu->addAction(QStringLiteral("显示主窗口"));
         QObject::connect(m_windowAction, &QAction::triggered, this, &SystemTrayHelper::toggleRequested);
         m_menu->addSeparator();
@@ -94,9 +98,11 @@ public:
     }
 
     /* 同步菜单的动态部分: 正在播放的曲目, 播放状态, 是否有当前项, 是否已喜欢,
-     * 当前播放顺序与窗口可见性; 只改变化了的项, 避免菜单在展开时反复重排 */
+     * 当前播放顺序, 桌面歌词是否在显示与窗口可见性;
+     * 只改变化了的项, 避免菜单在展开时反复重排 */
     Q_INVOKABLE void syncMenu(const QString &trackText, bool playing, bool hasTrack,
-                              bool liked, int playMode, bool windowShown) {
+                              bool liked, int playMode, bool windowShown,
+                              bool desktopLyricsShown) {
         const QString info = trackText.isEmpty() ? QStringLiteral("未在播放") : trackText;
         if (m_nowPlaying->text()!=info) {
             m_nowPlaying->setText(info);
@@ -116,6 +122,11 @@ public:
         const int count = m_orderActions.size();
         for (int i=0; i<count; ++i) {
             m_orderActions.at(i)->setChecked(i==playMode);
+        }
+        const QString lyricsLabel = desktopLyricsShown ? QStringLiteral("隐藏桌面歌词")
+                                                       : QStringLiteral("显示桌面歌词");
+        if (m_desktopLyrics->text()!=lyricsLabel) {
+            m_desktopLyrics->setText(lyricsLabel);
         }
         const QString winLabel = windowShown ? QStringLiteral("隐藏主窗口")
                                              : QStringLiteral("显示主窗口");
@@ -142,6 +153,8 @@ signals:
     void playModeRequested(int mode);
     /* 喜欢开关: 由界面按当前项状态取反 */
     void likeRequested();
+    /* 菜单选中桌面歌词: 界面据此切换悬浮歌词窗口 */
+    void desktopLyricsRequested();
     /* 菜单选中退出: 界面据此结束进程 */
     void quitRequested();
 
@@ -154,6 +167,7 @@ private:
     QAction *m_previous = nullptr;
     QAction *m_next = nullptr;
     QAction *m_like = nullptr;
+    QAction *m_desktopLyrics = nullptr;
     QAction *m_windowAction = nullptr;
     QList<QAction *> m_orderActions;
 };

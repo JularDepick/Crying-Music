@@ -902,7 +902,7 @@ ApplicationWindow {
     }
 
     /* 系统托盘: 由 C++ 侧的 SystemTrayHelper 承载, 图标与菜单都在那边构建;
-     * 这里接住菜单发出的各个意图, 并把播放状态与窗口可见性推回去 */
+     * 这里接住菜单发出的各个意图, 并把播放状态, 桌面歌词与窗口可见性推回去 */
     Connections {
         target: SystemTray;
         function onToggleRequested() {
@@ -927,12 +927,15 @@ ApplicationWindow {
         function onLikeRequested() {
             window.toggleTrayLike();
         }
+        function onDesktopLyricsRequested() {
+            window.toggleDesktopLyrics();
+        }
         function onQuitRequested() {
             Qt.exit(0);
         }
     }
     /* 托盘菜单的动态文案: 曲目与歌手, 播放状态, 是否有当前项, 是否已喜欢,
-     * 当前播放顺序与窗口可见性; 只推状态, 判定都在 C++ 侧做 */
+     * 当前播放顺序, 桌面歌词是否在显示与窗口可见性; 只推状态, 判定都在 C++ 侧做 */
     function syncTrayMenu() {
         var title=String(player.playingTitle);
         var singer=String(player.playingSinger);
@@ -944,7 +947,7 @@ ApplicationWindow {
         var liked=(hasTrack && GlobalFileStorage.isLiked(player.playingWhich)===true);
         SystemTray.syncMenu(info,(player.playing===true),hasTrack,liked,
                             (player.playMode===undefined? 1:player.playMode),
-                            (window.visible===true));
+                            (window.visible===true),(desktopLyrics.visible===true));
     }
     /* 托盘里的喜欢开关: 与播放栏走同一个存储入口, 取反后立即回推菜单 */
     function toggleTrayLike() {
@@ -1931,14 +1934,24 @@ ApplicationWindow {
      * 换歌, 调偏移与切歌词档位都会跟着同步 */
     Window {
         id: desktopLyrics;
-        width: 860;
-        height: 128;
+        width: Define.desktopLyricsWidth;
+        height: Define.desktopLyricsHeight;
         visible: false;
         color: "transparent";
         flags: Qt.Window | Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint;
         title: "桌面歌词";
-        /* 只有第一次打开时落默认位置, 之后尊重用户拖到的地方 */
-        property bool placedOnce: false;
+        /* 位置在每次打开时从界面偏好恢复, 拖动后写回; posTracking 置位前不写盘,
+         * 避免初始化与恢复过程反复落盘 */
+        property bool posTracking: false;
+        /* 字号跟随歌词页基准字号: 当前行乘当前行倍数, 下一行再乘下一行倍数 */
+        readonly property int fontSizeNow: Math.round(lyricsSubTab.baseFontSize
+                                                      * Define.desktopLyricsFontScale);
+        readonly property int fontSizeNext: Math.round(fontSizeNow
+                                                       * Define.desktopLyricsNextLineScale);
+        /* 当前行颜色跟随歌词页的取色, 但首档(未选色)是跟随主题图标色, 落在本窗的
+         * 半透明深色底上对比度不足, 因此未选色时改用白色 */
+        readonly property color lineColor: (GlobalFileStorage.lyricsTextColor()===""
+                                            ? "#FFFFFF":lyricsSubTab.currentLineColor);
         /* 当前行与下一行: 直接取歌词页解析出来的行数组 */
         readonly property var lineNow: ((lyricsSubTab.currentLine>=0
                                          && lyricsSubTab.currentLine<lyricsSubTab.lyricLines.length)
@@ -1961,9 +1974,9 @@ ApplicationWindow {
                     width: parent.width;
                     horizontalAlignment: Text.AlignHCenter;
                     text: (desktopLyrics.lineNow===null? "暂无歌词":String(desktopLyrics.lineNow["text"]));
-                    font.pixelSize: 26;
+                    font.pixelSize: desktopLyrics.fontSizeNow;
                     font.weight: 600;
-                    color: (desktopLyrics.lineNow===null? "#99FFFFFF":"white");
+                    color: (desktopLyrics.lineNow===null? "#99FFFFFF":desktopLyrics.lineColor);
                     wrapMode: Text.NoWrap;
                     elide: Text.ElideRight;
                 }
@@ -1972,8 +1985,9 @@ ApplicationWindow {
                     horizontalAlignment: Text.AlignHCenter;
                     visible: (desktopLyrics.lineNext!==null);
                     text: (desktopLyrics.lineNext===null? "":String(desktopLyrics.lineNext["text"]));
-                    font.pixelSize: 15;
-                    color: "#A6FFFFFF";
+                    font.pixelSize: desktopLyrics.fontSizeNext;
+                    color: desktopLyrics.lineColor;
+                    opacity: Define.desktopLyricsNextLineOpacity;
                     wrapMode: Text.NoWrap;
                     elide: Text.ElideRight;
                 }
@@ -1987,24 +2001,89 @@ ApplicationWindow {
                 desktopLyrics.startSystemMove();
             }
         }
+        /* 拖动只改 x/y, 停手后延时落盘一次, 拖动过程中不逐像素写盘 */
+        Timer {
+            id: desktopLyricsPosTimer;
+            interval: Define.desktopLyricsPosSaveDelayMs;
+            repeat: false;
+            onTriggered: {
+                window.saveDesktopLyricsPos();
+            }
+        }
+        onXChanged: {
+            if(desktopLyrics.posTracking===true) {
+                desktopLyricsPosTimer.restart();
+            }
+        }
+        onYChanged: {
+            if(desktopLyrics.posTracking===true) {
+                desktopLyricsPosTimer.restart();
+            }
+        }
     }
     /* 桌面歌词的开关状态: 供歌词页里的播放栏副本点亮按钮 */
     readonly property bool desktopLyricsVisible: desktopLyrics.visible;
-    /* 悬浮歌词的默认位置: 所在屏幕底部居中, 距底 120 */
+    /* 悬浮歌词的默认位置: 所在屏幕底部居中, 距底 desktopLyricsBottomGap */
     function placeDesktopLyrics() {
         var s=desktopLyrics.screen;
         if(s===null || s===undefined) {
-            return;
+            return false;
         }
         desktopLyrics.x=Math.round((s.width-desktopLyrics.width)/2);
-        desktopLyrics.y=Math.round(s.height-desktopLyrics.height-120);
+        desktopLyrics.y=Math.round(s.height-desktopLyrics.height-Define.desktopLyricsBottomGap);
+        return true;
     }
-    /* 桌面悬浮歌词的开关: 播放栏的歌词卡片按钮与歌词页里的副本都走这里 */
+    /* 该点是否落在某块屏幕内: 显示器拔出后旧位置会落到屏外, 需要回退默认位置 */
+    function pointOnSomeScreen(px,py) {
+        var list=Qt.application.screens;
+        if(list===undefined || list===null) {
+            return false;
+        }
+        for(var i=0;i<list.length;i++) {
+            var s=list[i];
+            if(px>=s.x && px<(s.x+s.width) && py>=s.y && py<(s.y+s.height)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /* 打开时恢复位置: 存储里有记录且该点仍在某块屏幕上就用它, 否则落默认位置并立即保存一次;
+     * 写存储不反写 x/y, 因此恢复与落盘不会互相触发 */
+    function restoreDesktopLyricsPos() {
+        var p=GlobalFileStorage.desktopLyricsPos();
+        if(p!==null && window.pointOnSomeScreen(p["x"]+desktopLyrics.width/2,
+                                                p["y"]+desktopLyrics.height/2)===true) {
+            desktopLyrics.x=p["x"];
+            desktopLyrics.y=p["y"];
+            return true;
+        }
+        if(window.placeDesktopLyrics()===true) {
+            GlobalFileStorage.setDesktopLyricsPos(Math.round(desktopLyrics.x),
+                                                  Math.round(desktopLyrics.y));
+        }
+        return false;
+    }
+    /* 保存当前位置: 只在打开且已开始跟踪时写, 关闭状态下的 x/y 变化不落盘 */
+    function saveDesktopLyricsPos() {
+        if(desktopLyrics.posTracking!==true) {
+            return false;
+        }
+        return GlobalFileStorage.setDesktopLyricsPos(Math.round(desktopLyrics.x),
+                                                     Math.round(desktopLyrics.y));
+    }
+    /* 桌面悬浮歌词的开关: 播放栏的歌词卡片按钮, 歌词页里的副本与托盘菜单都走这里 */
     function toggleDesktopLyrics() {
         desktopLyrics.visible=!desktopLyrics.visible;
-        if(desktopLyrics.visible===true && desktopLyrics.placedOnce!==true) {
-            window.placeDesktopLyrics();
-            desktopLyrics.placedOnce=true;
+        if(desktopLyrics.visible===true) {
+            window.restoreDesktopLyricsPos();
+            desktopLyrics.posTracking=true;
+        } else {
+            /* 关闭前把还挂着的防抖落盘补上, 再停止跟踪 */
+            if(desktopLyricsPosTimer.running===true) {
+                desktopLyricsPosTimer.stop();
+                window.saveDesktopLyricsPos();
+            }
+            desktopLyrics.posTracking=false;
         }
         Assist.dlog("界面","桌面歌词: ",(desktopLyrics.visible? "开":"关"));
         window.syncTrayMenu();
