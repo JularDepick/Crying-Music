@@ -27,6 +27,8 @@ Item {
     property string accountFileName: "account.json";
     /* 听歌时长上报状态: 服务端累计秒数与本地待补报秒数 */
     property string listenStateFileName: "listenState.json";
+    /* 迁移标记: 记录已经并进本目录的来源目录, 同一来源只合并一次 */
+    property string migrationMarkFileName: "migration.json";
     /* 存储布局: 在线音乐的下载文件放在 <storageDirPath>/downloads 下,
      * 在线封面缓存放在 <storageDirPath>/cache/covers 下,
      * 在线歌词缓存放在 <storageDirPath>/cache/lyrics 下 */
@@ -105,7 +107,10 @@ Item {
         playingIndex: -1,
         playMode: 1,
         playingPosition: 0,
-        volume: 100
+        volume: 100,
+        /* 静音前音量: 播放栏有多个实例, 静音与取消静音共用这一份,
+         * 否则主界面静音后到歌词页取消静音会跳到 100 */
+        lastVolume: 100
     });
     /* 界面状态: 需要落盘的界面偏好(左侧栏展开, 当前页面, 下载命名与播放策略, 下载目录, 预设主题);
      * 跨模块只经此处交换 */
@@ -229,13 +234,24 @@ Item {
         Assist.dlog("存储目录","  可写判定: ",dirLabel(dir)," -> ",ok);
         return ok;
     }
-    /* 采用某个目录作为存储目录: 合并来源目录的数据, 补齐许可文本, 写入指针 */
+    /* 采用某个目录作为存储目录: 合并来源目录的数据, 补齐许可文本, 写入指针;
+     * 每个来源目录对同一目标目录只合并一次, 判定依据是目标目录 data 下的
+     * migration.json 里记下的来源目录清单: 指针写不进去时(例如安装到 Program Files)
+     * 每次启动都会重新走完整决策, 若每次都无条件取并集, 旧目录里已删除的
+     * 喜欢/最近播放/扫描项会被反复复活 */
     function adoptStorageDir(dir,sources) {
         Assist.dlog("存储目录","采用: ",dirLabel(dir),", 来源目录 ",sources.length," 个");
         storageDirPath=dir;
+        var done=mergedSourcesOf(dir);
         var l=sources.length;
         for(var i=0;i<l;i++) {
-            mergeDataFrom(sources[i],dir);
+            if(hasPath(done,sources[i])===true) {
+                Assist.dlog("存储目录","跳过已迁移过的来源目录: ",dirLabel(sources[i]));
+                continue;
+            }
+            if(mergeDataFrom(sources[i],dir)===true) {
+                markMergedSource(dir,sources[i]);
+            }
         }
         ensureLicenses(dir);
         writeStoragePointer(dir);
@@ -327,6 +343,28 @@ Item {
         Assist.dlog("存储目录","指针已写入: ",dirLabel(f));
         return true;
     }
+    /* 读取迁移标记里的来源目录清单: 标记缺失或类型异常时按空清单处理 */
+    function mergedSourcesOf(dir) {
+        var one=readPayload(dir,migrationMarkFileName);
+        if(isPayloadObject(one)!==true) {
+            return [];
+        }
+        return (isPayloadArray(one.sources)===true? one.sources:[]);
+    }
+    /* 记录某个来源目录已合并进目标目录: 写失败只记日志, 不阻断采用流程,
+     * 下次启动会再合并一次(并集本身幂等, 只是白做一遍) */
+    function markMergedSource(dir,srcDir) {
+        var list=mergedSourcesOf(dir);
+        if(hasPath(list,srcDir)===true) {
+            return true;
+        }
+        list.push(srcDir);
+        var ok=writePayload(dir,migrationMarkFileName,({"sources":list}));
+        if(ok!==true) {
+            Assist.dwarn("存储目录","迁移标记写入失败: ",dirLabel(dir));
+        }
+        return ok;
+    }
     /* 读取某目录下某个数据文件的有效载荷: 文件缺失或内容损坏时返回 null */
     function readPayload(dir,fileName) {
         if(dir==="") {
@@ -368,27 +406,55 @@ Item {
         }
         return ok;
     }
-    /* 数据迁移: 目标目录数据为主, 来源目录做并集补齐; 结果直接写回目标目录 */
+    /* 载荷类型判定: 数组要求是数组, 对象要求是普通对象(非 null, 非数组);
+     * 数据文件被外部改坏成数字/字符串/数组时, 各合并函数据此跳过该文件 */
+    function isPayloadArray(v) {
+        return (Array.isArray(v)===true);
+    }
+    function isPayloadObject(v) {
+        return (v!==null && v!==undefined && typeof v==="object" && Array.isArray(v)===false);
+    }
+    /* 载荷类型名: 只用于日志, 让类型异常的记录能看出实际拿到的是什么 */
+    function payloadKind(v) {
+        if(v===null || v===undefined) {
+            return "空";
+        }
+        if(Array.isArray(v)===true) {
+            return "数组";
+        }
+        if(typeof v==="object") {
+            return "对象";
+        }
+        return typeof v;
+    }
+    /* 数据迁移: 目标目录数据为主, 来源目录做并集补齐; 结果直接写回目标目录;
+     * 整体兜底: 单个文件类型异常由各 merge 函数自行跳过, 这里再包一层 try/catch,
+     * 任何意外都不许抛到启动流程上(否则 Main.qml 的 Component.onCompleted 中断, 窗口不再显示) */
     function mergeDataFrom(srcDir,dstDir) {
         if(srcDir==="" || dstDir==="" || srcDir===dstDir) {
             return false;
         }
-        Assist.dlog("存储目录","迁移数据: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
-        mergeLocalScan(srcDir,dstDir);
-        mergePathList(srcDir,dstDir,likedFilesFileName);
-        mergePathList(srcDir,dstDir,recentFilesFileName);
-        mergeDownloadList(srcDir,dstDir);
-        mergeWholePayload(srcDir,dstDir,playStateFileName);
-        mergeWholePayload(srcDir,dstDir,uiStateFileName);
-        mergeAccount(srcDir,dstDir);
-        mergeListenState(srcDir,dstDir);
-        Assist.dlog("存储目录","迁移完成: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
-        return true;
+        try {
+            Assist.dlog("存储目录","迁移数据: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
+            mergeLocalScan(srcDir,dstDir);
+            mergePathList(srcDir,dstDir,likedFilesFileName);
+            mergePathList(srcDir,dstDir,recentFilesFileName);
+            mergeDownloadList(srcDir,dstDir);
+            mergeWholePayload(srcDir,dstDir,playStateFileName);
+            mergeWholePayload(srcDir,dstDir,uiStateFileName);
+            mergeAccount(srcDir,dstDir);
+            mergeListenState(srcDir,dstDir);
+            Assist.dlog("存储目录","迁移完成: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
+            return true;
+        } catch(e) {
+            Assist.derror("存储目录","迁移失败, 已跳过该来源目录: ",dirLabel(srcDir),", ",e);
+            return false;
+        }
     }
-    /* 路径列表合并: 目标在前, 来源独有的项按原顺序追加 */
+    /* 路径列表合并: 目标在前, 来源独有的项按原顺序追加; 任一侧不是数组时按空列表处理 */
     function unionPaths(main,other) {
-        var res=(main===null || main===undefined? []:main.slice());
-        if(other===null || other===undefined) {
+        var res=(isPayloadArray(main)===true? main.slice():[]);
+        if(isPayloadArray(other)!==true) {
             return res;
         }
         var l=other.length;
@@ -399,17 +465,25 @@ Item {
         }
         return res;
     }
-    /* 合并一个路径数组数据文件 */
+    /* 合并一个路径数组数据文件: 两侧都必须是数组, 类型异常时跳过该文件 */
     function mergePathList(srcDir,dstDir,fileName) {
         var src=readPayload(srcDir,fileName);
         if(src===null) {
             Assist.dlog("存储目录","  合并 ",fileName,": 来源目录没有该文件, 跳过");
             return false;
         }
+        if(isPayloadArray(src)!==true) {
+            Assist.dwarn("存储目录","  合并 ",fileName,": 来源数据类型异常(",payloadKind(src),"), 跳过");
+            return false;
+        }
         var dst=readPayload(dstDir,fileName);
         if(dst===null) {
             Assist.dlog("存储目录","  合并 ",fileName,": 目标目录没有该文件, 直接采用来源的 ",src.length," 项");
             return writePayload(dstDir,fileName,src);
+        }
+        if(isPayloadArray(dst)!==true) {
+            Assist.dwarn("存储目录","  合并 ",fileName,": 目标数据类型异常(",payloadKind(dst),"), 跳过");
+            return false;
         }
         var merged=unionPaths(dst,src);
         Assist.dlog("存储目录","  合并 ",fileName,": 目标 ",dst.length," 项, 来源 ",src.length," 项, 结果 ",merged.length," 项");
@@ -418,14 +492,22 @@ Item {
     /* 下载记录合并: 以在线标识取并集, 目标目录的记录在前 */
     function mergeDownloadList(srcDir,dstDir) {
         var src=readPayload(srcDir,downloadsFileName);
-        if(Array.isArray(src)===false) {
+        if(src===null) {
             Assist.dlog("存储目录","  合并 ",downloadsFileName,": 来源目录没有该文件, 跳过");
             return false;
         }
+        if(isPayloadArray(src)!==true) {
+            Assist.dwarn("存储目录","  合并 ",downloadsFileName,": 来源数据类型异常(",payloadKind(src),"), 跳过");
+            return false;
+        }
         var dst=readPayload(dstDir,downloadsFileName);
-        if(Array.isArray(dst)===false) {
+        if(dst===null) {
             Assist.dlog("存储目录","  合并 ",downloadsFileName,": 目标目录没有该文件, 直接采用来源的 ",src.length," 项");
             return writePayload(dstDir,downloadsFileName,src);
+        }
+        if(isPayloadArray(dst)!==true) {
+            Assist.dwarn("存储目录","  合并 ",downloadsFileName,": 目标数据类型异常(",payloadKind(dst),"), 跳过");
+            return false;
         }
         var res=dst.slice();
         var ls=src.length;
@@ -448,16 +530,22 @@ Item {
     /* 扫描文件夹清单合并: 以文件夹路径为唯一标识, 目标目录的勾选状态优先 */
     function unionScanDirs(main,other) {
         var res=[];
-        var l=(main===null || main===undefined? 0:main.length);
+        var l=(isPayloadArray(main)===true? main.length:0);
         for(var i=0;i<l;i++) {
+            if(isPayloadObject(main[i])!==true) {
+                continue;
+            }
             res.push({"absdpath":main[i]["absdpath"],"included":(main[i]["included"]===true)});
         }
-        if(other===null || other===undefined) {
+        if(isPayloadArray(other)!==true) {
             return res;
         }
         var lo=other.length;
         for(var j=0;j<lo;j++) {
             var one=other[j];
+            if(isPayloadObject(one)!==true) {
+                continue;
+            }
             var had=false;
             var lr=res.length;
             for(var k=0;k<lr;k++) {
@@ -479,10 +567,18 @@ Item {
             Assist.dlog("存储目录","  合并 ",localScanFileName,": 来源目录没有该文件, 跳过");
             return false;
         }
+        if(isPayloadObject(src)!==true) {
+            Assist.dwarn("存储目录","  合并 ",localScanFileName,": 来源数据类型异常(",payloadKind(src),"), 跳过");
+            return false;
+        }
         var dst=readPayload(dstDir,localScanFileName);
         if(dst===null) {
             Assist.dlog("存储目录","  合并 ",localScanFileName,": 目标目录没有该文件, 直接采用来源的");
             return writePayload(dstDir,localScanFileName,src);
+        }
+        if(isPayloadObject(dst)!==true) {
+            Assist.dwarn("存储目录","  合并 ",localScanFileName,": 目标数据类型异常(",payloadKind(dst),"), 跳过");
+            return false;
         }
         var res=({});
         res.singleFiles=unionPaths(dst.singleFiles,src.singleFiles);
@@ -498,13 +594,22 @@ Item {
     /* 合并整份数据: 目标目录有该文件时整体以目标为准, 否则采用来源目录的;
      * 播放状态与界面状态都走这条规则 */
     function mergeWholePayload(srcDir,dstDir,fileName) {
-        if(readPayload(dstDir,fileName)!==null) {
+        var dst=readPayload(dstDir,fileName);
+        if(dst!==null) {
+            if(isPayloadObject(dst)!==true) {
+                Assist.dwarn("存储目录","  合并 ",fileName,": 目标数据类型异常(",payloadKind(dst),"), 跳过");
+                return false;
+            }
             Assist.dlog("存储目录","  合并 ",fileName,": 目标目录已有该文件, 以目标为准");
             return false;
         }
         var src=readPayload(srcDir,fileName);
         if(src===null) {
             Assist.dlog("存储目录","  合并 ",fileName,": 来源目录没有该文件, 跳过");
+            return false;
+        }
+        if(isPayloadObject(src)!==true) {
+            Assist.dwarn("存储目录","  合并 ",fileName,": 来源数据类型异常(",payloadKind(src),"), 跳过");
             return false;
         }
         Assist.dlog("存储目录","  合并 ",fileName,": 采用来源目录的整份内容");
@@ -516,6 +621,14 @@ Item {
         var src=readPayload(srcDir,listenStateFileName);
         if(src===null) {
             Assist.dlog("存储目录","  合并 ",listenStateFileName,": 来源目录没有该文件, 跳过");
+            return false;
+        }
+        if(isPayloadObject(src)!==true) {
+            Assist.dwarn("存储目录","  合并 ",listenStateFileName,": 来源数据类型异常(",payloadKind(src),"), 跳过");
+            return false;
+        }
+        if(dst!==null && isPayloadObject(dst)!==true) {
+            Assist.dwarn("存储目录","  合并 ",listenStateFileName,": 目标数据类型异常(",payloadKind(dst),"), 跳过");
             return false;
         }
         var d=(dst!==null && typeof dst.totalSeconds==="number"? dst.totalSeconds:0);
@@ -534,6 +647,14 @@ Item {
         var src=readPayload(srcDir,accountFileName);
         if(src===null) {
             Assist.dlog("存储目录","  合并 ",accountFileName,": 来源目录没有该文件, 跳过");
+            return false;
+        }
+        if(isPayloadObject(src)!==true) {
+            Assist.dwarn("存储目录","  合并 ",accountFileName,": 来源数据类型异常(",payloadKind(src),"), 跳过");
+            return false;
+        }
+        if(dst!==null && isPayloadObject(dst)!==true) {
+            Assist.dwarn("存储目录","  合并 ",accountFileName,": 目标数据类型异常(",payloadKind(dst),"), 跳过");
             return false;
         }
         if(dst!==null && (typeof dst.loginAt==="number") && (typeof src.loginAt==="number")
@@ -578,7 +699,9 @@ Item {
                         "playingIndex":(typeof ps.playingIndex==="number"? ps.playingIndex:-1),
                         "playMode":(typeof ps.playMode==="number"? ps.playMode:1),
                         "playingPosition":(typeof ps.playingPosition==="number"? ps.playingPosition:0),
-                        "volume":(typeof ps.volume==="number"? ps.volume:100)});
+                        "volume":(typeof ps.volume==="number"? ps.volume:100),
+                        /* 静音前音量: 缺失或非数字时回落到 100 */
+                        "lastVolume":normalizeLastVolume(ps.lastVolume)});
         }
         var us=readPayload(storageDirPath,uiStateFileName);
         if(us!==null) {
@@ -989,7 +1112,9 @@ Item {
                  "playingIndex":playState.playingIndex,
                  "playMode":playState.playMode,
                  "playingPosition":(playState.playingPosition===undefined? 0:playState.playingPosition),
-                 "volume":(playState.volume===undefined? 100:playState.volume)});
+                 "volume":(playState.volume===undefined? 100:playState.volume),
+                 /* 静音前音量必须跟着整体替换走, 否则每次替换都会把它丢掉 */
+                 "lastVolume":normalizeLastVolume(playState.lastVolume)});
         for(var k in overrides) {
             st[k]=overrides[k];
         }
@@ -1025,6 +1150,28 @@ Item {
         Assist.dlog("落盘","写入音量: ",vol);
         playState=_playStateWith({"volume":vol});
         savePlayState();
+    }
+    /* 静音前音量归一化: 只接受 1 到 100 的整数, 其余回落到 100 */
+    function normalizeLastVolume(v) {
+        var n=Math.round(Number(v));
+        if(!isFinite(n) || n<1) {
+            return 100;
+        }
+        return (n>100? 100:n);
+    }
+    /* 读取静音前音量: 播放栏任一实例取消静音时都按这一份恢复 */
+    function lastVolume() {
+        return normalizeLastVolume(playState.lastVolume);
+    }
+    /* 写入静音前音量: 供播放栏在音量归零前记录; 值没变时不写文件 */
+    function setLastVolume(v) {
+        var vol=normalizeLastVolume(v);
+        if(typeof playState.lastVolume==="number" && playState.lastVolume===vol) {
+            return true;
+        }
+        Assist.dlog("落盘","写入静音前音量: ",vol);
+        playState=_playStateWith({"lastVolume":vol});
+        return savePlayState();
     }
     /* 按当前界面状态生成一份新对象, 只覆盖传入的字段;
      * 一律整体替换, 使外部能收到变更通知 */

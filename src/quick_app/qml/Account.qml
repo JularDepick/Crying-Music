@@ -205,13 +205,15 @@ Item {
             } catch(e0) {
             }
             pendingXhr=null;
-            /* 被中止的请求同样要回调, 否则调用方的在途状态(登录 phase, 待补报秒数)
-             * 会永远停在中间态; 延后一拍执行, 避免回调里再发请求时覆盖本函数新建的请求 */
+            /* 被中止的请求同样要回调, 否则调用方的在途状态(登录 phase)会永远停在中间态;
+             * 延后一拍执行, 避免回调里再发请求时覆盖本函数新建的请求.
+             * 回调的第 4 个入参 aborted 为真表示这次回调是被中止触发的: 请求可能已经
+             * 送达服务端, 调用方不得按失败补报, 否则同一段数据会被重复计入 */
             var oldDone=old.__onDone;
             old.__onDone=null;
             if(typeof oldDone==="function") {
                 Qt.callLater(function() {
-                    oldDone(false,0,null);
+                    oldDone(false,0,null,true);
                 });
             }
         }
@@ -429,7 +431,8 @@ Item {
         return true;
     }
     /* 上报一段听歌秒数: seconds 为本次要计入的秒数, 服务端按当日上限截断并回执累计值;
-     * 失败时把这段秒数暂存为待补报, 下次成功时随下一段一起上报 */
+     * 只有确认没有送达的失败才把这段秒数暂存为待补报, 下次成功时随下一段一起上报;
+     * 被新请求中止的那一段无法确认是否已送达, 一律不计入, 宁可少记也不重复计入 */
     function reportListenSeconds(seconds) {
         var chunk=Math.floor(Number(seconds));
         if(!(chunk>0)) {
@@ -441,9 +444,15 @@ Item {
         var carry=(typeof GlobalFileStorage.listenState.pendingSeconds==="number"
                    ? GlobalFileStorage.listenState.pendingSeconds:0);
         var reportSeconds=chunk+carry;
-        postWithSession("user/listen",{"seconds":reportSeconds},function(sent,status,body) {
+        postWithSession("user/listen",{"seconds":reportSeconds},function(sent,status,body,aborted) {
+            if(aborted===true) {
+                /* 被后一次上报中止: 请求已经发出, 服务端可能已经收下这一段, 无法确认送达,
+                 * 因此不补报(补报会重复计入累计听歌与等级), 待补报里原有的秒数保持不变 */
+                Assist.dwarn("用户","听歌上报被中止, 本段 ",chunk," 秒不计入待补报");
+                return;
+            }
             if(sent!==true) {
-                /* 网络不通: 这段先记在本地, 服务端恢复后补报 */
+                /* 请求根本没发出去: 这段先记在本地, 服务端恢复后补报 */
                 GlobalFileStorage.addListenPendingSeconds(chunk);
                 Assist.dwarn("用户","听歌上报未送达, 暂存 ",chunk," 秒待补报");
                 return;
@@ -456,7 +465,8 @@ Item {
                     setHint(true,"登录状态已失效, 请重新登录");
                     return;
                 }
-                /* 服务端明确拒绝(如冷却中): 段落保留待补报 */
+                /* 服务端明确拒绝(如冷却中)或连接失败(状态 0, 没收到响应):
+                 * 这一段确认没有计入服务端, 保留待补报 */
                 GlobalFileStorage.addListenPendingSeconds(chunk);
                 Assist.dwarn("用户","听歌上报被拒: 状态 ",status,", 暂存 ",chunk," 秒待补报");
                 return;
