@@ -144,10 +144,6 @@ MainAreaFatherPage {
             leftMargin: 40;
             rightMargin: 40;
             model: mainArea_HomePage.recommendModel;
-            DragHandler {
-                acceptedDevices: PointerDevice.Mouse;
-                target: null;
-            }
             delegate: Item {
                 width: Define.homeCardWidth;
                 height: recommendView.cellHeight;
@@ -447,8 +443,6 @@ MainAreaFatherPage {
     /* 关键字搜索: 走统一的搜索匹配算法过滤推荐列表 */
     function search(keyword) {
         return Assist.searchList(keyword,mainArea_HomePage.recommendModel);
-    }
-    function subsHide(scenePos) {
     }
     function refresh() {
         if(Server.loadState!==2) {

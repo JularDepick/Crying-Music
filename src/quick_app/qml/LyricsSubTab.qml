@@ -30,7 +30,6 @@ Rectangle {
     /* 用户手动把歌词滚离当前行: 为真时播放换行不强制锚定, 由复位计时器在 3 秒后拉回 */
     property bool userScrolled: false;
     /* 平滑插值的锚点: 播放器每次上报位置时刷新, 节拍按真实时间外推 */
-    property real _animSec: 0;
     property real _animBaseSec: 0;
     property double _animAnchorMs: 0;
     /* 上一次锚定后的内容偏移: 与当前偏移相比即可判断用户是否把歌词滚离了基准高度 */
@@ -1051,7 +1050,6 @@ Rectangle {
     function rebaseAnim(sec) {
         root._animBaseSec=Number(sec);
         root._animAnchorMs=Date.now();
-        root._animSec=root._animBaseSec;
     }
     /* 当前词的着色比例: 词起点到下一个词起点之间线性插值, 末词用固定时长兜底;
      * 单个字或词的着色窗口最多按 Define.lyricsWordMaxSpanMs 截断, 行间空档很大时
@@ -1089,7 +1087,6 @@ Rectangle {
     /* 平滑节拍: 按真实时间外推播放位置, 再算出当前词的着色比例 */
     function tickWordProgress() {
         var sec=root._animBaseSec+(Date.now()-root._animAnchorMs)/1000;
-        root._animSec=sec;
         var f=root.wordProgressAt(sec);
         if(root.wordProgress!==f) {
             root.wordProgress=f;

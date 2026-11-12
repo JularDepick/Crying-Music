@@ -51,10 +51,6 @@ MainAreaFatherPage {
         anchors.topMargin: 5;
         clip: true;
         boundsBehavior: Flickable.StopAtBounds;
-        DragHandler {
-            acceptedDevices: PointerDevice.Mouse;
-            target: null;
-        }
         contentWidth: width;
         contentHeight: (themeFlow.height+56);
         Flow {

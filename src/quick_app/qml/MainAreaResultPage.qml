@@ -87,10 +87,6 @@ MainAreaFatherPage {
             spacing: 0;
             clip: true;
             boundsBehavior: Flickable.StopAtBounds;
-            DragHandler {
-                acceptedDevices: PointerDevice.Mouse;
-                target: null;
-            }
             property string selectedWhich: "";
             property int rowHeight: 60;
             model: mainArea_ResultPage.resultModel;
@@ -455,8 +451,6 @@ MainAreaFatherPage {
             return thePlayer.playAll(mainArea_ResultPage.resultModel,one);
         }
         return thePlayer.jump2play(one);
-    }
-    function subsHide(scenePos) {
     }
     /* 顶栏刷新: 用同一个关键字向发起搜索的页面重新取结果 */
     function refresh() {
