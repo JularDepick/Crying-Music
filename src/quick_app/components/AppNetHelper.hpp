@@ -25,7 +25,8 @@ class AppNetHelper : public QObject {
 public:
     explicit AppNetHelper(QObject *parent=nullptr):QObject(parent) {}
 
-    /* 拉取小文件到缓存目录(封面与歌词共用): url 为完整地址, cacheKey 为本次尝试的键,
+    /* 拉取小文件到缓存目录(封面与 QQ 头像共用; 歌词走 QML 侧的 XHR 通道, 不经过这里,
+     * 因为本方法会把 text 与 json 响应判成错误页而拒绝落盘): url 为完整地址, cacheKey 为本次尝试的键,
      * cacheDir 为缓存目录的标准化绝对路径, dstName 为落盘文件名(缺省与 cacheKey 相同);
      * 同一个 dstName 只认第一个写成功的响应, 其余响应即使到齐也丢弃, 因此多个备用源
      * 可以并行拉同一个文件而不会写出交错内容; 命中缓存时同样以信号回调, 调用方无需分支。 */

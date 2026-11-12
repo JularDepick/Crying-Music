@@ -541,8 +541,8 @@ Rectangle {
                             height: 120;
                             /* 初值取自存储枢纽里的音量, 拖动结束后写回存储 */
                             value: GlobalFileStorage.playState.volume;
-                            /* 音量一变就交给宿主更新音频输出, 覆盖拖动, 静音按钮与初值同步三种来源;
-                             * 松手与静音都由下面的 pressedChanged 写回存储 */
+                            /* 音量一变就交给宿主更新音频输出, 覆盖拖动与存储同步两种来源;
+                             * 松手时写回存储, 静音按钮同样直接写存储 */
                             onValueChanged: {
                                 root.volumeMoved(Math.round(value));
                             }
@@ -552,20 +552,36 @@ Rectangle {
                                     Assist.dlog("播放","音量: ",value);
                                 }
                             }
+                            /* 拖动会覆盖 value 而打断上面的绑定, 这里在存储音量变化时补写一次,
+                             * 使拖动或静音之后滑块显示仍与存储音量一致, 两份实例都生效 */
+                            Connections {
+                                target: GlobalFileStorage;
+                                function onPlayStateChanged() {
+                                    var v=GlobalFileStorage.playState.volume;
+                                    if(v===undefined || v===null) {
+                                        return;
+                                    }
+                                    if(Math.round(soundSlider.value)!==Math.round(v)) {
+                                        soundSlider.value=v;
+                                    }
+                                }
+                            }
                         }
                         PlayerBarButton {
                             id: muteBtn;
                             anchors.horizontalCenter: parent.horizontalCenter;
                             icon.source: (soundCtrl.volume==0? "qrc:/assets/iconfont/playerbar/soundless.sub.svg":"qrc:/assets/iconfont/playerbar/sound.sub.svg");
                             onClicked: {
+                                /* 只经存储单例改音量, 不给滑块直接赋值, 避免打断它的 value 绑定;
+                                 * 滑块随存储变化, 两份实例因此始终与存储音量一致 */
+                                var target=0;
                                 if(soundCtrl.volume==0) {
-                                    soundSlider.value=soundCtrl.lastVolume;
+                                    target=soundCtrl.lastVolume;
                                 } else {
                                     soundCtrl.lastVolume=soundCtrl.volume;
-                                    soundSlider.value=0;
                                 }
-                                GlobalFileStorage.setVolume(soundSlider.value);
-                                Assist.dlog("播放","音量: ",soundSlider.value);
+                                GlobalFileStorage.setVolume(target);
+                                Assist.dlog("播放","音量: ",target);
                             }
                         }
                     }

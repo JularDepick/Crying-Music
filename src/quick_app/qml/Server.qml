@@ -57,9 +57,8 @@ Item {
     /* 已播放在线歌曲的时长与大小: 键为播放地址, 值形如 {duration:秒, size:字节};
      * 只作为元数据就绪前的临时显示数据, 随在线缓存一起落盘 */
     property var playedMeta: ({});
-    /* 正在探测字节数的在线歌曲与探测失败的歌曲: 每首歌只探测一次 */
+    /* 正在探测字节数的在线歌曲: 同一首同一时刻只保留一次探测 */
     property var _sizeProbing: ({});
-    property var _sizeMiss: ({});
     /* 封面缓存: 封面文件名 -> 带版本串的本地缓存地址, 整体替换以便界面绑定能收到通知 */
     property var coverCache: ({})
     /* 封面缓存索引: 封面文件名 -> {path:本地路径, at:缓存时刻毫秒, ttl:该条目自己的生命周期毫秒};
@@ -246,7 +245,6 @@ Item {
         }
         function onSizeFailed(taskKey,reason) {
             delete serverRoot._sizeProbing[taskKey];
-            serverRoot._sizeMiss[taskKey]=true;
             Assist.dwarn("在线","音频大小探测失败: ",taskKey,", 原因 ",reason);
         }
         function onCachedFileFailed(attemptKey,reason) {
@@ -1211,6 +1209,8 @@ Item {
         _lyricsPending=({});
         _lyricsOwners=({});
         lyricsIndex=({});
+        /* 索引与磁盘一致: 清空后写回空索引 */
+        saveLyricsIndex();
         Assist.dlog("在线","歌词缓存与偏移索引已清空");
         return true;
     }
@@ -1858,8 +1858,12 @@ Item {
         var removed=AppFileHelper.removeDir(dir,true);
         audioCacheIndex=({});
         _audioCacheQueue=[];
+        /* 在途标记一并重置, 否则清空时正在缓存的那几项会让后续入队一直被挡下 */
+        _audioCachePending=({});
         _audioIndexDirty=false;
         var ready=AppFileHelper.makeDir(dir,true);
+        /* 索引与磁盘一致: 清空后写回空索引 */
+        saveAudioCacheIndex();
         Assist.dlog("在线","清空音频缓存: 删除 ",removed,", 重建 ",ready);
         return (removed===true && ready===true);
     }
@@ -2113,7 +2117,7 @@ Item {
         return rememberSize(key,n);
     }
     /* 请求在线歌曲的字节数: key 是在线标识(记录用的键), url 是实际取用的地址, 缺省与 key 相同;
-     * 已有值直接返回; 没有值或上次失败过时每次播放都重新探测一次, 失败的标记在本次探测开头清掉
+     * 已有值直接返回; 没有值时每次播放都重新探测一次
      */
     function ensureSize(key,url) {
         if(isOnlineKey(key)===false) {
@@ -2126,7 +2130,6 @@ Item {
         if(_sizeProbing[key]===true) {
             return false;
         }
-        delete _sizeMiss[key];
         var urlOk=(typeof url==="string" && (url.indexOf("http://")===0 || url.indexOf("https://")===0));
         var target=(urlOk===true? url:audioUrlOf(key));
         if(target==="") {

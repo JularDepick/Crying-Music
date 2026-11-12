@@ -123,7 +123,10 @@ Item {
         lyricsFontSize: 0,
         lyricsTextColor: "",
         lyricsAnchorRatio: 0,
-        audioCacheCapMb: 0
+        audioCacheCapMb: 0,
+        /* 桌面悬浮歌词窗口位置: null 表示尚未记录过, 打开时落默认位置 */
+        desktopLyricsX: null,
+        desktopLyricsY: null
     });
     /* 目录决策: 指针优先, 其次 A, 再 B, 最后兜底 C; 三个候选都不可用时退出应用。
      * 全过程输出 [存储目录] 前缀的日志, 便于在运行控制台里追决策路径 */
@@ -594,7 +597,10 @@ Item {
                        "lyricsTextColor":(typeof us.lyricsTextColor==="string"? us.lyricsTextColor:""),
                        /* 歌词当前行锚定比例: 0 表示用设计默认值 */
                        "lyricsAnchorRatio":(typeof us.lyricsAnchorRatio==="number"? us.lyricsAnchorRatio:0),
-                       "audioCacheCapMb":(typeof us.audioCacheCapMb==="number"? us.audioCacheCapMb:0)});
+                       "audioCacheCapMb":(typeof us.audioCacheCapMb==="number"? us.audioCacheCapMb:0),
+                       /* 桌面悬浮歌词窗口位置: 缺失或非法时记为未设置 */
+                       "desktopLyricsX":(typeof us.desktopLyricsX==="number"? Math.round(us.desktopLyricsX):null),
+                       "desktopLyricsY":(typeof us.desktopLyricsY==="number"? Math.round(us.desktopLyricsY):null)});
         }
         var ac=readPayload(storageDirPath,accountFileName);
         if(ac!==null) {
@@ -1031,11 +1037,14 @@ Item {
                  "downloadsDir":(uiState.downloadsDir===undefined? "":uiState.downloadsDir),
                  "themeId":(uiState.themeId===undefined? "":String(uiState.themeId)),
                  "coverCacheTtlDays":(typeof uiState.coverCacheTtlDays!=="number"? 0:uiState.coverCacheTtlDays),
-                 "lyricsEnhanced":(uiState.lyricsEnhanced===true),
+                 "lyricsEnhanced":(uiState.lyricsEnhanced!==false),
                  "lyricsFontSize":(typeof uiState.lyricsFontSize!=="number"? 0:uiState.lyricsFontSize),
                  "lyricsTextColor":(typeof uiState.lyricsTextColor!=="string"? "":uiState.lyricsTextColor),
                  "lyricsAnchorRatio":(typeof uiState.lyricsAnchorRatio!=="number"? 0:uiState.lyricsAnchorRatio),
-                 "audioCacheCapMb":(typeof uiState.audioCacheCapMb!=="number"? 0:uiState.audioCacheCapMb)});
+                 "audioCacheCapMb":(typeof uiState.audioCacheCapMb!=="number"? 0:uiState.audioCacheCapMb),
+                 /* 桌面悬浮歌词位置: 未设置时保持 null, 不能在这里丢掉 */
+                 "desktopLyricsX":(typeof uiState.desktopLyricsX!=="number"? null:uiState.desktopLyricsX),
+                 "desktopLyricsY":(typeof uiState.desktopLyricsY!=="number"? null:uiState.desktopLyricsY)});
         for(var k in overrides) {
             st[k]=overrides[k];
         }
@@ -1054,6 +1063,27 @@ Item {
         }
         Assist.dlog("落盘","写入主内容区当前页面: ",route);
         uiState=_uiStateWith({"mainAreaPage":route});
+        return saveUIState();
+    }
+    /* 桌面悬浮歌词窗口位置: 未记录过时返回 null, 由界面决定默认位置 */
+    function desktopLyricsPos() {
+        var x=uiState.desktopLyricsX;
+        var y=uiState.desktopLyricsY;
+        if(typeof x!=="number" || typeof y!=="number") {
+            return null;
+        }
+        return ({"x":Math.round(x), "y":Math.round(y)});
+    }
+    /* 写入桌面悬浮歌词窗口位置: 只改这两项, 其余界面状态保持不变 */
+    function setDesktopLyricsPos(x,y) {
+        var nx=Math.round(Number(x));
+        var ny=Math.round(Number(y));
+        if(!isFinite(nx) || !isFinite(ny)) {
+            Assist.dwarn("落盘","写入桌面歌词位置失败: 非法坐标 ",x,", ",y);
+            return false;
+        }
+        Assist.dlog("落盘","写入桌面歌词位置: ",nx,", ",ny);
+        uiState=_uiStateWith({"desktopLyricsX":nx, "desktopLyricsY":ny});
         return saveUIState();
     }
     /* 预设主题偏好: 未设置或不是 Theme 里的预设时回退到默认主题 */

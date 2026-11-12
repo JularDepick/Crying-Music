@@ -371,9 +371,10 @@ Item {
             accountRoot.nowMs=Date.now();
             accountRoot.setHint(saved!==true,(saved===true
                 ? "登录成功, 登录状态保留 "+String(Define.loginKeepDays)+" 天":"登录记录保存失败"));
+            /* 头像只在 onLoggedInChanged 里取一次: 上面的 setAccount 已把登录状态置真,
+             * 那里会随状态变化发起同一键的请求, 这里不再重复发起 */
             if(saved===true) {
                 Assist.dlog("用户","登录成功: ",body.email);
-                accountRoot.requestAvatars(true);
             }
         });
         return true;
@@ -384,14 +385,16 @@ Item {
         if(email==="") {
             return false;
         }
-        Assist.dlog("用户","退出登录: ",email);
+        /* 先留存邮箱: 下面的回调在清账号之后才执行, 届时 email 已为空串 */
+        var emailOne=email;
+        Assist.dlog("用户","退出登录: ",emailOne);
         if(sessionKey!=="") {
             postWithSession("user/logout",{},function(sent,status,body) {
                 if(sent!==true || status<200 || status>=300) {
                     Assist.dwarn("用户","服务端退出失败: 状态 ",status,", 本地记录仍按已退出处理");
                     return;
                 }
-                Assist.dlog("用户","服务端已作废登录状态: ",email);
+                Assist.dlog("用户","服务端已作废登录状态: ",emailOne);
             });
         }
         GlobalFileStorage.clearAccount();
@@ -513,7 +516,7 @@ Item {
         avatarSmall="";
         avatarLarge="";
     }
-    /* 登录状态变化: 刚登录时补头像, 退出或过期时清掉头像地址 */
+    /* 登录状态变化: 刚登录时补头像(登录路径上的唯一取头像处), 退出或过期时清掉头像地址 */
     onLoggedInChanged: {
         if(loggedIn===true) {
             requestAvatars(false);
