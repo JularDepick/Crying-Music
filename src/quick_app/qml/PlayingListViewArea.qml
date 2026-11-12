@@ -61,25 +61,22 @@ Rectangle {
                 font.weight: 400;
                 color: Define.btnIconColor;
             }
-            CustomButtonA {
+            /* 清空列表是破坏性操作: 第一次点击只进入确认态, 确认态内再次点击才真正清空 */
+            ConfirmButton {
+                id: playingListClearBtn;
                 anchors {verticalCenter:parent.verticalCenter; right:parent.right;}
                 visible: root.headClearable;
                 transEnabled: false;
                 width: 80;
                 height: 25;
-                background: Rectangle {
-                    anchors.fill: parent;
-                    radius: 5;
-                    color: (parent.hovered? Define.mainAreaColor:"white");
-                    border.color: Define.subGrey;
-                    border.width: 1;
-                    Text {
-                        color: Define.textColor;
-                        anchors.centerIn: parent;
-                        text: "清空列表";
-                    }
-                }
-                onClicked: {
+                label: "清空列表";
+                confirmLabel: "确认清空";
+                cornerRadius: 5;
+                idleColor: "white";
+                idleHoverColor: Define.mainAreaColor;
+                idleBorderWidth: 1;
+                idleBorderColor: Define.subGrey;
+                onConfirmed: {
                     if(root.thePlayer!==null) {
                         root.thePlayer.clearList();
                     }
@@ -106,10 +103,6 @@ Rectangle {
             anchors.topMargin: 5;
             spacing: 0;
             clip: true;
-            DragHandler {
-                acceptedDevices: PointerDevice.Mouse;
-                target: null;
-            }
             boundsBehavior: Flickable.StopAtBounds;
             property string selectedWhich: "";
             /* 单行高度, 与委托保持一致 */
@@ -395,14 +388,25 @@ Rectangle {
      * 播放进度也会整体重写播放状态, 这里只在队列或当前项真的变化时才定位, 否则会把用户的手动滚动不断拉回 */
     property int _lastQueueLen: -1;
     property string _lastPlayingKey: "";
+    /* 面板隐藏时复位清空按钮, 避免下次打开还停在确认态 */
+    onVisibleChanged: {
+        if(visible!==true) {
+            playingListClearBtn.confirming=false;
+        }
+    }
     Connections {
         target: GlobalFileStorage;
         function onPlayStateChanged() {
             var len=root.queue.length;
             var key=root.playingKey;
-            var changed=((len!==root._lastQueueLen) || (key!==root._lastPlayingKey));
+            var lenChanged=(len!==root._lastQueueLen);
+            var changed=(lenChanged || (key!==root._lastPlayingKey));
             root._lastQueueLen=len;
             root._lastPlayingKey=key;
+            /* 队列变化时复位清空按钮, 避免确认态残留到新的列表 */
+            if(lenChanged===true) {
+                playingListClearBtn.confirming=false;
+            }
             if(changed===true && root.autoFollow===true) {
                 playingListView.jump2playing();
             }

@@ -248,33 +248,17 @@ MainAreaFatherPage {
                         }
                     }
                 }
-                CustomButtonA {
+                /* 移除选中是破坏性操作: 第一次点击只进入确认态, 确认态内再次点击才真正移除 */
+                ConfirmButton {
                     id: batchRemoveBtn;
                     width: 80;
                     height: 30;
-                    onClicked: {
-                        mainListView.batchRemove();
-                    }
                     transEnabled: false;
-                    background: Rectangle {
-                        anchors.fill: parent;
-                        radius: 15;
-                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Row {
-                            anchors.centerIn: parent;
-                            spacing: 5;
-                            ColorImage {
-                                anchors.verticalCenter: parent.verticalCenter;
-                                width: Define.batchIconSize;
-                                height: Define.batchIconSize;
-                                source: `qrc:/assets/iconfont/function/delete.svg`;
-                                color: Define.btnIconColor;
-                            }
-                            Text {
-                                color: Define.textColor;
-                                text: "移除选中";
-                            }
-                        }
+                    label: "移除选中";
+                    confirmLabel: "确认移除";
+                    icon.source: "qrc:/assets/iconfont/function/delete.svg";
+                    onConfirmed: {
+                        mainListView.batchRemove();
                     }
                 }
             }
@@ -409,18 +393,21 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[0];
             color: Define.nocolor;
+            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
             Button {
-                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                anchors.fill: parent;
                 onClicked: {
                     mainListView.sortByName();
                 }
-                background: Row {
+                background: Item {
                     Text {
+                        id: nameSortText;
+                        anchors.centerIn: parent;
                         color: Define.textColor;
                         text: mainListView.nameSortLabel();
                     }
                     ColorImage {
-                        anchors.verticalCenter: parent.verticalCenter;
+                        anchors {verticalCenter:parent.verticalCenter; left:nameSortText.right; leftMargin:2;}
                         width: 10;
                         height: 10;
                         source: mainListView.nameSortIcon();
@@ -433,18 +420,21 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[1];
             color: Define.nocolor;
+            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
             Button {
-                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                anchors.fill: parent;
                 onClicked: {
                     mainListView.sortBy("size");
                 }
-                background: Row {
+                background: Item {
                     Text {
+                        id: sizeSortText;
+                        anchors.centerIn: parent;
                         color: Define.textColor;
                         text: "大小";
                     }
                     ColorImage {
-                        anchors.verticalCenter: parent.verticalCenter;
+                        anchors {verticalCenter:parent.verticalCenter; left:sizeSortText.right; leftMargin:2;}
                         width: 10;
                         height: 10;
                         source: mainListView.sortIconOf("size");
@@ -457,18 +447,21 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[2];
             color: Define.nocolor;
+            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
             Button {
-                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                anchors.fill: parent;
                 onClicked: {
                     mainListView.sortBy("duration");
                 }
-                background: Row {
+                background: Item {
                     Text {
+                        id: durationSortText;
+                        anchors.centerIn: parent;
                         color: Define.textColor;
                         text: "时长";
                     }
                     ColorImage {
-                        anchors.verticalCenter: parent.verticalCenter;
+                        anchors {verticalCenter:parent.verticalCenter; left:durationSortText.right; leftMargin:2;}
                         width: 10;
                         height: 10;
                         source: mainListView.sortIconOf("duration");
@@ -491,10 +484,6 @@ MainAreaFatherPage {
             anchors.topMargin: 5;
             spacing: 0;
             clip: true;
-            DragHandler {
-                acceptedDevices: PointerDevice.Mouse;
-                target: null;
-            }
             boundsBehavior: Flickable.StopAtBounds;
             property string selectedWhich: "";
             property bool batchMode: false;
@@ -624,6 +613,10 @@ MainAreaFatherPage {
                                           && box.playingRow===true);
                             }
                             onClicked: {
+                                /* 正在下载的行还不可播放, 与行单击一致地不触发播放 */
+                                if(headRow.curr==="downloadingSongs") {
+                                    return;
+                                }
                                 if(mainListView.batchMode) {
                                     mainListView.toggleChecked(index);
                                     return;
@@ -1008,6 +1001,8 @@ MainAreaFatherPage {
             }
             /* 进入或退出批量多选 */
             function setBatchMode(on) {
+                /* 切换批量态时复位确认按钮, 避免确认态残留到新状态 */
+                batchRemoveBtn.confirming=false;
                 if(batchMode===on) {
                     return;
                 }
@@ -1234,10 +1229,6 @@ MainAreaFatherPage {
                         clip: true;
                         boundsBehavior: Flickable.StopAtBounds;
                         model: addSongDirListArea.dirListViewModel;
-                        DragHandler {
-                            acceptedDevices: PointerDevice.Mouse;
-                            target: null;
-                        }
                         delegate: Item {
                             width: ListView.view.width;
                             height: 40;
@@ -2137,7 +2128,7 @@ MainAreaFatherPage {
         return Assist.searchList(keyword,mainArea_LocalPage.mainListViewModel);
     }
     /* 红心状态会被其它页面改写, 显示时轻量同步一次;
-     * 下载歌曲标签的数据来自下载记录, 显示时重建一次 */
+     * 下载歌曲标签的数据来自下载记录, 显示时重建一次; 页面切走时复位确认按钮 */
     onVisibleChanged: {
         if(visible) {
             if(headRow.curr==="downloadedSongs") {
@@ -2145,6 +2136,8 @@ MainAreaFatherPage {
             } else {
                 mainListView.syncLiked();
             }
+        } else {
+            batchRemoveBtn.confirming=false;
         }
     }
     Component.onCompleted: {

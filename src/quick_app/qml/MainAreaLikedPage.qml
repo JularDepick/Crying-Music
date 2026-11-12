@@ -125,33 +125,17 @@ MainAreaFatherPage {
                         }
                     }
                 }
-                CustomButtonA {
+                /* 取消喜欢是破坏性操作: 第一次点击只进入确认态, 确认态内再次点击才真正执行 */
+                ConfirmButton {
                     id: batchUnlikeBtn;
                     width: 100;
                     height: 30;
-                    onClicked: {
-                        mainListView.batchUnlike();
-                    }
                     transEnabled: false;
-                    background: Rectangle {
-                        anchors.fill: parent;
-                        radius: 15;
-                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Row {
-                            anchors.centerIn: parent;
-                            spacing: 5;
-                            ColorImage {
-                                anchors.verticalCenter: parent.verticalCenter;
-                                width: Define.batchIconSize;
-                                height: Define.batchIconSize;
-                                source: `qrc:/assets/iconfont/function/delete.svg`;
-                                color: Define.btnIconColor;
-                            }
-                            Text {
-                                color: Define.textColor;
-                                text: "取消喜欢";
-                            }
-                        }
+                    label: "取消喜欢";
+                    confirmLabel: "确认取消";
+                    icon.source: "qrc:/assets/iconfont/function/delete.svg";
+                    onConfirmed: {
+                        mainListView.batchUnlike();
                     }
                 }
             }
@@ -168,18 +152,21 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[0];
             color: Define.nocolor;
+            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
             Button {
-                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                anchors.fill: parent;
                 onClicked: {
                     mainListView.sortByName();
                 }
-                background: Row {
+                background: Item {
                     Text {
+                        id: nameSortText;
+                        anchors.centerIn: parent;
                         color: Define.textColor;
                         text: mainListView.nameSortLabel();
                     }
                     ColorImage {
-                        anchors.verticalCenter: parent.verticalCenter;
+                        anchors {verticalCenter:parent.verticalCenter; left:nameSortText.right; leftMargin:2;}
                         width: 10;
                         height: 10;
                         source: mainListView.nameSortIcon();
@@ -192,18 +179,21 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[1];
             color: Define.nocolor;
+            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
             Button {
-                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                anchors.fill: parent;
                 onClicked: {
                     mainListView.sortBy("size");
                 }
-                background: Row {
+                background: Item {
                     Text {
+                        id: sizeSortText;
+                        anchors.centerIn: parent;
                         color: Define.textColor;
                         text: "大小";
                     }
                     ColorImage {
-                        anchors.verticalCenter: parent.verticalCenter;
+                        anchors {verticalCenter:parent.verticalCenter; left:sizeSortText.right; leftMargin:2;}
                         width: 10;
                         height: 10;
                         source: mainListView.sortIconOf("size");
@@ -216,18 +206,21 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[2];
             color: Define.nocolor;
+            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
             Button {
-                anchors {verticalCenter:parent.verticalCenter; left:parent.left;}
+                anchors.fill: parent;
                 onClicked: {
                     mainListView.sortBy("duration");
                 }
-                background: Row {
+                background: Item {
                     Text {
+                        id: durationSortText;
+                        anchors.centerIn: parent;
                         color: Define.textColor;
                         text: "时长";
                     }
                     ColorImage {
-                        anchors.verticalCenter: parent.verticalCenter;
+                        anchors {verticalCenter:parent.verticalCenter; left:durationSortText.right; leftMargin:2;}
                         width: 10;
                         height: 10;
                         source: mainListView.sortIconOf("duration");
@@ -250,10 +243,6 @@ MainAreaFatherPage {
             anchors.topMargin: 5;
             spacing: 0;
             clip: true;
-            DragHandler {
-                acceptedDevices: PointerDevice.Mouse;
-                target: null;
-            }
             boundsBehavior: Flickable.StopAtBounds;
             property string selectedWhich: "";
             property bool batchMode: false;
@@ -678,6 +667,8 @@ MainAreaFatherPage {
             }
             /* 进入或退出批量多选 */
             function setBatchMode(on) {
+                /* 切换批量态时复位确认按钮, 避免确认态残留到新状态 */
+                batchUnlikeBtn.confirming=false;
                 if(batchMode===on) {
                     return;
                 }
@@ -926,10 +917,12 @@ MainAreaFatherPage {
             }
         }
     }
-    /* 喜欢列表由其他页面写入, 显示时重新加载 */
+    /* 喜欢列表由其他页面写入, 显示时重新加载; 页面切走时复位确认按钮 */
     onVisibleChanged: {
         if(visible) {
             refresh();
+        } else {
+            batchUnlikeBtn.confirming=false;
         }
     }
     Component.onCompleted: {

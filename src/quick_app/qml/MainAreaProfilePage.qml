@@ -53,12 +53,17 @@ MainAreaFatherPage {
     function refresh() {
         Account.refresh();
     }
-    function subsHide(scenePos) {
+    /* 退出按钮的确认态复位: 页面隐藏或登录状态变化时都回到空闲文案 */
+    function resetLogoutConfirm() {
+        if(logoutBtn!==null) {
+            logoutBtn.reset();
+        }
     }
     onVisibleChanged: {
         if(visible===true) {
             Account.refresh();
         }
+        resetLogoutConfirm();
     }
     /* 验证码发出后把焦点交给验证码框: 少一次点击, 键盘一路走完整个流程;
      * 延后一拍, 等验证码行完成可见性与布局再抢焦点 */
@@ -70,6 +75,10 @@ MainAreaFatherPage {
                     codeField.forceActiveFocus();
                 });
             }
+        }
+        /* 登录状态变化后退出按钮不再处于确认态 */
+        function onLoggedInChanged() {
+            mainArea_ProfilePage.resetLogoutConfirm();
         }
     }
 
@@ -236,10 +245,6 @@ MainAreaFatherPage {
         anchors.topMargin: 5;
         clip: true;
         boundsBehavior: Flickable.StopAtBounds;
-        DragHandler {
-            acceptedDevices: PointerDevice.Mouse;
-            target: null;
-        }
         contentWidth: width;
         contentHeight: (accountPanel.height+48);
 
@@ -308,24 +313,18 @@ MainAreaFatherPage {
             }
             Row {
                 spacing: 10;
-                CustomButtonA {
+                /* 二次确认落在按钮上: 首击进入确认态, 三秒内再击才退出登录, 超时回归 */
+                ConfirmButton {
                     id: logoutBtn;
                     width: 100;
                     height: 36;
-                    transEnabled: false;
-                    background: Rectangle {
-                        anchors.fill: parent;
-                        radius: 8;
-                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Text {
-                            anchors.centerIn: parent;
-                            text: "退出登录";
-                            font.pixelSize: 13;
-                            color: Define.textColor;
-                        }
-                    }
-                    onClicked: {
+                    label: "退出登录";
+                    confirmLabel: "确认退出";
+                    cornerRadius: 8;
+                    fontSize: 13;
+                    onConfirmed: {
                         Account.logout();
+                        logoutBtn.reset();
                     }
                 }
                 Text {
