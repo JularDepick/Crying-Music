@@ -3,7 +3,7 @@
 在下方配置 SOURCE_DIR 和 DEST_DIR，然后运行此脚本。
 
 复制来源为 SOURCE_DIR：windeployqt 部署后的构建输出目录，提供主程序与 Qt 运行时依赖；
-项目自身的许可, 版权, 文档说明, 第三方组件声明与 Qt 许可文本从源码目录另行附加
+项目自身的许可, 版权, 中英说明, 第三方组件声明与 Qt, FFmpeg 的许可文本从源码目录另行附加
 
 配置路径以脚本所在目录为基准解析，可在任意工作目录下运行。
 复制结束后会自检构建产物中未纳入清单的 DLL 与插件目录，提示可能漏带的依赖。
@@ -112,16 +112,19 @@ COPY_TARGETS: list[str] = [
     "opengl32sw.dll",
 ]
 
-# 发布包附加文件: 项目许可, 版权, 文档许可, Qt 许可, 说明与第三方组件声明(源路径, 发布包内文件名)
-# 这些文件取自源码目录, 不属于 windeployqt 的构建产物
+# 发布包附加文件: 项目许可, 版权, 文档许可, Qt 许可, FFmpeg 许可, 中英说明与第三方组件声明
+# (源路径, 发布包内文件名); 这些文件取自源码目录, 不属于 windeployqt 的构建产物
 # 许可四件套 COPYRIGHT, LICENSE, LICENSE.FDL, LICENSE.Qt 与 qml/GlobalFileStorage.qml 的
-# licenseFileNames 以及 resource.qrc 内嵌的 licenses/ 别名保持同一口径
+# licenseFileNames 以及 resource.qrc 内嵌的 licenses/ 别名保持同一口径;
+# LICENSE.FFmpeg 与 THIRD-PARTY-NOTICES.md 只随包分发, 供合规查阅, 不嵌入界面
 EXTRA_SOURCES: list[tuple[Path, str]] = [
     ((SCRIPT_DIR / "../../../LICENSE").resolve(), "LICENSE"),
     ((SCRIPT_DIR / "../../../COPYRIGHT").resolve(), "COPYRIGHT"),
     ((SCRIPT_DIR / "../LICENSE.FDL").resolve(), "LICENSE.FDL"),
     ((SCRIPT_DIR / "../LICENSE.Qt").resolve(), "LICENSE.Qt"),
+    ((SCRIPT_DIR / "../LICENSE.FFmpeg").resolve(), "LICENSE.FFmpeg"),
     ((SCRIPT_DIR / "../README.md").resolve(), "README.md"),
+    ((SCRIPT_DIR / "../README_en-US.md").resolve(), "README_en-US.md"),
     ((SCRIPT_DIR / "../THIRD-PARTY-NOTICES.md").resolve(), "THIRD-PARTY-NOTICES.md"),
 ]
 
@@ -165,7 +168,7 @@ def copy_entry(src: Path, dst: Path, name: str) -> tuple[int, bool]:
 
 
 def copy_extras(dst: Path) -> int:
-    """复制项目许可, 版权, 说明, 第三方组件声明与 Qt 许可文本到发布包, 返回复制的文件数量"""
+    """复制项目许可, 版权, 中英说明, 第三方组件声明与 Qt, FFmpeg 的许可文本到发布包, 返回复制的文件数量"""
     count = 0
     for src, name in EXTRA_SOURCES:
         if not src.is_file():

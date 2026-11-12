@@ -616,6 +616,14 @@ MainAreaFatherPage {
                     }
                 }
             }
+            /* 其余第三方组件的许可只在随包文件里给出, 界面只做指引, 不在此处塞入全文 */
+            Text {
+                width: parent.width;
+                color: Define.btnIconColor;
+                text: "其余第三方组件的许可见随包 THIRD-PARTY-NOTICES.md 与 LICENSE.FFmpeg";
+                font.pixelSize: 13;
+                wrapMode: Text.Wrap;
+            }
         }
     }
     /* 正文的细滚动条: 与其它列表共用同一个组件, 内容不超出时自动隐藏 */

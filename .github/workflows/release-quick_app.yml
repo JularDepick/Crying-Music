@@ -54,16 +54,49 @@ jobs:
         shell: pwsh
         run: |
           $ver = $env:VER -replace '^v', ''
+          # 三处版本号必须与 tag 一致: CMakeLists.txt 的 project VERSION,
+          # defines.hpp 的 VERSION 宏, resource.rc 的 FILEVERSION 与 FileVersion
           $line = Select-String -Path "src/quick_app/CMakeLists.txt" -Pattern '^project\(CryingMusic VERSION' | Select-Object -First 1
           if (-not $line) {
             Write-Error "未能从 src/quick_app/CMakeLists.txt 读到 project VERSION"
             exit 1
           }
           $cmakeVer = ($line.Line -split '\s+')[2]
-          Write-Host "CMakeLists.txt 版本号: $cmakeVer"
-          Write-Host "release 版本号:      $ver"
-          if ($cmakeVer -ne $ver) {
-            Write-Error "版本号不一致: CMakeLists.txt 为 $cmakeVer, release tag 为 $ver"
+
+          $defines = Get-Content "src/quick_app/defines.hpp" -Raw
+          if ($defines -notmatch '(?m)^#define\s+VERSION\s+"([^"]+)"') {
+            Write-Error "未能从 src/quick_app/defines.hpp 读到 #define VERSION"
+            exit 1
+          }
+          $defineVer = $Matches[1]
+
+          $rc = Get-Content "src/quick_app/resource.rc" -Raw
+          if ($rc -notmatch '(?m)^\s*FILEVERSION\s+(\d+),(\d+),(\d+),(\d+)') {
+            Write-Error "未能从 src/quick_app/resource.rc 读到 FILEVERSION"
+            exit 1
+          }
+          # FILEVERSION 是四段, 第四段为构建号, 前三段与版本号对齐
+          $rcFileVer = "$($Matches[1]).$($Matches[2]).$($Matches[3])"
+          $rcBuild = $Matches[4]
+          if ($rc -notmatch '(?m)^\s*VALUE\s+"FileVersion",\s*"([^"]+)"') {
+            Write-Error "未能从 src/quick_app/resource.rc 读到 FileVersion"
+            exit 1
+          }
+          $rcStrVer = $Matches[1]
+
+          Write-Host "CMakeLists.txt 版本号:   $cmakeVer"
+          Write-Host "defines.hpp 版本号:      $defineVer"
+          Write-Host "resource.rc FILEVERSION: $rcFileVer (构建号 $rcBuild)"
+          Write-Host "resource.rc FileVersion: $rcStrVer"
+          Write-Host "release 版本号:          $ver"
+
+          $bad = @()
+          if ($cmakeVer -ne $ver) { $bad += "CMakeLists.txt 为 $cmakeVer" }
+          if ($defineVer -ne $ver) { $bad += "defines.hpp 为 $defineVer" }
+          if ($rcFileVer -ne $ver) { $bad += "resource.rc FILEVERSION 为 $rcFileVer" }
+          if ($rcStrVer -ne $ver) { $bad += "resource.rc FileVersion 为 $rcStrVer" }
+          if ($bad.Count -gt 0) {
+            Write-Error ("版本号不一致: " + ($bad -join "; ") + ", release tag 为 $ver")
             exit 1
           }
           "VER=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -107,6 +140,9 @@ jobs:
             "COPYRIGHT",
             "LICENSE.FDL",
             "LICENSE.Qt",
+            "LICENSE.FFmpeg",
+            "README.md",
+            "README_en-US.md",
             "THIRD-PARTY-NOTICES.md"
           )
           $missing = @()

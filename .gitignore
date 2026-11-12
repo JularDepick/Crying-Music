@@ -11,8 +11,12 @@ AGENT*.md
 temp/
 tmp/
 
-# Multimedia
+# Multimedia: 与 src/quick_app/qml/Define.qml 的 audioFormats 一致
 *.mp3
+*.m4a
+*.wav
+*.flac
+*.ogg
 
 # other
 v*-*.md
