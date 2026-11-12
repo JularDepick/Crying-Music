@@ -7,18 +7,19 @@ import AppHelper 1.0
 
 import "./"
 
-/* 设置页: 顶部按分类 tab 分成播放与下载, 歌词与缓存两组子页;
+/* 设置页: 顶部按分类 tab 分成播放与下载, 歌词与缓存, 关于与许可三组子页;
  * 每个子页的正文放在可滚动区域里, 窗口变矮时由右侧细滚动条与滚轮承接;
  * 偏好都写成界面状态, 重启后保持; 换挡统一用 CustomChoose, 开关统一用 CustomSwitch */
 MainAreaFatherPage {
     id: mainArea_SettingsPage;
     visible: false;
-    /* 当前分类: play 为播放与下载, cache 为歌词与缓存 */
+    /* 当前分类: play 为播放与下载, cache 为歌词与缓存, about 为关于与许可 */
     property string tabId: "play";
     /* 分类候选 */
     property var tabOptions: [
         {"id":"play","label":"播放与下载"},
-        {"id":"cache","label":"歌词与缓存"}
+        {"id":"cache","label":"歌词与缓存"},
+        {"id":"about","label":"关于与许可"}
     ];
     /* 下载目录操作的即时提示: 空字符串表示不显示 */
     property string dirTip: "";
@@ -58,6 +59,63 @@ MainAreaFatherPage {
         {"label":"歌名-歌手","value":Define.downloadNameTemplates[0]},
         {"label":"歌手-歌名","value":Define.downloadNameTemplates[1]}
     ];
+    /* 关于与许可的许可文本区固定高度与内边距走设计常量 Define.licenseTextAreaHeight
+     * 与 Define.licenseTextAreaPadding: 文本区不随文本长度撑开, 超出的部分交给它自己的细滚动条 */
+    /* 许可文本的切换候选: 文件名与界面简称一一对应, 文件名与 GlobalFileStorage.licenseFileNames 同源 */
+    property var licenseOptions: [
+        {"label":"AGPL-3.0","value":"LICENSE"},
+        {"label":"Qt LGPLv3","value":"LICENSE.Qt"},
+        {"label":"FDL","value":"LICENSE.FDL"},
+        {"label":"版权声明","value":"COPYRIGHT"}
+    ];
+    /* 当前选中的许可文件名与它的全文: 全文为空字符串表示读取失败 */
+    property string licenseFileId: "LICENSE";
+    property string licenseText: "";
+    /* 版权行: 取 COPYRIGHT 的首个非空行, 取不到时用中性文案 */
+    property string copyrightLine: "";
+    /* 取不到许可文本时文本区显示的中性提示 */
+    property string licenseEmptyTip: "该文件不存在或无法读取";
+    /* 许可文本所在目录: 存储目录未确定时返回空字符串 */
+    function licensesPath() {
+        var d=String(GlobalFileStorage.storageDirPath);
+        return (d===""? "":d+"/"+GlobalFileStorage.licensesDirName);
+    }
+    /* 读一份许可文本: 许可文本是 UTF-8, 必须显式指定编码, 读取失败返回空字符串 */
+    function readLicenseText(name) {
+        var dir=licensesPath();
+        if(dir==="") {
+            return "";
+        }
+        var txt=AppFileHelper.readFile(dir+"/"+String(name),"UTF-8");
+        return (txt===undefined || txt===null? "":String(txt));
+    }
+    /* 版权行: 取 COPYRIGHT 的首个非空行, 取不到返回空字符串 */
+    function readCopyrightLine() {
+        var lines=readLicenseText("COPYRIGHT").split("\n");
+        var n=lines.length;
+        for(var i=0;i<n;i++) {
+            var one=String(lines[i]).trim();
+            if(one!=="") {
+                return one;
+            }
+        }
+        return "";
+    }
+    /* 刷新关于与许可: 版权行与当前许可全文都按当前存储目录重读 */
+    function refreshAbout() {
+        copyrightLine=readCopyrightLine();
+        licenseText=readLicenseText(licenseFileId);
+        Assist.dlog("界面","关于与许可: ",licenseFileId," 字数 ",licenseText.length);
+    }
+    /* 切换许可文本: 换挡后重读选中项, 文本区回到顶部 */
+    function setLicenseFile(id) {
+        licenseFileId=String(id===undefined? "":id);
+        licenseText=readLicenseText(licenseFileId);
+        if(licenseFlick!==null) {
+            licenseFlick.contentY=0;
+        }
+        Assist.dlog("界面","关于与许可: 选中 ",licenseFileId," 字数 ",licenseText.length);
+    }
     /* 切换分类: 同时把滚动位置复位, 新的一页从顶部开始 */
     function setTab(id) {
         var next=String(id===undefined? "":id);
@@ -66,6 +124,12 @@ MainAreaFatherPage {
         }
         tabId=next;
         settingsFlick.contentY=0;
+        if(tabId==="about") {
+            refreshAbout();
+            if(licenseFlick!==null) {
+                licenseFlick.contentY=0;
+            }
+        }
         Assist.dlog("界面","设置分类: ",tabId);
         return true;
     }
@@ -193,12 +257,9 @@ MainAreaFatherPage {
         anchors.topMargin: 5;
         clip: true;
         boundsBehavior: Flickable.StopAtBounds;
-        DragHandler {
-            acceptedDevices: PointerDevice.Mouse;
-            target: null;
-        }
         contentWidth: width;
-        contentHeight: ((mainArea_SettingsPage.tabId==="play"? playTab.height:cacheTab.height)+48);
+        contentHeight: ((mainArea_SettingsPage.tabId==="play"? playTab.height
+                        :(mainArea_SettingsPage.tabId==="cache"? cacheTab.height:aboutTab.height))+48);
         /* 播放与下载 */
         Column {
             id: playTab;
@@ -364,23 +425,16 @@ MainAreaFatherPage {
             }
             Row {
                 spacing: 10;
-                CustomButtonA {
+                /* 二次确认落在按钮上: 首击进入确认态, 三秒内再击才清理, 超时回归 */
+                ConfirmButton {
                     id: clearCacheBtn;
                     width: 100;
                     height: 30;
-                    transEnabled: false;
-                    background: Rectangle {
-                        anchors.fill: parent;
-                        radius: 15;
-                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Text {
-                            color: Define.textColor;
-                            anchors.centerIn: parent;
-                            text: "立即清理";
-                        }
-                    }
-                    onClicked: {
+                    label: "立即清理";
+                    confirmLabel: "确认清理";
+                    onConfirmed: {
                         mainArea_SettingsPage.clearCoverCache();
+                        clearCacheBtn.reset();
                     }
                     HoverHandler {
                         id: clearCacheHh;
@@ -421,22 +475,16 @@ MainAreaFatherPage {
             }
             Row {
                 spacing: 10;
-                CustomButtonA {
+                /* 二次确认落在按钮上: 首击进入确认态, 三秒内再击才清理, 超时回归 */
+                ConfirmButton {
+                    id: audioClearBtn;
                     width: 100;
                     height: 30;
-                    transEnabled: false;
-                    background: Rectangle {
-                        anchors.fill: parent;
-                        radius: 15;
-                        color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                        Text {
-                            color: Define.textColor;
-                            anchors.centerIn: parent;
-                            text: "立即清理";
-                        }
-                    }
-                    onClicked: {
+                    label: "立即清理";
+                    confirmLabel: "确认清理";
+                    onConfirmed: {
                         mainArea_SettingsPage.clearAudioCache();
+                        audioClearBtn.reset();
                     }
                     HoverHandler {
                         id: audioClearHh;
@@ -465,6 +513,107 @@ MainAreaFatherPage {
                 onToggled: (on)=> {
                     GlobalFileStorage.setLyricsEnhanced(on);
                     Assist.dlog("界面","歌词增强: ",on);
+                }
+            }
+        }
+        /* 关于与许可: 应用名, 版本号, 版权行, 以及四份随包许可文本的全文 */
+        Column {
+            id: aboutTab;
+            visible: (mainArea_SettingsPage.tabId==="about");
+            x: 40;
+            width: settingsFlick.width-80;
+            spacing: 10;
+            /* 应用名与版本号: 版本号取自 main.cpp 的 setApplicationVersion */
+            Text {
+                color: Define.textColor;
+                text: Define.initTitle;
+                font.pixelSize: 20;
+                font.weight: 600;
+            }
+            Text {
+                color: Define.btnIconColor;
+                text: ("版本 "+Qt.application.version);
+                font.pixelSize: 13;
+            }
+            /* 版权行: 取许可目录下 COPYRIGHT 的首个非空行 */
+            Text {
+                color: Define.btnIconColor;
+                text: (mainArea_SettingsPage.copyrightLine===""? "版权信息见随包许可文本"
+                                                              :mainArea_SettingsPage.copyrightLine);
+                font.pixelSize: 13;
+            }
+            Rectangle {
+                width: parent.width;
+                height: 2;
+                radius: 1;
+                color: Define.subGrey;
+            }
+            /* 许可文本的切换入口与只读全文 */
+            Text {
+                color: Define.textColor;
+                text: "许可文本";
+                font.pixelSize: 15;
+                font.weight: 400;
+            }
+            CustomChoose {
+                id: licenseChoose;
+                options: mainArea_SettingsPage.licenseOptions;
+                currentValue: mainArea_SettingsPage.licenseFileId;
+                onChosen: (value, index)=> {
+                    mainArea_SettingsPage.setLicenseFile(value);
+                }
+            }
+            Text {
+                color: Define.btnIconColor;
+                text: ("licenses/"+mainArea_SettingsPage.licenseFileId);
+                font.pixelSize: 13;
+            }
+            /* 文本区: 固定高度, 只读, 超出部分由它自己的细滚动条与滚轮承接 */
+            Rectangle {
+                id: licenseTextArea;
+                width: parent.width;
+                height: Define.licenseTextAreaHeight;
+                radius: 4;
+                color: Define.canvasColor;
+                border.width: 1;
+                border.color: Define.subGrey;
+                clip: true;
+                Flickable {
+                    id: licenseFlick;
+                    anchors {left:parent.left; right:parent.right; top:parent.top; bottom:parent.bottom;}
+                    anchors.leftMargin: Define.licenseTextAreaPadding;
+                    anchors.topMargin: Define.licenseTextAreaPadding;
+                    anchors.bottomMargin: Define.licenseTextAreaPadding;
+                    anchors.rightMargin: (Define.licenseTextAreaPadding+10);
+                    clip: true;
+                    boundsBehavior: Flickable.StopAtBounds;
+                    contentWidth: width;
+                    contentHeight: licenseBodyText.height;
+                    Text {
+                        id: licenseBodyText;
+                        width: licenseFlick.width;
+                        text: (mainArea_SettingsPage.licenseText===""? mainArea_SettingsPage.licenseEmptyTip
+                                                                    :mainArea_SettingsPage.licenseText);
+                        color: Define.textColor;
+                        font.pixelSize: 13;
+                        wrapMode: Text.Wrap;
+                    }
+                }
+                CustomSliderC {
+                    id: licenseScrollBar;
+                    anchors {top:licenseFlick.top; bottom:licenseFlick.bottom; right:licenseTextArea.right;}
+                    anchors.rightMargin: 4;
+                    width: 4;
+                    visible: (licenseFlick.contentHeight>licenseFlick.height);
+                    handleRatio: Math.max(0.1,licenseFlick.height/Math.max(1,licenseFlick.contentHeight));
+                    hoverHandlerEnabled: false;
+                    value: from*(licenseFlick.contentY/Math.max(1,licenseFlick.contentHeight-licenseFlick.height));
+                    onMoved: {
+                        licenseFlick.contentY=(value/from)*Math.max(0,licenseFlick.contentHeight-licenseFlick.height);
+                        value=Qt.binding(function() {
+                            return from*(licenseFlick.contentY/Math.max(1,licenseFlick.contentHeight-licenseFlick.height));
+                        });
+                    }
                 }
             }
         }
@@ -501,12 +650,11 @@ MainAreaFatherPage {
             Assist.dlog("界面","取消选择下载目录");
         }
     }
-    function subsHide(scenePos) {
-    }
     function refresh() {
         normalizeNameTemplate();
     }
     Component.onCompleted: {
         normalizeNameTemplate();
+        refreshAbout();
     }
 }
