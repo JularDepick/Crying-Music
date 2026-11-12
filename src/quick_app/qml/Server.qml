@@ -75,6 +75,8 @@ Item {
     /* 待缓存的在线标识队列与正在缓存中的标识 */
     property var _audioCacheQueue: []
     property var _audioCachePending: ({})
+    /* 清空缓存时被中止的音频缓存任务: 它们即使跑完也不许再登记, 否则清掉的缓存会自己回来 */
+    property var _audioCacheStale: ({})
     /* 音频缓存索引是否需要写盘 */
     property bool _audioIndexDirty: false;
     /* 音频缓存任务的键前缀: 与下载队列共用 C++ 的下载回调, 靠前缀区分归属 */
@@ -101,6 +103,16 @@ Item {
     /* 对冲拉取的并发上限: A 管元信息, 清单与歌词, B 管封面补全, 两套计数互不挤占 */
     property int fetchLimitA: 8;
     property int fetchLimitB: 8;
+    /* 封面缓存容量上限(字节): 清单再大也要给磁盘留余地, 超出后按最近使用时间淘汰最旧的条目;
+     * 与音频缓存同一口径, 删除失败的文件不剔索引, 等下一轮再试 */
+    readonly property int coverCacheCapBytes: 512*1024*1024
+    /* 封面清理的最小间隔: 连续写入时不必每次全量扫索引, 启动接管时强制清一次 */
+    readonly property int coverSweepGapMs: 300000
+    /* 最近一次封面清理的时刻: 毫秒时间戳超出 int 范围, 用 double 存 */
+    property double _coverSweepAt: 0
+    /* 单个响应的正文上限(按 responseText 字符数计): 元信息与清单在主线程解析,
+     * 超大正文会瞬时吃内存并卡住界面, 超过上限按该源失败处理 */
+    readonly property int maxResponseBytes: 8*1024*1024
     /* 在途请求表: 每项是一次"某个资源的某个候选源"的请求 */
     property var _netReqs: []
     /* 因并发上限而排队的分组 */
@@ -272,6 +284,11 @@ Item {
             }
             var id=String(taskKey).substring(tag.length);
             delete serverRoot._audioCachePending[id];
+            /* 清空缓存时中止的旧任务即使跑完也不再登记 */
+            if(serverRoot._audioCacheStale[id]===true) {
+                delete serverRoot._audioCacheStale[id];
+                return;
+            }
             serverRoot._audioCacheAdd(id,localPath);
         }
         /* 音频缓存任务失败: 未完成的文件由 C++ 侧清理, 这里只记账 */
@@ -282,6 +299,11 @@ Item {
             }
             var id=String(taskKey).substring(tag.length);
             delete serverRoot._audioCachePending[id];
+            /* 清空缓存导致的取消是预期行为, 不记失败 */
+            if(serverRoot._audioCacheStale[id]===true) {
+                delete serverRoot._audioCacheStale[id];
+                return;
+            }
             Assist.dwarn("在线","音频缓存失败: ",id,", 原因 ",reason);
         }
     }
@@ -674,6 +696,35 @@ Item {
         }
         return (res.length>0? res.join("/"):"未知歌手");
     }
+    /* 名字净化: 清单与元信息里的名字在拼进落盘路径前统一过这一道;
+     * 两种路径分隔符都当边界只取基名, 去掉控制字符与 Windows 文件名非法字符,
+     * 净化后为空表示不可用, 调用方按失败处理 */
+    function sanitizeName(name) {
+        var s=String(name===undefined || name===null? "":name);
+        /* 反斜杠用字符码拼出, 免得源码里出现转义序列 */
+        var sep=String.fromCharCode(92);
+        var cut=Math.max(s.lastIndexOf("/"),s.lastIndexOf(sep));
+        if(cut>=0) {
+            s=s.substring(cut+1);
+        }
+        var out="";
+        for(var i=0;i<s.length;i++) {
+            var code=s.charCodeAt(i);
+            if(code<32) {
+                continue;
+            }
+            if("<>:\"|?*".indexOf(s.charAt(i))>=0) {
+                continue;
+            }
+            out=out+s.charAt(i);
+        }
+        out=out.trim();
+        out=out.replace(/[. ]+$/,"");
+        if(out==="" || out==="." || out==="..") {
+            return "";
+        }
+        return out;
+    }
     /* 清单行的主文件名: 清单只给不带扩展名的主文件名, 各类资源都用它加各自的扩展名 */
     function rowFileName(row) {
         if(row===null || row===undefined || typeof row!=="object" || typeof row["fn"]!=="string") {
@@ -686,15 +737,30 @@ Item {
         var fn=rowFileName(row);
         return (fn===""? "":String(Define.onlineKeyTag)+fn+String(oss.audio_file_ext));
     }
-    /* 封面名: 主文件名加封面扩展名 */
+    /* 封面名: 主文件名加封面扩展名, 拼路径前先净化; 净化后为空按不可用处理 */
     function coverNameOfRow(row) {
         var fn=rowFileName(row);
-        return (fn===""? "":fn+String(oss.audio_cover_ext));
+        if(fn==="") {
+            return "";
+        }
+        var name=sanitizeName(fn+String(oss.audio_cover_ext));
+        if(name==="") {
+            Assist.dwarn("在线","封面名不可用, 已跳过: ",fn);
+        }
+        return name;
     }
-    /* 歌词名: 主文件名加普通歌词扩展名; 增强歌词只在缺普通歌词时兜底, 缓存仍按这个名字落盘 */
+    /* 歌词名: 主文件名加普通歌词扩展名; 增强歌词只在缺普通歌词时兜底, 缓存仍按这个名字落盘;
+     * 与封面名一样先净化, 净化后为空按不可用处理 */
     function lyricsNameOfRow(row) {
         var fn=rowFileName(row);
-        return (fn===""? "":fn+String(oss.audio_lyrics_lrc_ext));
+        if(fn==="") {
+            return "";
+        }
+        var name=sanitizeName(fn+String(oss.audio_lyrics_lrc_ext));
+        if(name==="") {
+            Assist.dwarn("在线","歌词名不可用, 已跳过: ",fn);
+        }
+        return name;
     }
     /* 由清单行构造条目: 条目的 absfpath 就是在线的稳定标识, 实际播放地址在播放与下载时
      * 按当前元信息解析; 时长优先取清单声明的秒数, 清单没有该字段时退回已播放缓存 */
@@ -853,6 +919,12 @@ Item {
         if(typeof name!=="string" || name==="") {
             return false;
         }
+        /* 落盘名由 C++ 侧直接拼进缓存目录: 先净化, 净化后为空按失败处理 */
+        name=sanitizeName(name);
+        if(name==="") {
+            Assist.dwarn("在线","封面落盘名不可用, 放弃拉取");
+            return false;
+        }
         if(_coverPending[name]===true) {
             return false;
         }
@@ -885,6 +957,8 @@ Item {
         idx[name]=({"path":String(localPath),"at":at,"ttl":coverTtlMs()});
         coverIndex=idx;
         _coverIndexDirty=true;
+        /* 写入时顺带清理过期与超限的封面, 让生命周期与容量都真正释放磁盘 */
+        _coverCacheSweep(false);
         Assist.dlog("在线","封面来源: ",name," <- ",src);
         _pumpCoverQueue();
     }
@@ -1045,8 +1119,17 @@ Item {
     /* 歌词拿到: 写盘并记进内存索引 */
     function _lyricsDone(lyricsName,text,src) {
         var dir=GlobalFileStorage.lyricsCacheDir();
-        var path=dir+"/"+lyricsName;
-        var ok=(dir!=="" && AppFileHelper.writeFile(path,text,"UTF-8")===true);
+        /* 落盘名由清单给出: 先净化, 净化后为空按写入失败处理 */
+        var name=sanitizeName(lyricsName);
+        if(dir==="" || name==="") {
+            delete _lyricsPending[lyricsName];
+            delete _lyricsOwners[lyricsName];
+            _noteMiss(lyricsMiss,lyricsName);
+            Assist.dwarn("在线","歌词落盘名不可用, 放弃写入: ",lyricsName);
+            return false;
+        }
+        var path=dir+"/"+name;
+        var ok=(AppFileHelper.writeFile(path,text,"UTF-8")===true);
         delete _lyricsPending[lyricsName];
         delete _lyricsOwners[lyricsName];
         if(ok!==true) {
@@ -1278,6 +1361,87 @@ Item {
         }
         return (Date.now()>=(Number(e["at"])+Number(e["ttl"])));
     }
+    /* 封面缓存清理: 先删过期条目, 再把占用压到容量上限以内, 超限按最近使用时间淘汰最旧的;
+     * 删除失败的文件保留索引等下一轮再试, 免得索引与磁盘不一致; 全程静默, 只记日志 */
+    function _coverCacheSweep(force) {
+        var now=Date.now();
+        if(force!==true && (now-_coverSweepAt)<coverSweepGapMs) {
+            return false;
+        }
+        var dir=GlobalFileStorage.coverCacheDir();
+        if(dir==="") {
+            return false;
+        }
+        _coverSweepAt=now;
+        var cap=coverCacheCapBytes;
+        var idx=({});
+        var cc=({});
+        var total=0;
+        var expired=0;
+        for(var k in coverIndex) {
+            var e=coverIndex[k];
+            if(e===null || typeof e!=="object" || typeof e["path"]!=="string") {
+                continue;
+            }
+            var path=String(e["path"]);
+            /* 只清理自己缓存目录内的文件: 索引可被改写, 不能拿它删任意路径 */
+            if(path.indexOf(dir+"/")!==0 || path.indexOf("/../")>=0) {
+                idx[k]=e;
+                continue;
+            }
+            var at=(typeof e["at"]==="number"? e["at"]:0);
+            var ttl=(typeof e["ttl"]==="number" && e["ttl"]>0? e["ttl"]:coverTtlMs());
+            var size=Number(AppFileHelper.fileSize(path));
+            if(isNaN(size)===true || size<0) {
+                size=0;
+            }
+            if(now>=(at+ttl)) {
+                if(AppFileHelper.removeFile(path)!==true) {
+                    Assist.dwarn("在线","封面已过期但删除失败, 保留索引: ",k);
+                    idx[k]=e;
+                    total=total+size;
+                    continue;
+                }
+                expired=expired+1;
+                continue;
+            }
+            idx[k]=e;
+            total=total+size;
+            cc[k]=path+"?t="+String(at);
+        }
+        var keys=Object.keys(idx);
+        var dropped=0;
+        if(cap>0 && total>cap && keys.length>0) {
+            keys.sort(function(a,b) {
+                var x=(typeof idx[a]["at"]==="number"? idx[a]["at"]:0);
+                var y=(typeof idx[b]["at"]==="number"? idx[b]["at"]:0);
+                return x-y;
+            });
+            for(var i=0;i<keys.length && total>cap;i++) {
+                var k2=keys[i];
+                var p2=String(idx[k2]["path"]);
+                var sz=Number(AppFileHelper.fileSize(p2));
+                if(isNaN(sz)===true || sz<0) {
+                    sz=0;
+                }
+                if(AppFileHelper.removeFile(p2)!==true) {
+                    Assist.dwarn("在线","封面超限但删除失败, 保留索引: ",k2);
+                    continue;
+                }
+                delete idx[k2];
+                delete cc[k2];
+                total=total-sz;
+                dropped=dropped+1;
+            }
+        }
+        coverIndex=idx;
+        coverCache=cc;
+        _coverIndexDirty=true;
+        if(expired>0 || dropped>0) {
+            Assist.dlog("在线","封面缓存清理: 过期 ",expired," 份, 超限淘汰 ",dropped," 份, 占用 ",total," 字节");
+        }
+        return (expired>0 || dropped>0);
+    }
     /* 启动时接管本地封面: 索引里文件仍在的条目立刻可用, 随后静默补全未缓存或已过期的封面 */
     function bootstrapCoverCache(fill) {
         var dir=GlobalFileStorage.coverCacheDir();
@@ -1303,6 +1467,8 @@ Item {
         coverCache=c;
         _coverIndexDirty=true;
         Assist.dlog("在线","封面缓存就绪: 复用 ",hit," 个本地封面");
+        /* 接管后按索引清一次过期与超限的封面, 让设置页的生命周期真正释放磁盘 */
+        _coverCacheSweep(true);
         if(fill!==false) {
             startCoverFill();
         }
@@ -1583,6 +1749,10 @@ Item {
     function audioCacheDir() {
         return GlobalFileStorage.audioCacheDir();
     }
+    /* 音频缓存文件名: 在线标识里的文件名经净化后拼进缓存目录, 净化后为空表示不可用 */
+    function audioCacheFileName(onlineId) {
+        return sanitizeName(GlobalFileStorage.onlineNameOf(onlineId));
+    }
     /* 音频缓存上限(字节) */
     function audioCacheCapBytes() {
         return GlobalFileStorage.audioCacheCapMb()*1024*1024;
@@ -1600,7 +1770,13 @@ Item {
         if(dir==="") {
             return "";
         }
-        var p=dir+"/"+GlobalFileStorage.onlineNameOf(id);
+        /* 落盘名来自在线标识: 先净化, 净化后为空按未缓存处理 */
+        var name=audioCacheFileName(id);
+        if(name==="") {
+            Assist.dwarn("在线","音频缓存名不可用, 按未缓存处理: ",id);
+            return "";
+        }
+        var p=dir+"/"+name;
         if(AppFileHelper.existsFile(p)!==true) {
             _audioCacheForget(id);
             return "";
@@ -1657,7 +1833,8 @@ Item {
                         continue;
                     }
                     var idk=GlobalFileStorage.onlineKeyOf(k);
-                    if(AppFileHelper.existsFile(dir+"/"+GlobalFileStorage.onlineNameOf(idk))!==true) {
+                    var fn=audioCacheFileName(idk);
+                    if(fn==="" || AppFileHelper.existsFile(dir+"/"+fn)!==true) {
                         continue;
                     }
                     m[idk]=({"size":(typeof one["size"]==="number"? one["size"]:0),
@@ -1784,7 +1961,19 @@ Item {
             var id=keys[i];
             var cur=audioCacheIndex[id];
             var sz=(cur!==null && typeof cur==="object" && typeof cur["size"]==="number"? cur["size"]:0);
-            AppFileHelper.removeFile(dir+"/"+GlobalFileStorage.onlineNameOf(id));
+            var fn=audioCacheFileName(id);
+            if(fn==="") {
+                /* 名字不可用就没有对应的缓存文件, 直接剔索引 */
+                _audioCacheForget(id);
+                total=total-sz;
+                drop=drop+1;
+                continue;
+            }
+            if(AppFileHelper.removeFile(dir+"/"+fn)!==true) {
+                /* 删除失败不剔索引, 下一轮再试, 免得索引与磁盘不一致 */
+                Assist.dwarn("在线","音频缓存淘汰失败, 保留索引: ",id);
+                continue;
+            }
             _audioCacheForget(id);
             total=total-sz;
             drop=drop+1;
@@ -1842,29 +2031,50 @@ Item {
             Assist.dwarn("在线","音频缓存目录不可用: ",dir);
             return false;
         }
-        var p=dir+"/"+GlobalFileStorage.onlineNameOf(id);
+        var name=audioCacheFileName(id);
+        if(name==="") {
+            Assist.dwarn("在线","音频缓存名不可用, 放弃缓存: ",id);
+            return false;
+        }
+        var p=dir+"/"+name;
         AppFileHelper.removeFile(p);
+        /* 重新发起同一首时清掉旧的作废标记, 否则新任务完成也不会登记 */
+        delete _audioCacheStale[id];
         _audioCachePending[id]=true;
         AppNetHelper.downloadAudio(one["url"],p,audioCacheTag+id);
         Assist.dlog("在线","开始缓存音频: ",id);
         return true;
     }
-    /* 清空音频缓存: 删缓存文件与索引, 不动播放与下载相关数据 */
+    /* 中止全部在途的音频缓存任务: 先标记作废再取消, 取消回调不会把旧任务重新登记 */
+    function _audioCacheAbortAll() {
+        var ids=Object.keys(_audioCachePending);
+        var n=0;
+        for(var i=0;i<ids.length;i++) {
+            var id=String(ids[i]);
+            _audioCacheStale[id]=true;
+            AppNetHelper.cancelDownload(audioCacheTag+id);
+            n=n+1;
+        }
+        /* 在途标记一并重置, 否则清空时正在缓存的那几项会让后续入队一直被挡下 */
+        _audioCachePending=({});
+        return n;
+    }
+    /* 清空音频缓存: 先取消在途任务, 再删缓存文件与索引, 不动播放与下载相关数据 */
     function clearAudioCache() {
         var dir=audioCacheDir();
         if(dir==="") {
             return false;
         }
+        /* 先取消在途: 否则旧任务完成时会重新登记, 用户刚清掉的缓存又回来 */
+        var aborted=_audioCacheAbortAll();
         var removed=AppFileHelper.removeDir(dir,true);
         audioCacheIndex=({});
         _audioCacheQueue=[];
-        /* 在途标记一并重置, 否则清空时正在缓存的那几项会让后续入队一直被挡下 */
-        _audioCachePending=({});
         _audioIndexDirty=false;
         var ready=AppFileHelper.makeDir(dir,true);
         /* 索引与磁盘一致: 清空后写回空索引 */
         saveAudioCacheIndex();
-        Assist.dlog("在线","清空音频缓存: 删除 ",removed,", 重建 ",ready);
+        Assist.dlog("在线","清空音频缓存: 取消在途 ",aborted,", 删除 ",removed,", 重建 ",ready);
         return (removed===true && ready===true);
     }
     /* 已播放元数据的键迁移: 早期版本按播放地址记, 现在按在线标识记;
@@ -2532,8 +2742,14 @@ Item {
         }
         var payload=xhr.responseText;
         if(group.kind!=="lyrics") {
+            /* 解析前先卡长度: 超大正文在主线程整段解析会瞬时吃内存并卡住界面 */
+            if(payload.length>maxResponseBytes) {
+                Assist.dwarn("在线","响应体超限, 按失败处理: ",req.url,", 长度 ",payload.length);
+                _netLose(req,"响应体超限",false);
+                return false;
+            }
             try {
-                payload=JSON.parse(xhr.responseText);
+                payload=JSON.parse(payload);
             } catch(e) {
                 Assist.dwarn("在线","内容解析失败: ",req.url,", ",e);
                 _netLose(req,"内容解析失败",true);
