@@ -500,8 +500,35 @@ Rectangle {
                 id: soundCtrl;
                 icon.source: (volume==0? "qrc:/assets/iconfont/playerbar/soundless.svg":"qrc:/assets/iconfont/playerbar/sound.svg");
                 property int volume: soundSlider.value;
-                /* 静音前的音量, 供取消静音时恢复 */
-                property int lastVolume: 100;
+                /* 静音前的音量, 供取消静音时恢复: 读的是存储里的同一份, 主界面与歌词页
+                 * 两份实例因此共用同一个恢复值; 存储接口缺失或字段未落盘时回退 100, 不报错 */
+                function storedLastVolume() {
+                    var v=undefined;
+                    if(typeof GlobalFileStorage.lastVolume==="function") {
+                        v=GlobalFileStorage.lastVolume();
+                    } else if(GlobalFileStorage.playState!==undefined
+                              && GlobalFileStorage.playState!==null) {
+                        v=GlobalFileStorage.playState.lastVolume;
+                    }
+                    if(v===undefined || v===null || isNaN(Number(v))) {
+                        return 100;
+                    }
+                    return Math.round(Number(v));
+                }
+                /* 记下静音前的音量: 只经存储接口写, 由它负责夹取与落盘;
+                 * setter 尚不可用时静默跳过, 不打断静音流程 */
+                function rememberVolume(v) {
+                    var n=Math.round(Number(v));
+                    if(isNaN(n) || n<0) {
+                        n=0;
+                    }
+                    if(n>100) {
+                        n=100;
+                    }
+                    if(typeof GlobalFileStorage.setLastVolume==="function") {
+                        GlobalFileStorage.setLastVolume(n);
+                    }
+                }
                 property bool sliderVisible: false;
                 onClicked: {
                     sub_tshow();
@@ -553,10 +580,15 @@ Rectangle {
                                 }
                             }
                             /* 拖动会覆盖 value 而打断上面的绑定, 这里在存储音量变化时补写一次,
-                             * 使拖动或静音之后滑块显示仍与存储音量一致, 两份实例都生效 */
+                             * 使拖动或静音之后滑块显示仍与存储音量一致, 两份实例都生效;
+                             * 按住拖动时滑块归用户, 播放中每 5 秒的进度落盘会整体替换播放状态,
+                             * 补写必须让位, 否则正在拖的滑块被写回旧值 */
                             Connections {
                                 target: GlobalFileStorage;
                                 function onPlayStateChanged() {
+                                    if(soundSlider.pressed===true) {
+                                        return;
+                                    }
                                     var v=GlobalFileStorage.playState.volume;
                                     if(v===undefined || v===null) {
                                         return;
@@ -576,9 +608,9 @@ Rectangle {
                                  * 滑块随存储变化, 两份实例因此始终与存储音量一致 */
                                 var target=0;
                                 if(soundCtrl.volume==0) {
-                                    target=soundCtrl.lastVolume;
+                                    target=soundCtrl.storedLastVolume();
                                 } else {
-                                    soundCtrl.lastVolume=soundCtrl.volume;
+                                    soundCtrl.rememberVolume(soundCtrl.volume);
                                 }
                                 GlobalFileStorage.setVolume(target);
                                 Assist.dlog("播放","音量: ",target);

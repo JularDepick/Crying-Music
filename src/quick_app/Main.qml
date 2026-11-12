@@ -29,6 +29,9 @@ ApplicationWindow {
      * 这里是普通属性而不是对存储的绑定: 拖动与快捷键都会给它赋值, 绑定一旦被赋值打断
      * 就再也不会跟随存储; 初值在启动链里从存储读入 */
     property real outputVolume: 100;
+    /* 下载并发上限: 批量下载时同时在途的音频请求数, 超出的任务排队等名额;
+     * 与在线拉取的 8 路并发同一口径, 只服务本文件的下载队列, 因此不放进 Define.qml */
+    readonly property int downloadConcurrencyLimit: 3;
 
     /* 内存枢纽: 只存内存的临时状态, 不落盘; 由主界面持有并注入给各页。
      * 声明在页面之前, 保证页面构建时它已存在 */
@@ -177,6 +180,7 @@ ApplicationWindow {
                 Assist.derror("下载","在线地址不可用, 无法下载");
                 return false;
             }
+            /* 入队后交给并发调度拉起: 在途数未到上限时立刻开始, 否则排队等名额 */
             var task=({"onlineId":id,
                        "songname":one["songname"],
                        "singer":one["singer"],
@@ -184,26 +188,78 @@ ApplicationWindow {
                        "lyrics":(one["lyrics"]===undefined? "":one["lyrics"]),
                        "url":url,
                        "dst":dst,
+                       "state":"waiting",
                        "progress":0,
                        "received":0,
                        "total":-1});
             var v=downloadTasks.slice();
             v.push(task);
             downloadTasks=v;
-            Assist.dlog("下载","开始下载: ",id," -> ",dst);
-            AppNetHelper.downloadAudio(url,dst,id);
+            Assist.dlog("下载","入队下载: ",id," -> ",dst);
             /* 顺带把这首曲目的封面与歌词一并取回: 已缓存或已放弃的请求会直接返回 */
             Server.requestCover((one["cover"]===undefined? "":String(one["cover"])));
             Server.requestLyrics((one["lyrics"]===undefined? "":String(one["lyrics"])));
+            memStorage.pumpDownloadQueue();
             return true;
         }
-        /* 取消下载: 中止请求, 队列的清理由失败回调统一完成 */
+        /* 队列里第一个排队中的任务: 没有时返回 null */
+        function nextWaitingDownload() {
+            var l=downloadTasks.length;
+            for(var i=0;i<l;i++) {
+                if(downloadTasks[i]["state"]==="waiting") {
+                    return downloadTasks[i];
+                }
+            }
+            return null;
+        }
+        /* 在途下载数: 只数已经发起请求的任务, 排队中的不占名额 */
+        function runningDownloadCount() {
+            var n=0;
+            var l=downloadTasks.length;
+            for(var i=0;i<l;i++) {
+                if(downloadTasks[i]["state"]==="running") {
+                    n=n+1;
+                }
+            }
+            return n;
+        }
+        /* 拉起排队中的下载: 在途数未到上限时按入队顺序逐个发起;
+         * 完成, 失败与取消之后都调它补位, 因此队列里的任务不会因名额释放而搁置 */
+        function pumpDownloadQueue() {
+            var limit=window.downloadConcurrencyLimit;
+            while(memStorage.runningDownloadCount()<limit) {
+                var t=memStorage.nextWaitingDownload();
+                if(t===null) {
+                    return;
+                }
+                /* 排队期间数据根可能已经换过: 发起前按当前健康度重取一次地址 */
+                var url=Server.mediaUrlOf(t["onlineId"],"");
+                if(url==="") {
+                    url=String(t["url"]);
+                }
+                if(url==="") {
+                    memStorage.removeDownloadTask(t["onlineId"]);
+                    Assist.derror("下载","在线地址不可用, 无法下载: ",t["onlineId"]);
+                    memStorage.showDownloadTip("下载失败: "+t["songname"]);
+                    continue;
+                }
+                t["url"]=url;
+                t["state"]="running";
+                downloadTasks=downloadTasks.slice();
+                Assist.dlog("下载","开始下载: ",t["onlineId"]," -> ",t["dst"]);
+                AppNetHelper.downloadAudio(url,t["dst"],t["onlineId"]);
+            }
+        }
+        /* 取消下载: 先移出队列以立刻释放并发名额, 再中止请求;
+         * 随后的"已取消"失败回调找不到任务会直接返回, 由补位逻辑拉起下一个 */
         function cancelDownload(taskKey) {
             if(taskKey===undefined || taskKey==="") {
                 return false;
             }
             Assist.dlog("下载","取消下载: ",taskKey);
+            memStorage.removeDownloadTask(taskKey);
             AppNetHelper.cancelDownload(taskKey);
+            memStorage.pumpDownloadQueue();
             return true;
         }
         /* 从下载队列移除一个任务 */
@@ -257,6 +313,7 @@ ApplicationWindow {
             var t=memStorage.downloadTaskOf(taskKey);
             memStorage.removeDownloadTask(taskKey);
             memStorage.finishDownloadTask(t,localPath);
+            memStorage.pumpDownloadQueue();
         }
         /* 下载失败后换数据根重试: 判掉当前根并换到下一个候选, 进度与文件从头再来;
          * 没有可换的候选时返回 false, 由调用方收尾
@@ -289,6 +346,7 @@ ApplicationWindow {
             if(reason==="已取消") {
                 memStorage.removeDownloadTask(taskKey);
                 Assist.dlog("下载","已取消: ",t["onlineId"]);
+                memStorage.pumpDownloadQueue();
                 return;
             }
             /* 本地写盘问题与数据根无关: 换根重试没有意义, 直接按失败收尾 */
@@ -296,6 +354,7 @@ ApplicationWindow {
                 memStorage.removeDownloadTask(taskKey);
                 Assist.derror("下载","下载失败: ",t["songname"],", ",reason);
                 memStorage.showDownloadTip("下载失败: "+t["songname"]);
+                memStorage.pumpDownloadQueue();
                 return;
             }
             if(memStorage.retryDownloadOnNextRoot(t)===true) {
@@ -304,6 +363,7 @@ ApplicationWindow {
             memStorage.removeDownloadTask(taskKey);
             Assist.dwarn("下载","下载失败: ",t["songname"],", ",reason);
             memStorage.showDownloadTip("下载失败: "+t["songname"]);
+            memStorage.pumpDownloadQueue();
         }
         /* 播放策略: 边播放边下载时, 把正在播放且尚未下载的在线曲目顺带入队;
          * 不下载策略与本地曲目都直接跳过 */
@@ -971,6 +1031,14 @@ ApplicationWindow {
             window.syncTrayMenu();
         }
         function onPlayModeChanged() {
+            window.syncTrayMenu();
+        }
+    }
+    /* 喜欢可能在播放栏, 各页面或托盘里被改: 存储里的喜欢清单一变就回推一次,
+     * 否则在播放栏点过喜欢之后, 托盘菜单仍写着"喜欢" */
+    Connections {
+        target: GlobalFileStorage;
+        function onLikedFilesChanged() {
             window.syncTrayMenu();
         }
     }
@@ -1659,7 +1727,14 @@ ApplicationWindow {
             border.color: Define.subGrey;
             border.width: 1;
             visible: playerBar.listVisible;
+            /* 收起时复位清空按钮的确认态: 可见性切换发生在这层外壳上, 子项自身恒可见 */
+            onVisibleChanged: {
+                if(visible!==true) {
+                    playingListPanel.resetClearButton();
+                }
+            }
             PlayingListViewArea {
+                id: playingListPanel;
                 anchors.fill: parent;
                 thePlayer: player;
                 theMemStorage: memStorage;
@@ -1750,10 +1825,52 @@ ApplicationWindow {
             }
         }
     }
-    /* 快捷键的生效条件: 输入框获得焦点时不响应, 避免吞掉打字用的空格与方向键 */
+    /* 是否文本输入类控件: 同时具备 text 与 cursorPosition 的是 TextInput/TextEdit 一族,
+     * 按钮等只有 text 的控件不参与判定, 避免点过按钮后快捷键被误判为失效 */
+    function isTextInputItem(it) {
+        return (it!==null && it!==undefined
+                && it.text!==undefined && it.cursorPosition!==undefined);
+    }
+    /* 清掉文本输入焦点: 点空白处不会自然转移焦点, 用过搜索框后焦点一直挂着,
+     * 全局快捷键会长期失效; 只清文本输入类控件, 按钮等焦点保持原样 */
+    function clearInputFocus() {
+        var it=window.activeFocusItem;
+        var cleared=false;
+        while(it!==null && it!==undefined) {
+            if(window.isTextInputItem(it)===true) {
+                it.focus=false;
+                cleared=true;
+            }
+            it=it.parent;
+        }
+        return cleared;
+    }
+    /* 按下时清焦点: 落点还在焦点链上的文本输入控件(含其外层控件的内边距)里时保留,
+     * 其余位置一律清掉, 点空白处与列表行都不会自己转移焦点 */
+    function clearInputFocusUnlessHit(scenePos) {
+        var it=window.activeFocusItem;
+        var hasInput=false;
+        while(it!==null && it!==undefined) {
+            if(window.isTextInputItem(it)===true) {
+                hasInput=true;
+                if(Assist.hitItem(it,scenePos)===true) {
+                    return false;
+                }
+            }
+            it=it.parent;
+        }
+        return (hasInput===true? window.clearInputFocus():false);
+    }
+    /* 快捷键的生效条件: 焦点链上存在文本输入类控件时不响应, 避免吞掉打字用的空格与方向键 */
     function shortcutAllowed() {
-        var one=activeFocusItem;
-        return !(one!==null && one!==undefined && one.text!==undefined);
+        var it=window.activeFocusItem;
+        while(it!==null && it!==undefined) {
+            if(window.isTextInputItem(it)===true) {
+                return false;
+            }
+            it=it.parent;
+        }
+        return true;
     }
     /* 音量快捷键: 按步长增减并夹在 0 到 100 之间, 变化立即落盘 */
     function changeVolume(delta) {
@@ -1872,6 +1989,8 @@ ApplicationWindow {
         target: AppClickHelper;
         function onMousePressed(scenePos) {
             window.subsHide(scenePos);
+            /* 点到输入框以外的地方就交还键盘焦点, 空白处与列表行都不会自己转移焦点 */
+            window.clearInputFocusUnlessHit(scenePos);
         }
     }
     /* 元信息或清单刷新后, 让播放模块重新解析当前在线歌曲的取用地址 */
@@ -2023,14 +2142,15 @@ ApplicationWindow {
     }
     /* 桌面歌词的开关状态: 供歌词页里的播放栏副本点亮按钮 */
     readonly property bool desktopLyricsVisible: desktopLyrics.visible;
-    /* 悬浮歌词的默认位置: 所在屏幕底部居中, 距底 desktopLyricsBottomGap */
+    /* 悬浮歌词的默认位置: 所在屏幕底部居中, 距底 desktopLyricsBottomGap;
+     * 多屏时 x/y 必须带上屏幕原点, 与屏外回退的绝对坐标口径一致, 否则会落回主屏 */
     function placeDesktopLyrics() {
         var s=desktopLyrics.screen;
         if(s===null || s===undefined) {
             return false;
         }
-        desktopLyrics.x=Math.round((s.width-desktopLyrics.width)/2);
-        desktopLyrics.y=Math.round(s.height-desktopLyrics.height-Define.desktopLyricsBottomGap);
+        desktopLyrics.x=Math.round(s.x+(s.width-desktopLyrics.width)/2);
+        desktopLyrics.y=Math.round(s.y+s.height-desktopLyrics.height-Define.desktopLyricsBottomGap);
         return true;
     }
     /* 该点是否落在某块屏幕内: 显示器拔出后旧位置会落到屏外, 需要回退默认位置 */
@@ -2091,6 +2211,11 @@ ApplicationWindow {
     Component.onDestruction: {
         /* 退出前把当前播放进度与全部数据落盘 */
         Assist.dlog("界面","窗口销毁, 退出前保存进度与全部数据");
+        /* 桌面歌词位置还挂在防抖计时器上时先补一次落盘, 否则拖动后立刻退出会丢新位置 */
+        if(desktopLyricsPosTimer.running===true) {
+            desktopLyricsPosTimer.stop();
+            window.saveDesktopLyricsPos();
+        }
         player.syncPlayPosition(Math.floor(player.position));
         GlobalFileStorage.save();
     }

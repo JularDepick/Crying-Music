@@ -379,7 +379,14 @@ Rectangle {
         border.color: Define.subGrey;
         border.width: 1;
         visible: playerBarSubone.listVisible;
+        /* 收起时复位面板里清空按钮的确认态: 可见性切换发生在这层外壳上, 子项自身恒可见 */
+        onVisibleChanged: {
+            if(visible!==true) {
+                listPanelView.resetClearButton();
+            }
+        }
         PlayingListViewArea {
+            id: listPanelView;
             anchors.fill: parent;
             thePlayer: root.thePlayer;
             theMemStorage: root.theMemStorage;
@@ -787,7 +794,8 @@ Rectangle {
         }
         return out;
     }
-    /* 播放位置对应的行下标: 取最后一个时间戳不晚于当前秒数的行, 遇到无时间戳的行即停 */
+    /* 播放位置对应的行下标: 取最后一个时间戳不晚于当前秒数的行, 遇到无时间戳的行即停;
+     * 全部行都没有时间戳时返回 -1, 由调用方按首行兜底 */
     function lineIndexAt(sec) {
         var idx=-1;
         for(var i=0;i<lyricLines.length;i++) {
@@ -818,8 +826,10 @@ Rectangle {
         var sec=thePlayerBar.positionSec+lyricsOffsetMs/1000;
         var idx=lineIndexAt(sec);
         /* 边界: 播放位置还没到第一行的时间戳时, 先把第一行当作当前行锚定住;
+         * 全部行都没有时间戳的歌词同样把第 0 行当作当前行, 与首行兜底同一口径,
+         * 否则这类歌词页不高亮任何行, 桌面歌词恒显示"暂无歌词";
          * 最后一行播完之后固定停在最后一个有时间戳的行, 歌词侧不再换行, 也不干预播放 */
-        if(idx<0 && Number(lyricLines[0]["t"])>=0) {
+        if(idx<0) {
             idx=0;
         }
         currentLine=idx;

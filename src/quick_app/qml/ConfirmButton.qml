@@ -16,6 +16,11 @@ CustomButtonA {
     property int timeoutMs: Define.confirmTimeoutMs;
     /* 确认态状态: 外部置 false 即复位, 置 true 即进入确认态 */
     property bool confirming: false;
+    /* 双击防穿透窗口(毫秒): 首击之后这段时间内的第二次点击一律忽略, 否则连点两下就是
+     * "进入确认态 + 执行"; 取值优先用平台的双击间隔, 取不到时回退 400, 不改 3 秒确认窗口 */
+    property int doubleClickGuardMs: 400;
+    /* 上一次被采纳的点击时刻(毫秒时间戳) */
+    property real _lastClickMs: 0;
     /* 空闲态底色与悬停底色: 确认态沿用同一套底色, 只把文字, 图标与边框换成警示色 */
     property color idleColor: Define.hoverDarkColor;
     property color idleHoverColor: Define.choseDarkColor;
@@ -38,14 +43,32 @@ CustomButtonA {
     function reset() {
         confirming=false;
     }
-    /* 第一次点击进入确认态, 确认态内再次点击才发出 confirmed() */
+    /* 第一次点击进入确认态, 确认态内再次点击才发出 confirmed();
+     * 双击间隔内的第二次点击是误触, 直接忽略, 确认态与计时都不动 */
     onClicked: {
+        var now=Date.now();
         if(confirming===true) {
+            if(now-root._lastClickMs<root.doubleClickGuardMs) {
+                return;
+            }
+            root._lastClickMs=now;
             confirming=false;
             confirmed();
             return;
         }
+        root._lastClickMs=now;
         confirming=true;
+    }
+    Component.onCompleted: {
+        var iv=0;
+        try {
+            iv=Number(Qt.styleHints.mouseDoubleClickInterval);
+        } catch(e) {
+            iv=0;
+        }
+        if(isNaN(iv)!==true && iv>0) {
+            root.doubleClickGuardMs=iv;
+        }
     }
     /* 按钮不可见时立即回到空闲态 */
     onVisibleChanged: {

@@ -388,11 +388,10 @@ Rectangle {
      * 播放进度也会整体重写播放状态, 这里只在队列或当前项真的变化时才定位, 否则会把用户的手动滚动不断拉回 */
     property int _lastQueueLen: -1;
     property string _lastPlayingKey: "";
-    /* 面板隐藏时复位清空按钮, 避免下次打开还停在确认态 */
-    onVisibleChanged: {
-        if(visible!==true) {
-            playingListClearBtn.confirming=false;
-        }
+    /* 复位清空按钮的确认态: 收起发生在外层外壳上, 本组件自身的 visible 恒为真,
+     * 因此由宿主在收起时调用这个入口, 避免下次打开还停在确认态 */
+    function resetClearButton() {
+        playingListClearBtn.confirming=false;
     }
     Connections {
         target: GlobalFileStorage;
