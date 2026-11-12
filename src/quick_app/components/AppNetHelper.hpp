@@ -74,9 +74,21 @@ public:
                 emit cachedFileFailed(cacheKey, QStringLiteral("已被其它源抢先"));
                 return;
             }
+            /* 响应体上限: 封面与头像不会到这个量级, 超出说明地址异常或响应被替换,
+             * 不再整包读进内存 */
+            const qint64 declaredBytes =
+                reply->header(QNetworkRequest::ContentLengthHeader).toLongLong();
+            if (declaredBytes > cachedFileMaxBytes || reply->bytesAvailable() > cachedFileMaxBytes) {
+                emit cachedFileFailed(cacheKey, QStringLiteral("响应体过大"));
+                return;
+            }
             const QByteArray data = reply->readAll();
             if (data.isEmpty()) {
                 emit cachedFileFailed(cacheKey, QStringLiteral("空响应"));
+                return;
+            }
+            if (data.size() > cachedFileMaxBytes) {
+                emit cachedFileFailed(cacheKey, QStringLiteral("响应体过大"));
                 return;
             }
             /* 挡掉镜像用 200 返回的错误页: 文本与 JSON 一定不是图片, 未声明类型的照旧接受 */
@@ -89,11 +101,18 @@ public:
             }
             QDir().mkpath(QFileInfo(targetPath).absolutePath());
             QFile out(targetPath);
-            if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(data)<0) {
+            if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
                 emit cachedFileFailed(cacheKey, QStringLiteral("缓存写入失败"));
                 return;
             }
+            /* 写入字节数不足时删掉半成品, 否则下次命中缓存会读到残缺文件 */
+            const qint64 written = out.write(data);
             out.close();
+            if (written != qint64(data.size())) {
+                QFile::remove(targetPath);
+                emit cachedFileFailed(cacheKey, QStringLiteral("缓存写入失败"));
+                return;
+            }
             m_cachedFileWon.insert(targetName);
             emit cachedFileReady(cacheKey, QUrl::fromLocalFile(targetPath).toString());
         });
@@ -219,6 +238,10 @@ signals:
     void httpError(const QString &url, int status);
 
 private:
+    /* 单次小文件响应(封面与头像)的内存上限: 32 MB 已远超实际图片体积,
+     * 超过即判为响应异常, 避免异常地址把整个响应体读进内存 */
+    static constexpr qint64 cachedFileMaxBytes = 32 * 1024 * 1024;
+
     struct DownloadTask {
         QNetworkReply *reply = nullptr;
         QFile *file = nullptr;
@@ -289,7 +312,8 @@ private:
         return (ok? total:-1);
     }
 
-    /* 把已到达的数据写入目标文件 */
+    /* 把已到达的数据写入目标文件: 写入字节数与数据长度不一致即视为写失败,
+     * 立即中止该任务, 避免磁盘满时把残缺音频当成下载成功 */
     void writeChunk(const QString &taskKey, QNetworkReply *reply) {
         if (!m_downloads.contains(taskKey)) {
             reply->readAll();
@@ -297,13 +321,37 @@ private:
         }
         DownloadTask &task = m_downloads[taskKey];
         const QByteArray data = reply->readAll();
-        if (data.isEmpty()) {
+        if (data.isEmpty() || task.file==nullptr || task.cancelled) {
             return;
         }
         const qint64 written = task.file->write(data);
         if (written>0) {
             task.received += written;
         }
+        if (written != qint64(data.size())) {
+            qWarning() << "AppNetHelper writeChunk failed: " << task.dstPath
+                       << written << data.size() << fileErrorText(task.file);
+            /* failDownload 会中止请求并可能同步触发收尾, 之后不能再访问 task */
+            failDownload(task, QStringLiteral("写入失败: ") + fileErrorText(task.file));
+        }
+    }
+
+    /* 写失败的中止处理: 先记原因再中止请求, 半成品文件与失败信号由收尾统一处理 */
+    void failDownload(DownloadTask &task, const QString &reason) {
+        task.cancelled = true;
+        if (task.failReason.isEmpty()) {
+            task.failReason = reason;
+        }
+        QNetworkReply *reply = task.reply;
+        if (reply!=nullptr) {
+            reply->abort();
+        }
+    }
+
+    /* 写失败的可读原因: 文件对象给出具体错误, 没有错误信息时回退到通用说明 */
+    static QString fileErrorText(const QFile *file) {
+        const QString text = (file==nullptr? QString():file->errorString());
+        return (text.isEmpty()? QStringLiteral("磁盘写入失败"):text);
     }
 
     /* 音频下载的内容类型校验: 镜像用 200 返回的 HTML 或 JSON 错误页不是音频,
@@ -353,12 +401,23 @@ private:
             return;
         }
         DownloadTask task = m_downloads.take(taskKey);
+        /* 响应声明的总长度先取好, 收尾时与已收字节数比对 */
+        const qint64 declared =
+            reply->header(QNetworkRequest::ContentLengthHeader).toLongLong();
         writeChunkFinal(task, reply);
         reportHttpStatusIfBad(reply);
         reply->deleteLater();
         if (task.file!=nullptr) {
+            /* 落盘结果以 flush 与错误码为准: 磁盘满一类错误可能延后到刷新时才暴露 */
+            const bool flushed = task.file->flush();
             task.file->close();
+            const QFileDevice::FileError fileError = task.file->error();
+            const QString fileErrorDesc = fileErrorText(task.file);
             task.file->deleteLater();
+            if ((!flushed || fileError!=QFileDevice::NoError) && !task.cancelled) {
+                task.cancelled = true;
+                task.failReason = QStringLiteral("写入失败: ") + fileErrorDesc;
+            }
         }
         if (task.cancelled) {
             QFile::remove(task.dstPath);
@@ -386,6 +445,22 @@ private:
             emit downloadFailed(taskKey, QStringLiteral("下载结果为空"));
             return;
         }
+        /* 已收字节数必须与文件实际大小以及响应声明的总长度一致, 不一致说明文件残缺,
+         * 删除后按失败上报, 不能写进下载记录;
+         * 压缩传输时 Content-Length 是压缩后的大小, 与已收的解压字节不可比, 这一档只比文件大小 */
+        const bool encoded = !reply->rawHeader("Content-Encoding").isEmpty();
+        const qint64 expected = (encoded? -1:(declared>0? declared:task.total));
+        if (info.size()!=task.received || (expected>0 && task.received!=expected)) {
+            qWarning() << "AppNetHelper finishDownload incomplete: " << task.dstPath
+                       << task.received << info.size() << expected;
+            QFile::remove(task.dstPath);
+            emit downloadFailed(taskKey, (expected>0
+                ? QStringLiteral("下载不完整: 已收 %1 字节, 应为 %2 字节")
+                      .arg(task.received).arg(expected)
+                : QStringLiteral("下载不完整: 已收 %1 字节, 落盘 %2 字节")
+                      .arg(task.received).arg(info.size())));
+            return;
+        }
         emit downloadFinished(taskKey, QUrl::fromLocalFile(task.dstPath).toString());
     }
 
@@ -400,14 +475,24 @@ private:
         }
     }
 
-    /* 收尾前的最后一次写入: 此时 take 已把任务移出表, 因此单独处理 */
+    /* 收尾前的最后一次写入: 此时 take 已把任务移出表, 因此单独处理;
+     * 与 writeChunk 同一口径, 写入字节数不足时按写失败记原因 */
     void writeChunkFinal(DownloadTask &task, QNetworkReply *reply) {
         const QByteArray data = reply->readAll();
-        if (data.isEmpty() || task.file==nullptr) {
+        if (data.isEmpty() || task.file==nullptr || task.cancelled) {
             return;
         }
-        if (task.file->write(data)>0) {
-            task.received += data.size();
+        const qint64 written = task.file->write(data);
+        if (written>0) {
+            task.received += written;
+        }
+        if (written != qint64(data.size())) {
+            qWarning() << "AppNetHelper writeChunkFinal failed: " << task.dstPath
+                       << written << data.size() << fileErrorText(task.file);
+            task.cancelled = true;
+            if (task.failReason.isEmpty()) {
+                task.failReason = QStringLiteral("写入失败: ") + fileErrorText(task.file);
+            }
         }
     }
 

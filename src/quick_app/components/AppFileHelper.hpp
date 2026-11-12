@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QUrl>
 #include <QFile>
+#include <QSaveFile>
 #include <QDir>
 #include <QFileInfo>
 #include <QStringList>
@@ -173,6 +174,8 @@ public:
 
     /* 写: 入参为标准化绝对路径,默认 GBK,覆写模式,操作对象为非二进制文件。
      * 若父目录不存在,会自动补全各级目录。
+     * 采用原子写: 先写同目录临时文件, 校验写入字节数后再改名覆盖目标文件,
+     * 因此磁盘满或中途失败时目标原文件保持原样。
      * 成功 true,失败 false。 */
     Q_INVOKABLE bool writeFile(const QUrl &url, const QString &content) const {
         return writeFile(url, content, "GBK");
@@ -180,12 +183,23 @@ public:
 
     /* 写: 入参为标准化绝对路径,指定编码,覆写模式,操作对象为非二进制文件。
      * 若父目录不存在,会自动补全各级目录。
+     * 采用原子写, 任一步失败都返回 false 且不破坏目标原文件。
      * 成功 true,失败 false。 */
     Q_INVOKABLE bool writeFile(const QUrl &url, const QString &content, const QString &codecName) const {
         const QString filePath = url.toLocalFile();
-        const QFileInfo fileInfo(filePath);
+        if (filePath.isEmpty()) {
+            qWarning() << "AppFileHelper writeFile failed: empty path" << url;
+            return false;
+        }
+        /* 编码转换先做: 编码名非法时目标文件不应被触碰 */
+        auto encoder = QStringEncoder(codecName.toUtf8().constData());
+        if (!encoder.isValid()) {
+            qWarning() << "AppFileHelper invalid codec: " << codecName;
+            return false;
+        }
+        const QByteArray data = encoder(content);
         /* 自动补全缺失的父目录 */
-        const QDir parentDir = fileInfo.absoluteDir();
+        const QDir parentDir = QFileInfo(filePath).absoluteDir();
         if (!parentDir.exists()) {
             if (!parentDir.mkpath(".")) {
                 qWarning() << "AppFileHelper writeFile failed: cannot create dir "
@@ -193,18 +207,25 @@ public:
                 return false;
             }
         }
-        QFile fout(filePath);
-        if (!fout.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QSaveFile fout(filePath);
+        if (!fout.open(QIODevice::WriteOnly)) {
             qWarning() << "AppFileHelper writeFile failed: " << url << fout.errorString();
             return false;
         }
-        auto encoder = QStringEncoder(codecName.toUtf8().constData());
-        if (!encoder.isValid()) {
-            qWarning() << "AppFileHelper invalid codec: " << codecName;
+        const qint64 written = fout.write(data);
+        if (written != qint64(data.size())) {
+            qWarning() << "AppFileHelper writeFile failed: short write " << url
+                       << written << data.size();
+            fout.cancelWriting();
             return false;
         }
-        const QByteArray data = encoder(content);
-        return (fout.write(data) != -1);
+        /* commit 内部会刷新并原子改名, 失败时目标文件保持原样 */
+        if (!fout.commit()) {
+            qWarning() << "AppFileHelper writeFile failed: cannot commit " << url
+                       << fout.errorString();
+            return false;
+        }
+        return true;
     }
 
     /* 新建文件夹: 入参为标准化绝对路径。
@@ -246,15 +267,26 @@ public:
                        << parentDir.absolutePath();
             return false;
         }
-        QFile fout(dstPath);
-        if (!fout.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        /* 与 writeFile 同一口径: 临时文件写完校验字节数再原子改名, 失败不破坏已有目标 */
+        QSaveFile fout(dstPath);
+        if (!fout.open(QIODevice::WriteOnly)) {
             qWarning() << "AppFileHelper copyFile failed: cannot write " << dstUrl
                        << fout.errorString();
             return false;
         }
-        const bool ok = (fout.write(data) != -1);
-        fout.close();
-        return ok;
+        const qint64 written = fout.write(data);
+        if (written != qint64(data.size())) {
+            qWarning() << "AppFileHelper copyFile failed: short write " << dstUrl
+                       << written << data.size();
+            fout.cancelWriting();
+            return false;
+        }
+        if (!fout.commit()) {
+            qWarning() << "AppFileHelper copyFile failed: cannot commit " << dstUrl
+                       << fout.errorString();
+            return false;
+        }
+        return true;
     }
 
     /* 删除文件: 入参为标准化绝对路径, 文件本就不存在时视为成功 */
@@ -603,7 +635,8 @@ private:
         return dir + QStringLiteral("/local_") + key + QStringLiteral(".png");
     }
 
-    /* 内嵌封面落盘: 先写临时文件再改名, 中途失败不会留下半张图 */
+    /* 内嵌封面落盘: 与 writeFile 同一口径的原子写, 中途失败不会留下半张图,
+     * 也不会出现目标文件已被删除而新文件尚未就位的空档 */
     static bool saveCoverImage(const QString &absfpath, const QImage &image) {
         if (image.isNull()) {
             return false;
@@ -612,16 +645,20 @@ private:
         if (path.isEmpty()) {
             return false;
         }
-        const QString tmp = path + QStringLiteral(".tmp");
-        if (!image.save(tmp, "PNG")) {
-            qWarning() << "AppFileHelper saveCoverImage failed: cannot write " << tmp;
-            QFile::remove(tmp);
+        QSaveFile out(path);
+        if (!out.open(QIODevice::WriteOnly)) {
+            qWarning() << "AppFileHelper saveCoverImage failed: cannot open " << path
+                       << out.errorString();
             return false;
         }
-        QFile::remove(path);
-        if (!QFile::rename(tmp, path)) {
-            qWarning() << "AppFileHelper saveCoverImage failed: cannot rename " << tmp;
-            QFile::remove(tmp);
+        if (!image.save(&out, "PNG")) {
+            qWarning() << "AppFileHelper saveCoverImage failed: cannot write " << path;
+            out.cancelWriting();
+            return false;
+        }
+        if (!out.commit()) {
+            qWarning() << "AppFileHelper saveCoverImage failed: cannot commit " << path
+                       << out.errorString();
             return false;
         }
         return true;
