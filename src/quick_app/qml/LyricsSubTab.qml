@@ -1227,6 +1227,10 @@ Rectangle {
             }
         }
     }
+    /* 显示位置(锚定比例)变化后立刻重锚一次: 切换四档锚定后当前行要马上落到新的高度上 */
+    onAnchorRatioChanged: {
+        Qt.callLater(root.anchorToCurrentLine);
+    }
     /* 把当前行钉到锚定线: 先让列表把这一行实例化, 再按它的真实内容偏移算滚动位置;
      * 首尾由列表的首尾留白兜底; 用户正在拖动时不抢占, 松手后由列表的 movementEnded 重新锚定 */
     function anchorToCurrentLine() {
@@ -1255,7 +1259,15 @@ Rectangle {
         if(it===null || it===undefined) {
             return false;
         }
-        lyricView.contentY=Math.max(0,it.y-lyricView.height*root.anchorRatio);
+        /* 目标偏移按行 y 反算, 再按内容两端收一次:
+         * 首行贴内容顶, 末行贴内容底, 中间行落在锚定线上 */
+        var target=it.y-lyricView.height*root.anchorRatio;
+        if(root.currentLine===0) {
+            target=Math.max(0,target);
+        } else if(root.currentLine===lyricLines.length-1) {
+            target=Math.min(target,Math.max(0,lyricView.contentHeight-lyricView.height));
+        }
+        lyricView.contentY=Math.max(0,target);
         /* 记下锚定位置: 跳转按钮的可见性按它与当前偏移的差判断 */
         root._anchorContentY=lyricView.contentY;
         return true;
