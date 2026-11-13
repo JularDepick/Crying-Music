@@ -19,6 +19,8 @@ Item {
     property bool hintError: false;
     /* 本次会话是否已经发出过验证码: 页面据此露出验证码输入与登录按钮 */
     property bool codeSent: false;
+    /* 验证码发往的邮箱(已归一化): 页面据此判断输入框里的邮箱是否仍是同一地址 */
+    property string codeSentTo: "";
     /* 下一次允许重发验证码的时刻(毫秒), 0 表示没有冷却 */
     property double resendAt: 0;
     /* 时间基准: 由两个定时器推进, 供冷却倒计时与保留期判定绑定 */
@@ -28,8 +30,10 @@ Item {
     property string avatarLarge: "";
     /* 头像缓存版本: 重新缓存后加一, 页面把它拼进地址以绕开图片缓存 */
     property int avatarRev: 0;
-    /* 在途请求: 同一时刻只允许一个, 超时或新请求到来时中止它 */
+    /* 在途请求分两条通道: 交互通道(发送验证码, 校验, 资料, 退出)与后台通道(听歌上报);
+     * 通道内新请求中止旧请求, 通道之间互不干扰, 因此定时的听歌上报不会打断登录 */
     property var pendingXhr: null;
+    property var pendingQuietXhr: null;
 
     /* 落盘记录里的字段: 邮箱, 登录时刻, 签名与登录状态秘钥 */
     readonly property string email:
@@ -60,6 +64,10 @@ Item {
     /* 归一化邮箱: 去掉首尾空白并统一小写, 与服务端的口径一致 */
     function normalizeEmail(raw) {
         return String(raw===undefined || raw===null? "":raw).trim().toLowerCase();
+    }
+    /* 验证码是否仍然对应当前邮箱: 邮箱被改动后验证码行不再露出 */
+    function codeMatches(rawEmail) {
+        return (codeSent===true && codeSentTo!=="" && codeSentTo===normalizeEmail(rawEmail));
     }
     /* 邮箱形状校验: 与服务端同一套基本规则, 只挡明显的错误输入 */
     function isMailValid(email) {
@@ -167,8 +175,14 @@ Item {
         if(status===0) {
             return "无法连接服务器, 请检查网络";
         }
+        if(status===400) {
+            return "请求被拒绝, 请检查填写内容";
+        }
         if(status===401) {
             return "客户端密钥无效, 请更新应用";
+        }
+        if(status===403) {
+            return "没有权限执行该操作";
         }
         if(status===429) {
             return "操作过于频繁, 请稍后再试";
@@ -179,32 +193,54 @@ Item {
         return "请求失败(状态 "+String(status)+")";
     }
     /* 发一次 JSON POST: 无论成败都回一次 onDone(是否收到响应, 状态码, 解析后的对象);
-     * 同一时刻只允许一个在途请求, 新请求会先中止旧的 */
-    function post(path,payload,onDone) {
-        return sendJson("POST",path,payload,false,onDone);
+     * 同一通道内只允许一个在途请求, 新请求会先中止旧的 */
+    function post(path,payload,onDone,quiet) {
+        return sendJson("POST",path,payload,false,onDone,quiet);
     }
     /* 发一次 GET: 不带请求体, 供资料查询使用 */
-    function get(path,onDone) {
-        return sendJson("GET",path,null,false,onDone);
+    function get(path,onDone,quiet) {
+        return sendJson("GET",path,null,false,onDone,quiet);
     }
     /* 带登录状态秘钥的 POST: 涉及用户的操作一律走这里, 秘钥放在请求头里 */
-    function postWithSession(path,payload,onDone) {
-        return sendJson("POST",path,payload,true,onDone);
+    function postWithSession(path,payload,onDone,quiet) {
+        return sendJson("POST",path,payload,true,onDone,quiet);
     }
     /* 带登录状态秘钥的 GET */
-    function getWithSession(path,onDone) {
-        return sendJson("GET",path,null,true,onDone);
+    function getWithSession(path,onDone,quiet) {
+        return sendJson("GET",path,null,true,onDone,quiet);
     }
-    /* 发送 JSON 请求的公共实现: withSession 为真时把登录状态秘钥放进 X-Session-Key */
-    function sendJson(method,path,payload,withSession,onDone) {
-        var old=pendingXhr;
+    /* 后台通道的带秘钥 POST: 定时的听歌上报走这里, 不占用交互通道 */
+    function postQuiet(path,payload,onDone) {
+        return sendJson("POST",path,payload,true,onDone,true);
+    }
+    /* 取某条通道上的在途请求 */
+    function slotXhrOf(slot) {
+        return (slot==="quiet"? pendingQuietXhr:pendingXhr);
+    }
+    /* 记下某条通道上的在途请求 */
+    function setSlotXhr(slot,xhr) {
+        if(slot==="quiet") {
+            pendingQuietXhr=xhr;
+        } else {
+            pendingXhr=xhr;
+        }
+    }
+    /* 某条通道对应的超时定时器 */
+    function timerOf(slot) {
+        return (slot==="quiet"? reqTimerQuiet:reqTimer);
+    }
+    /* 发送 JSON 请求的公共实现: withSession 为真时把登录状态秘钥放进 X-Session-Key;
+     * quiet 为真时走后台通道, 既不中止交互通道的请求, 也不被它们中止 */
+    function sendJson(method,path,payload,withSession,onDone,quiet) {
+        var slot=(quiet===true? "quiet":"interactive");
+        var old=slotXhrOf(slot);
         if(old!==null) {
             old.__aborted=true;
             try {
                 old.abort();
             } catch(e0) {
             }
-            pendingXhr=null;
+            setSlotXhr(slot,null);
             /* 被中止的请求同样要回调, 否则调用方的在途状态(登录 phase)会永远停在中间态;
              * 延后一拍执行, 避免回调里再发请求时覆盖本函数新建的请求.
              * 回调的第 4 个入参 aborted 为真表示这次回调是被中止触发的: 请求可能已经
@@ -225,7 +261,7 @@ Item {
             onDone(false,0,null);
             return false;
         }
-        pendingXhr=xhr;
+        setSlotXhr(slot,xhr);
         xhr.__onDone=onDone;
         var settled=false;
         xhr.onreadystatechange=function() {
@@ -234,10 +270,10 @@ Item {
             }
             settled=true;
             xhr.__onDone=null;
-            if(accountRoot.pendingXhr===xhr) {
-                accountRoot.pendingXhr=null;
+            if(accountRoot.slotXhrOf(slot)===xhr) {
+                accountRoot.setSlotXhr(slot,null);
             }
-            reqTimer.stop();
+            accountRoot.timerOf(slot).stop();
             var body=null;
             try {
                 body=JSON.parse(xhr.responseText);
@@ -257,21 +293,21 @@ Item {
             }
         } catch(e3) {
             Assist.dwarn("用户","请求发起失败: ",path,", ",e3);
-            pendingXhr=null;
+            setSlotXhr(slot,null);
             xhr.__onDone=null;
             onDone(false,0,null);
             return false;
         }
-        reqTimer.restart();
+        timerOf(slot).restart();
         Assist.dlog("用户","请求: ",method," ",apiUrlOf(path));
         try {
             xhr.send((method==="POST" && payload!==null && payload!==undefined)
                      ? JSON.stringify(payload):null);
         } catch(e4) {
             Assist.dwarn("用户","请求发送失败: ",path,", ",e4);
-            pendingXhr=null;
+            setSlotXhr(slot,null);
             xhr.__onDone=null;
-            reqTimer.stop();
+            timerOf(slot).stop();
             onDone(false,0,null);
             return false;
         }
@@ -290,16 +326,23 @@ Item {
         /* 先按成功展开: 验证码输入与冷却立即出现, 请求回来再决定保留还是回退,
          * 因此点发送之后界面不等网络; 回退时把这两项还原成发送前的样子 */
         var wasSent=codeSent;
+        var wasSentTo=codeSentTo;
         var wasResendAt=resendAt;
         codeSent=true;
+        codeSentTo=emailOne;
         nowMs=Date.now();
         resendAt=nowMs+Define.loginResendFallbackSeconds*1000;
         phase=1;
         setHint(false,"");
-        post("code/send",{"email":emailOne},function(sent,status,body) {
+        post("code/send",{"email":emailOne},function(sent,status,body,aborted) {
             accountRoot.phase=0;
+            /* 被同一通道的新请求中止: 请求可能已经送达, 状态交给新请求, 这里不提示失败 */
+            if(aborted===true) {
+                return;
+            }
             if(sent!==true) {
                 accountRoot.codeSent=wasSent;
+                accountRoot.codeSentTo=wasSentTo;
                 accountRoot.resendAt=wasResendAt;
                 accountRoot.nowMs=Date.now();
                 accountRoot.setHint(true,"无法连接服务器, 请检查网络");
@@ -309,6 +352,7 @@ Item {
                 var cool=(typeof body.cooldown==="number"
                           ? body.cooldown:Define.loginResendFallbackSeconds);
                 accountRoot.codeSent=true;
+                accountRoot.codeSentTo=emailOne;
                 accountRoot.nowMs=Date.now();
                 accountRoot.resendAt=accountRoot.nowMs+cool*1000;
                 accountRoot.setHint(false,(typeof body.message==="string"
@@ -318,6 +362,7 @@ Item {
             }
             /* 服端明确拒绝时同样回退: 冷却不白占, 验证码区回到发送前 */
             accountRoot.codeSent=wasSent;
+            accountRoot.codeSentTo=wasSentTo;
             accountRoot.resendAt=wasResendAt;
             accountRoot.nowMs=Date.now();
             Assist.dwarn("用户","验证码发送失败: 状态 ",status);
@@ -342,8 +387,12 @@ Item {
         }
         phase=2;
         setHint(false,"");
-        post("code/verify",{"email":emailOne,"code":code},function(sent,status,body) {
+        post("code/verify",{"email":emailOne,"code":code},function(sent,status,body,aborted) {
             accountRoot.phase=0;
+            /* 被同一通道的新请求中止: 状态交给新请求, 这里不提示失败 */
+            if(aborted===true) {
+                return;
+            }
             if(sent!==true) {
                 accountRoot.setHint(true,"无法连接服务器, 请检查网络");
                 return;
@@ -369,6 +418,7 @@ Item {
             }
             var saved=GlobalFileStorage.setAccount(body.email,body.issuedAt,body.sign,body.sessionKey);
             accountRoot.codeSent=false;
+            accountRoot.codeSentTo="";
             accountRoot.resendAt=0;
             accountRoot.nowMs=Date.now();
             accountRoot.setHint(saved!==true,(saved===true
@@ -401,6 +451,7 @@ Item {
         }
         GlobalFileStorage.clearAccount();
         codeSent=false;
+        codeSentTo="";
         resendAt=0;
         nowMs=Date.now();
         setHint(false,"已退出登录");
@@ -444,7 +495,7 @@ Item {
         var carry=(typeof GlobalFileStorage.listenState.pendingSeconds==="number"
                    ? GlobalFileStorage.listenState.pendingSeconds:0);
         var reportSeconds=chunk+carry;
-        postWithSession("user/listen",{"seconds":reportSeconds},function(sent,status,body,aborted) {
+        postQuiet("user/listen",{"seconds":reportSeconds},function(sent,status,body,aborted) {
             if(aborted===true) {
                 /* 被后一次上报中止: 请求已经发出, 服务端可能已经收下这一段, 无法确认送达,
                  * 因此不补报(补报会重复计入累计听歌与等级), 待补报里原有的秒数保持不变 */
@@ -553,6 +604,24 @@ Item {
             accountRoot.phase=0;
             accountRoot.setHint(true,"请求超时, 请检查网络后重试");
             Assist.dwarn("用户","请求超时");
+        }
+    }
+    /* 后台通道的超时: 只中止请求, 不改提示也不改登录阶段 */
+    Timer {
+        id: reqTimerQuiet;
+        interval: Define.loginRequestTimeoutMs;
+        repeat: false;
+        onTriggered: {
+            var one=accountRoot.pendingQuietXhr;
+            accountRoot.pendingQuietXhr=null;
+            if(one!==null) {
+                one.__aborted=true;
+                try {
+                    one.abort();
+                } catch(e) {
+                }
+            }
+            Assist.dwarn("用户","后台请求超时");
         }
     }
     /* 冷却倒计时: 只在冷却期内每秒推进, 供页面显示"重新发送(nn 秒)" */

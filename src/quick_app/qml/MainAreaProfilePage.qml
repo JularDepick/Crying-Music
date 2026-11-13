@@ -29,15 +29,18 @@ MainAreaFatherPage {
         }
         return String(m)+" 分钟";
     }
-    /* 重发链接的文案: 依次覆盖发送中, 冷却中与可重发三种情况 */
-    function resendLabel() {
+    /* 发送按钮的文案: 首次是发送验证码, 之后按在途与冷却状态给出重新发送 */
+    function sendLabel() {
         if(Account.phase===1) {
             return "正在发送";
         }
-        if(Account.resendLeftSeconds>0) {
-            return "重新发送 ("+String(Account.resendLeftSeconds)+" 秒)";
+        if(Account.codeSent!==true) {
+            return "发送验证码";
         }
-        return "重新发送验证码";
+        if(Account.resendLeftSeconds>0) {
+            return "重发 "+String(Account.resendLeftSeconds)+"s";
+        }
+        return "重新发送";
     }
     /* 提交邮箱: 只发验证码, 不发登录请求 */
     function submitEmail() {
@@ -79,6 +82,23 @@ MainAreaFatherPage {
         /* 登录状态变化后退出按钮不再处于确认态 */
         function onLoggedInChanged() {
             mainArea_ProfilePage.resetLogoutConfirm();
+        }
+    }
+    /* 提示行自动消失: 与完成提示浮层同一口径, 不让上一次的提示一直挂着 */
+    Timer {
+        id: hintFadeTimer;
+        interval: Define.loginHintFadeMs;
+        repeat: false;
+        onTriggered: {
+            Account.setHint(false,"");
+        }
+    }
+    Connections {
+        target: Account;
+        function onHintChanged() {
+            if(Account.hint!=="") {
+                hintFadeTimer.restart();
+            }
         }
     }
 
@@ -139,7 +159,7 @@ MainAreaFatherPage {
                     width: Define.loginActionWidth;
                     height: Define.loginFieldHeight;
                     transEnabled: false;
-                    enabled: (Account.phase===0);
+                    enabled: (Account.phase===0 && Account.resendLeftSeconds===0);
                     opacity: (enabled? 1:0.5);
                     background: Rectangle {
                         anchors.fill: parent;
@@ -147,7 +167,7 @@ MainAreaFatherPage {
                         color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
                         Text {
                             anchors.centerIn: parent;
-                            text: "发送验证码";
+                            text: mainArea_ProfilePage.sendLabel();
                             font.pixelSize: 13;
                             color: Define.textColor;
                         }
@@ -162,7 +182,8 @@ MainAreaFatherPage {
         /* 验证码行: 只在发出验证码之后出现 */
         Column {
             id: codeBlock;
-            visible: (Account.codeSent===true);
+            /* 验证码只对发出它的那个邮箱有效: 邮箱一改, 这一行随之收起 */
+            visible: Account.codeMatches(emailField.text);
             width: parent.width;
             spacing: 8;
             Text {
@@ -208,21 +229,7 @@ MainAreaFatherPage {
                     }
                 }
             }
-            /* 重发做成文字链接, 不占一条按钮的位置; 冷却期内不可点 */
-            Text {
-                property bool canResend: (Account.phase===0 && Account.resendLeftSeconds===0);
-                text: mainArea_ProfilePage.resendLabel();
-                font.pixelSize: 12;
-                color: (canResend? Define.choseCyanColor:Define.forbdDarkColor);
-                MouseArea {
-                    anchors.fill: parent;
-                    enabled: (parent.canResend===true);
-                    cursorShape: (parent.canResend===true? Qt.PointingHandCursor:Qt.ArrowCursor);
-                    onClicked: {
-                        mainArea_ProfilePage.submitEmail();
-                    }
-                }
-            }
+            /* 重发只有发送按钮一个入口: 冷却剩余秒数与在途状态都体现在它的文案与可用性上 */
         }
 
         /* 提示行: 只在确实有内容时出现 */

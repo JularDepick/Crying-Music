@@ -150,6 +150,8 @@ Item {
     property int loginKeepDays: 7;
     property int loginRequestTimeoutMs: 12000;
     property int loginResendFallbackSeconds: 60;
+    /* 用户页提示行的自动消失时长: 与完成提示浮层同一口径, 不长时间占位 */
+    property int loginHintFadeMs: 4000;
     /* QQ 头像: 两档清晰度, 大图用于用户页, 小图用于左侧栏, 均由 qlogo 按 QQ 号取;
      * 模板里的 {qq} 与 {spec} 在取地址时替换 */
     property int avatarSpecSmall: 100;
