@@ -17,7 +17,7 @@ find_package(Qt6 REQUIRED COMPONENTS Quick Multimedia Qml Network Widgets)
 # TagLib: 读取本地音频的标签, 内嵌封面与歌词(第三方静态库, 许可见 THIRD-PARTY-NOTICES.md).
 # 默认使用随源码携带的预构建产物 external/taglib, 因此从源码构建只需要装 Qt, 不必另外安装 TagLib;
 # 想用自己编译的那份时传 -DTAGLIB_ROOT=<安装前缀>, 布局与随源码携带的一致(include/ 与 lib/);
-# 该库是静态库, 运行时不需要额外的 DLL, 静态链接时需要 zlib(由 MinGW 工具链自带)
+# 该库是静态库, 运行时不需要额外的 DLL; 随包库未启用 zlib, 链接行保留 z 以兼容自行编译且启用 zlib 的那份(由 MinGW 工具链自带)
 set(TAGLIB_ROOT "" CACHE PATH "外部 TagLib 安装前缀, 留空表示使用随源码携带的 external/taglib")
 set(TAGLIB_VENDORED_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/external/taglib")
 if(TAGLIB_ROOT)
@@ -34,8 +34,8 @@ if(POLICY CMP0144)
 endif()
 find_package(TagLib CONFIG REQUIRED)
 message(STATUS "TagLib 安装前缀: ${TAGLIB_EFFECTIVE_ROOT}")
-# zlib: TagLib 的静态库会引用 zlib 的符号, 由 MinGW 工具链自带(x86_64-w64-mingw32/lib/libz.a),
-# 直接在链接行写 z, 让链接器按自己的搜索路径去找, 不走 find_library
+# zlib: 由 MinGW 工具链自带(x86_64-w64-mingw32/lib/libz.a); 直接在链接行写 z,
+# 让链接器按自己的搜索路径去找, 不走 find_library
 
 # 业务逻辑源文件
 file(GLOB_RECURSE COMPONENTS_SOURCES CONFIGURE_DEPENDS "components/*.hpp")

@@ -36,11 +36,19 @@
 | `COPYING.LGPL` | GNU LGPL version 2.1 全文 |
 | `COPYING.MPL` | Mozilla Public License version 1.1 全文 |
 
+## 构建方式
+
+- 源码: 上游 `taglib-2.3.2` 发布包, 未做修改
+- 工具链: Qt 6.11.1 自带的 MinGW 13.1.0 与 CMake, 静态编译
+- 构建选项: `BUILD_SHARED_LIBS=OFF` `BUILD_TESTING=OFF` `BUILD_BINDINGS=OFF` `WITH_ZLIB=OFF`
+- 取用范围: 安装前缀下的 `include/taglib/`, `include/utf8cpp/`, `lib/libtag.a` 与 `lib/cmake/taglib/`; 其余安装产物(如 `bin/` 与 `lib/pkgconfig/`)不随源码携带
+- 未启用 zlib, 与随包库此前的行为一致; 压缩的 ID3v2 帧因此读不出, 需要时自行构建并在应用侧补 `ZLIB::ZLIB`
+
 ## 已知限制
 
 - 静态库是 MinGW 64 位工具链(GCC)构建的, 只适用于 MinGW 套件;
   用 MSVC 构建时需要自行编译一份, 并用 `-DTAGLIB_ROOT=<安装前缀>` 指定, CMakeLists 会给出提示
-- 静态链接需要 zlib, 由 MinGW 工具链自带(`x86_64-w64-mingw32/lib/libz.a`), CMakeLists 里直接链接 `z`
+- 静态链接: 随包库未启用 zlib; 应用侧链接行仍保留 `z`, 以兼容自行编译且启用 zlib 的那份(`x86_64-w64-mingw32/lib/libz.a`)
 - 库是静态链接进 `CryingMusic.exe` 的, 发布包里没有单独的 TagLib 动态库
 
 ## 替换方式
