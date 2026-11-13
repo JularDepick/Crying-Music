@@ -12,8 +12,8 @@ MainAreaFatherPage {
     visible: false;
     /* 推荐列表: 由在线曲库清单构造, 只由重建函数整体替换 */
     property var recommendModel: ([]);
-    /* 默认排序档: 歌名降序; 排序只有四档, 1 歌名升, 2 歌名降, 3 歌手升, 4 歌手降 */
-    readonly property int sortStepDefault: 2;
+    /* 默认排序档: 歌名升序; 排序只有四档, 1 歌名升, 2 歌名降, 3 歌手升, 4 歌手降 */
+    readonly property int sortStepDefault: 1;
     property int sortStep: sortStepDefault;
     /* 网格每行放几张卡片: 与 GridView 的分列口径一致(内容宽度除以单元格宽度向下取整),
      * 定位按钮按它把卡片下标换算成行列位置 */
@@ -204,23 +204,24 @@ MainAreaFatherPage {
                         CustomButtonA {
                             id: coverPlayBtn;
                             anchors.centerIn: parent;
-                            width: 34;
-                            height: 34;
+                            /* 图标按原尺寸的三倍放大, 按钮同步放大以容下图标 */
+                            width: 54;
+                            height: 54;
                             /* 正在播放的卡片常显这个按钮, 其余卡片仍然只在悬停时浮出 */
                             visible: (cardBox.hoveredCard===true || cardBox.playingRow===true);
                             /* 正在播放且不悬停时把图标位置让给跳动的柱子, 悬停时仍是播放图标 */
                             icon.source: ((cardBox.playingRow===true && cardBox.hoveredCard!==true)
                                           ? "":"qrc:/assets/iconfont/playerbar/play.svg");
                             icon.color: "white";
-                            icon.width: 18;
-                            icon.height: 18;
+                            icon.width: 54;
+                            icon.height: 54;
                             hoverColorEnabled: false;
                             transEnabled: false;
                             /* 播放中的状态图标: 与歌曲列表行用的是同一份组件, 播放中才推进 */
                             PlayingBars {
                                 anchors.centerIn: parent;
-                                width: 18;
-                                height: 18;
+                                width: 54;
+                                height: 54;
                                 barColor: Define.mainAreaColor;
                                 active: (thePlayer!==null && thePlayer.playing===true);
                                 visible: (cardBox.playingRow===true && cardBox.hoveredCard!==true);
