@@ -1797,9 +1797,10 @@ ApplicationWindow {
     Rectangle {
         id: loadingTip;
         /* 画面位置: 下边界贴主播放条上边界再上移 5. 按窗口默认高度 690, 播放条高 80 与 windowPadding 10
-         * 算出: 播放条上沿 600, 提示下沿 595, 提示高 26, 因此 y 取 569; 元素树位置不变, 不再用锚点串起来 */
+         * 算出: 播放条上沿 600, 提示下沿 595, 提示高 26, 因此 y 取 569; 元素树位置不变, 不再用锚点串起来.
+         * 水平方向以主播放条为准居中: 左侧栏展开与折叠时播放条不在窗口正中, 跟着窗口居中会偏 */
         y: 569
-        anchors.horizontalCenter: parent.horizontalCenter;
+        x: (playerBar.x+(playerBar.width-width)/2);
         width: loadingTipText.width+24;
         height: 26;
         radius: 5;
