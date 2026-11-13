@@ -16,6 +16,7 @@
 #include <QUrl>
 #include <QRegularExpression>
 #include <qdebug.h>
+#include <string>
 
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
@@ -168,8 +169,17 @@ private:
             return rec;
         }
         rec.insert(QStringLiteral("localPath"), local);
-        const QByteArray nativePath = local.toUtf8();
+        /* TagLib 的 FileName 在 Windows 上也能接窄字符串, 但它按系统 ANSI 代码页解释,
+         * 中文路径会被曲解成另一个不存在的名字, FileRef 直接打不开;
+         * 因此 Windows 一律传宽字符路径(QString 本身就是 UTF-16, 不必再经代码页转换),
+         * 其它平台按本地 8 位编码传 */
+#ifdef Q_OS_WIN
+        const std::wstring nativePath = local.toStdWString();
+        TagLib::FileRef ref(nativePath.c_str(), true, TagLib::AudioProperties::Fast);
+#else
+        const QByteArray nativePath = local.toLocal8Bit();
         TagLib::FileRef ref(nativePath.constData(), true, TagLib::AudioProperties::Fast);
+#endif
         if (ref.isNull() || ref.file() == nullptr) {
             qWarning() << "AppSongFileHelper readOne failed: taglib cannot open" << local;
             return rec;
