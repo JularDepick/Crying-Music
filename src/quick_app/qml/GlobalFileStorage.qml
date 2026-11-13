@@ -27,6 +27,8 @@ Item {
     property string accountFileName: "account.json";
     /* 听歌时长上报状态: 服务端累计秒数与本地待补报秒数 */
     property string listenStateFileName: "listenState.json";
+    /* 本地曲目的标签缓存: 键为标准化路径, 值为 AppSongFileHelper 交回的记录 */
+    property string localTagsFileName: "Local_Tags.json";
     /* 迁移标记: 记录已经并进本目录的来源目录, 同一来源只合并一次 */
     property string migrationMarkFileName: "migration.json";
     /* 存储布局: 在线音乐的下载文件放在 <storageDirPath>/downloads 下,
@@ -737,6 +739,10 @@ Item {
                       "sign":(typeof ac.sign==="string"? ac.sign:""),
                       "sessionKey":(typeof ac.sessionKey==="string"? ac.sessionKey:"")});
         }
+        var lt=readPayload(storageDirPath,localTagsFileName);
+        if(lt!==null && typeof lt==="object") {
+            localTags=lt;
+        }
         var ls2=readPayload(storageDirPath,listenStateFileName);
         if(ls2!==null) {
             listenState=({"totalSeconds":(typeof ls2.totalSeconds==="number"? ls2.totalSeconds:0),
@@ -770,7 +776,62 @@ Item {
         writePayload(storageDirPath,uiStateFileName,uiState);
         writePayload(storageDirPath,accountFileName,account);
         writePayload(storageDirPath,listenStateFileName,listenState);
+        writePayload(storageDirPath,localTagsFileName,localTags);
         return true;
+    }
+    /* 本地曲目标签缓存: 键为标准化路径, 值由 AppSongFileHelper 给出; 跨模块只经此处交换 */
+    property var localTags: ({});
+    /* 一批文件处理完后只落一次盘: 写入只改内存并起合并写盘的表 */
+    property bool _localTagsDirty: false;
+    Timer {
+        id: localTagsSaveTimer;
+        interval: 800;
+        repeat: false;
+        onTriggered: {
+            GlobalFileStorage.saveLocalTags();
+        }
+    }
+    /* 取某路径的标签记录: 没有时返回 null */
+    function localTagOf(absfpath) {
+        var p=String(absfpath===undefined || absfpath===null? "":absfpath);
+        if(p==="") {
+            return null;
+        }
+        var one=localTags[p];
+        return (one===undefined? null:one);
+    }
+    /* 记一条标签记录: 合并进内存并起表, 由 Timer 合并写盘 */
+    function setLocalTag(record) {
+        if(record===null || record===undefined) {
+            return false;
+        }
+        var p=String(record["absfpath"]===undefined || record["absfpath"]===null? "":record["absfpath"]);
+        if(p==="") {
+            return false;
+        }
+        var m=({});
+        for(var k in localTags) {
+            m[k]=localTags[k];
+        }
+        m[p]=record;
+        localTags=m;
+        _localTagsDirty=true;
+        localTagsSaveTimer.restart();
+        return true;
+    }
+    /* 只写本地曲目标签缓存 */
+    function saveLocalTags() {
+        if(storageDirPath==="") {
+            return false;
+        }
+        _localTagsDirty=false;
+        return writePayload(storageDirPath,localTagsFileName,localTags);
+    }
+    /* 清空本地曲目标签缓存: 下一次扫描会重新解析 */
+    function clearLocalTags() {
+        localTags=({});
+        _localTagsDirty=false;
+        return saveLocalTags();
     }
     /* 只写听歌上报状态 */
     function saveListenState() {

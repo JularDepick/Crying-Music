@@ -886,6 +886,10 @@ MainAreaFatherPage {
                 selectedWhich="";
                 contentY=0;
                 Assist.dlog("列表","重建列表: 标签 ",headRow.curr,", 共 ",v.length," 项");
+                /* 本地标签: 还没有缓存的文件交给 AppSongFileHelper 解析, 结果回来后再刷一次 */
+                if(headRow.curr==="localSongs") {
+                    mainArea_LocalPage.enqueueTagReads();
+                }
             }
             /* 按当前排序键返回重排副本 */
             function sortList(v) {
@@ -1710,6 +1714,21 @@ MainAreaFatherPage {
             mainArea_LocalPage.onCoverReady(absfpath,coverPath);
         }
     }
+    /* 本地标签缓存就绪: 逐个收进存储, 整批结束后按新数据刷新一次列表(保持滚动位置) */
+    Connections {
+        target: AppSongFileHelper;
+        function onSongReady(record) {
+            GlobalFileStorage.setLocalTag(record);
+        }
+        function onFinished(count) {
+            if(count<=0 || headRow.curr!=="localSongs") {
+                return;
+            }
+            var v=mainArea_LocalPage.collectLocalSongs();
+            mainArea_LocalPage.replaceModelKeepScroll(mainListView.sortList(v));
+            Assist.dlog("元数据","本地标签已补齐: ",count," 个文件");
+        }
+    }
     /* 下载进度变化: 正在下载标签就地换模型 */
     Connections {
         target: mainArea_LocalPage.theMemStorage;
@@ -1727,6 +1746,30 @@ MainAreaFatherPage {
                 mainListView.rebuild();
             }
         }
+    }
+    /* 把还没有标签缓存的本地文件交给 AppSongFileHelper: 只登记缺的那些,
+     * 目录取本地封面缓存与歌词缓存, 两处命名与既有缓存一致 */
+    function enqueueTagReads() {
+        var v=mainArea_LocalPage.mainListViewModel;
+        var paths=[];
+        var l=v.length;
+        for(var i=0;i<l;i++) {
+            if(v[i]["online"]===true) {
+                continue;
+            }
+            var p=String(v[i]["absfpath"]);
+            if(p==="" || GlobalFileStorage.localTagOf(p)!==null) {
+                continue;
+            }
+            paths.push(p);
+        }
+        if(paths.length<=0) {
+            return 0;
+        }
+        AppSongFileHelper.processFiles(paths,AppFileHelper.localCoverDir(),
+                                       GlobalFileStorage.lyricsCacheDir());
+        Assist.dlog("元数据","登记本地标签解析: ",paths.length," 个文件");
+        return paths.length;
     }
     /* 汇总本地歌曲: 手动添加项在前, 扫描文件夹项在后 */
     function collectLocalSongs() {
@@ -1766,30 +1809,53 @@ MainAreaFatherPage {
             }
         }
         var m=theMemStorage.metaOf(absfpath);
+        /* 标签缓存优先: 有记录时用它的时长, 没有时退回本次运行探到的 */
+        var tag=GlobalFileStorage.localTagOf(absfpath);
         var dur=(m? m.duration:-1);
+        if(tag!==null && Number(tag["durationMs"])>0) {
+            dur=Math.floor(Number(tag["durationMs"])/1000);
+        }
         if(dur>=0 && source==="scan" && dur<GlobalFileStorage.localScan.scanRadio) {
             /* 扫描项时长不满足扫描规则 */
             return;
         }
         var sz=AppFileHelper.fileSize(absfpath);
-        /* 封面: 本次已探到或上次运行已缓存时直接带上, 都没有时保持空串, 等探测回填 */
-        var cover=coverPathOf(absfpath);
+        /* 封面: 先取标签缓存, 再取本次运行探到的, 最后取上次运行缓存下来的;
+         * 三者都没有时留空串, 由列表显示应用图标兜底 */
+        var cover="";
+        if(tag!==null && tag["hasCover"]===true) {
+            cover=String(tag["coverUrl"]);
+        }
+        if(cover==="") {
+            cover=coverPathOf(absfpath);
+        }
         if(cover==="") {
             cover=AppFileHelper.cachedCoverPath(absfpath);
         }
+        /* 歌词主名: 标签缓存里带的那一份优先, 其次是本次运行登记过的;
+         * 都没有时留空, 歌词页按没有歌词处理 */
+        var lyricName=(tag!==null && tag["lyricsName"]!==undefined? String(tag["lyricsName"]):"");
+        if(lyricName==="") {
+            lyricName=lyricNameOf(absfpath);
+        }
         v.push({
-            "songname": (m && m.title!==""? m.title:nameOfFile(absfpath)),
-            "singer": (m && m.artist!==""? m.artist:"未知歌手"),
+            "songname": (tag!==null && tag["hasTitle"]===true
+                         ? String(tag["songname"])
+                         :(m && m.title!==""? m.title:nameOfFile(absfpath))),
+            "singer": (tag!==null && tag["hasArtist"]===true
+                       ? String(tag["singer"])
+                       :(m && m.artist!==""? m.artist:"未知歌手")),
             "absfpath": absfpath,
             "absipath": cover,
-            "lyrics": lyricNameOf(absfpath),
+            "lyrics": lyricName,
             "size": (sz>0? sz:0),
             "duration": (dur>0? dur:0),
             "source": source,
             "liked": GlobalFileStorage.isLiked(absfpath),
             "checked": false
         });
-        if(theMemStorage.hasMeta(absfpath)===false) {
+        /* 标签缓存已经给全元数据时不必再走播放器兜底探测 */
+        if(tag===null && theMemStorage.hasMeta(absfpath)===false) {
             probeMeta(absfpath);
         }
     }

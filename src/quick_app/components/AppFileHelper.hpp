@@ -455,6 +455,12 @@ public:
         pumpCoverQueue();
     }
 
+    /* 本地内嵌封面的缓存目录: 供 QML 交给 AppSongFileHelper 落盘封面用;
+     * 与内嵌封面缓存是同一个目录, 因此两边写出的文件名不会分叉 */
+    Q_INVOKABLE QString localCoverDir() const {
+        return coverCacheDir();
+    }
+
     /* 已缓存的内嵌封面路径: 入参为标准化绝对路径, 返回封面文件的标准化绝对路径,
      * 没有缓存时返回空字符串; 供列表构造时同步取用, 不触发读取 */
     Q_INVOKABLE QString cachedCoverPath(const QUrl &url) const {
