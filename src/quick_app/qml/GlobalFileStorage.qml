@@ -20,7 +20,12 @@ Item {
     property string localScanFileName: "localScan.json";
     property string likedFilesFileName: "likedFiles.json";
     property string recentFilesFileName: "recentFiles.json";
-    property string playStateFileName: "playState.json";
+    /* 播放状态按类别分成四个文件: 队列条目多而变动少, 当前项与进度变动最频繁,
+     * 播放顺序与音量是用户设置, 各自写各自的文件, 互不牵连 */
+    property string playQueueFileName: "playQueue.json";
+    property string playPositionFileName: "playPosition.json";
+    property string playModeFileName: "playMode.json";
+    property string playVolumeFileName: "playVolume.json";
     property string uiStateFileName: "UI_State.json";
     property string downloadsFileName: "downloads.json";
     /* 用户登录记录: 邮箱, 登录时刻, 签名与登录状态秘钥, 四者一起落盘 */
@@ -101,7 +106,8 @@ Item {
         pendingSeconds: 0
     });
     /* 播放状态枢纽: 播放队列, 当前播放项路径与下标, 播放顺序与播放进度; 跨模块只经此处交换 */
-    /* 存到 #/data/playState.json */
+    /* 存到 #/data/ 下的四个文件: playQueue.json 队列, playPosition.json 当前项与进度,
+     * playMode.json 播放顺序, playVolume.json 音量与静音前音量 */
     property var playState:
     ({
         sortlist: [],
@@ -448,7 +454,10 @@ Item {
             mergePathList(srcDir,dstDir,likedFilesFileName);
             mergePathList(srcDir,dstDir,recentFilesFileName);
             mergeDownloadList(srcDir,dstDir);
-            mergeWholePayload(srcDir,dstDir,playStateFileName);
+            mergeWholePayload(srcDir,dstDir,playQueueFileName);
+            mergeWholePayload(srcDir,dstDir,playPositionFileName);
+            mergeWholePayload(srcDir,dstDir,playModeFileName);
+            mergeWholePayload(srcDir,dstDir,playVolumeFileName);
             mergeWholePayload(srcDir,dstDir,uiStateFileName);
             mergeAccount(srcDir,dstDir);
             mergeListenState(srcDir,dstDir);
@@ -702,16 +711,20 @@ Item {
         if(Array.isArray(dl)===true) {
             downloads=dl;
         }
-        var ps=readPayload(storageDirPath,playStateFileName);
-        if(ps!==null) {
-            playState=({"sortlist":(Array.isArray(ps.sortlist)===true? ps.sortlist:[]),
-                        "playingWhich":(typeof ps.playingWhich==="string"? ps.playingWhich:""),
-                        "playingIndex":(typeof ps.playingIndex==="number"? ps.playingIndex:-1),
-                        "playMode":(typeof ps.playMode==="number"? ps.playMode:1),
-                        "playingPosition":(typeof ps.playingPosition==="number"? ps.playingPosition:0),
-                        "volume":(typeof ps.volume==="number"? ps.volume:100),
-                        /* 静音前音量: 缺失或非数字时回落到 100 */
-                        "lastVolume":normalizeLastVolume(ps.lastVolume)});
+        var pq=readPayload(storageDirPath,playQueueFileName);
+        var pp=readPayload(storageDirPath,playPositionFileName);
+        var pm=readPayload(storageDirPath,playModeFileName);
+        var pv=readPayload(storageDirPath,playVolumeFileName);
+        if(pq!==null || pp!==null || pm!==null || pv!==null) {
+            playState=_playStateWith({
+                "sortlist":(pq!==null && Array.isArray(pq.sortlist)===true? pq.sortlist:[]),
+                "playingWhich":(pp!==null && typeof pp.playingWhich==="string"? pp.playingWhich:""),
+                "playingIndex":(pp!==null && typeof pp.playingIndex==="number"? pp.playingIndex:-1),
+                "playingPosition":(pp!==null && typeof pp.playingPosition==="number"? pp.playingPosition:0),
+                "playMode":(pm!==null && typeof pm.playMode==="number"? pm.playMode:1),
+                "volume":(pv!==null && typeof pv.volume==="number"? pv.volume:100),
+                /* 静音前音量: 缺失或非数字时回落到 100 */
+                "lastVolume":normalizeLastVolume(pv!==null? pv.lastVolume:100)});
         }
         var us=readPayload(storageDirPath,uiStateFileName);
         if(us!==null) {
@@ -782,7 +795,10 @@ Item {
         writePayload(storageDirPath,likedFilesFileName,likedFiles);
         writePayload(storageDirPath,recentFilesFileName,recentFiles);
         writePayload(storageDirPath,downloadsFileName,downloads);
-        writePayload(storageDirPath,playStateFileName,playState);
+        savePlayQueue();
+        savePlayPosition();
+        savePlayMode();
+        savePlayVolume();
         writePayload(storageDirPath,uiStateFileName,uiState);
         writePayload(storageDirPath,accountFileName,account);
         writePayload(storageDirPath,listenStateFileName,listenState);
@@ -859,9 +875,26 @@ Item {
     function saveRecent() {
         return writePayload(storageDirPath,recentFilesFileName,recentFiles);
     }
-    /* 只写播放状态 */
-    function savePlayState() {
-        return writePayload(storageDirPath,playStateFileName,playState);
+    /* 只写播放队列: 增删队列条目时只动这一个文件 */
+    function savePlayQueue() {
+        return writePayload(storageDirPath,playQueueFileName,({ "sortlist":playState.sortlist }));
+    }
+    /* 只写当前播放项与进度: 进度变动最频繁, 与队列解耦后不必重写整份队列 */
+    function savePlayPosition() {
+        return writePayload(storageDirPath,playPositionFileName,
+                            ({ "playingWhich":playState.playingWhich,
+                               "playingIndex":playState.playingIndex,
+                               "playingPosition":(playState.playingPosition===undefined? 0:playState.playingPosition) }));
+    }
+    /* 只写播放顺序 */
+    function savePlayMode() {
+        return writePayload(storageDirPath,playModeFileName,({ "playMode":playState.playMode }));
+    }
+    /* 只写音量与静音前音量 */
+    function savePlayVolume() {
+        return writePayload(storageDirPath,playVolumeFileName,
+                            ({ "volume":(playState.volume===undefined? 100:playState.volume),
+                               "lastVolume":normalizeLastVolume(playState.lastVolume) }));
     }
     /* 只写界面状态 */
     function saveUIState() {
@@ -1265,7 +1298,9 @@ Item {
                                   "playingWhich":which,
                                   "playingIndex":st.playingIndex,
                                   "playMode":st.playMode});
-        savePlayState();
+        savePlayQueue();
+        savePlayPosition();
+        savePlayMode();
         Assist.dlog("落盘","在线标识迁移: 共改写 ",n," 处");
         return n;
     }
@@ -1332,7 +1367,9 @@ Item {
                                   "playingWhich":which,
                                   "playingIndex":index,
                                   "playMode":mode});
-        savePlayState();
+        savePlayQueue();
+        savePlayPosition();
+        savePlayMode();
     }
     /* 写入播放进度: 只改进度, 其余播放状态保持不变 */
     function setPlayPosition(ms) {
@@ -1341,7 +1378,7 @@ Item {
             pos=0;
         }
         playState=_playStateWith({"playingPosition":pos});
-        savePlayState();
+        savePlayPosition();
     }
     /* 写入音量: 只改音量, 其余播放状态保持不变; 取值限定为 0 到 100 的整数 */
     function setVolume(v) {
@@ -1354,7 +1391,7 @@ Item {
         }
         Assist.dlog("落盘","写入音量: ",vol);
         playState=_playStateWith({"volume":vol});
-        savePlayState();
+        savePlayVolume();
     }
     /* 静音前音量归一化: 只接受 1 到 100 的整数, 其余回落到 100 */
     function normalizeLastVolume(v) {
@@ -1376,7 +1413,7 @@ Item {
         }
         Assist.dlog("落盘","写入静音前音量: ",vol);
         playState=_playStateWith({"lastVolume":vol});
-        return savePlayState();
+        return savePlayVolume();
     }
     /* 按当前界面状态生成一份新对象, 只覆盖传入的字段;
      * 一律整体替换, 使外部能收到变更通知 */
