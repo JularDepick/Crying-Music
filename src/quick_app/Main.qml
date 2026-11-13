@@ -1750,6 +1750,8 @@ ApplicationWindow {
         thePlayerBar: playerBar;
         theMemStorage: memStorage;
         theSidebarSpreaded: leftSidebar.spreaded;
+        /* 悬浮窗打开时, 本页隐藏也要推进逐字进度 */
+        desktopLyricsShown: window.desktopLyricsVisible;
         anchors.fill: parent;
         visible: false;
     }
@@ -2062,22 +2064,27 @@ ApplicationWindow {
         /* 位置在每次打开时从界面偏好恢复, 拖动后写回; posTracking 置位前不写盘,
          * 避免初始化与恢复过程反复落盘 */
         property bool posTracking: false;
-        /* 字号跟随歌词页基准字号: 当前行乘当前行倍数, 下一行再乘下一行倍数 */
+        /* 字号跟随歌词页基准字号: 取基准字号乘当前行倍数 */
         readonly property int fontSizeNow: Math.round(lyricsSubTab.baseFontSize
                                                       * Define.desktopLyricsFontScale);
-        readonly property int fontSizeNext: Math.round(fontSizeNow
-                                                       * Define.desktopLyricsNextLineScale);
         /* 当前行颜色跟随歌词页的取色, 但首档(未选色)是跟随主题图标色, 落在本窗的
          * 半透明深色底上对比度不足, 因此未选色时改用白色 */
         readonly property color lineColor: (GlobalFileStorage.lyricsTextColor()===""
                                             ? "#FFFFFF":lyricsSubTab.currentLineColor);
-        /* 当前行与下一行: 直接取歌词页解析出来的行数组 */
+        /* 只显示当前这一行: 行数组直接取歌词页解析出来的那一份 */
         readonly property var lineNow: ((lyricsSubTab.currentLine>=0
                                          && lyricsSubTab.currentLine<lyricsSubTab.lyricLines.length)
                                         ? lyricsSubTab.lyricLines[lyricsSubTab.currentLine]:null);
-        readonly property var lineNext: ((lyricsSubTab.currentLine>=0
-                                          && (lyricsSubTab.currentLine+1)<lyricsSubTab.lyricLines.length)
-                                         ? lyricsSubTab.lyricLines[lyricsSubTab.currentLine+1]:null);
+        /* 逐字进度: 与歌词页同一套算法, 断行与遮罩按本窗的字号与列宽重算 */
+        readonly property var sungLayout: (lineNow===null
+                                           ? null
+                                           : lyricsSubTab.sungLayoutOf(String(lineNow["text"]),
+                                                                       fontSizeNow,true,
+                                                                       lyricLine.width));
+        readonly property var sungMask: (sungLayout===null
+                                         ? null
+                                         : lyricsSubTab.sungMaskOf(sungLayout,lineNow,
+                                                                   lyricLine.textLineCount));
 
         Rectangle {
             anchors.fill: parent;
@@ -2085,31 +2092,21 @@ ApplicationWindow {
             color: "#B8000000";
             border.color: "#26FFFFFF";
             border.width: 1;
-            Column {
+            /* 单行歌词: 已唱部分按歌词页那一套逐字进度着色, 未唱部分取当前行颜色;
+             * 增强歌词关闭或这一行没有词级时间戳时, 遮罩不可用, 整行只有未唱色 */
+            LyricsSungText {
+                id: lyricLine;
                 anchors.centerIn: parent;
                 width: parent.width-88;
-                spacing: 10;
-                Text {
-                    width: parent.width;
-                    horizontalAlignment: Text.AlignHCenter;
-                    text: (desktopLyrics.lineNow===null? "暂无歌词":String(desktopLyrics.lineNow["text"]));
-                    font.pixelSize: desktopLyrics.fontSizeNow;
-                    font.weight: 600;
-                    color: (desktopLyrics.lineNow===null? "#99FFFFFF":desktopLyrics.lineColor);
-                    wrapMode: Text.NoWrap;
-                    elide: Text.ElideRight;
-                }
-                Text {
-                    width: parent.width;
-                    horizontalAlignment: Text.AlignHCenter;
-                    visible: (desktopLyrics.lineNext!==null);
-                    text: (desktopLyrics.lineNext===null? "":String(desktopLyrics.lineNext["text"]));
-                    font.pixelSize: desktopLyrics.fontSizeNext;
-                    color: desktopLyrics.lineColor;
-                    opacity: Define.desktopLyricsNextLineOpacity;
-                    wrapMode: Text.NoWrap;
-                    elide: Text.ElideRight;
-                }
+                text: (desktopLyrics.lineNow===null? "暂无歌词"
+                                                   :String(desktopLyrics.lineNow["text"]));
+                pixelSize: desktopLyrics.fontSizeNow;
+                bold: true;
+                baseColor: (desktopLyrics.lineNow===null? "#99FFFFFF":desktopLyrics.lineColor);
+                sungColor: Define.choseCyanColor;
+                progressEnabled: (desktopLyrics.lineNow!==null);
+                layout: desktopLyrics.sungLayout;
+                maskGeom: desktopLyrics.sungMask;
             }
         }
         /* 整窗拖动交给系统移动, 不自绘拖影 */

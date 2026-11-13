@@ -49,6 +49,10 @@ Item {
     /* 歌曲列表三列占列表内容宽度的比例: 曲名与歌手 / 大小 / 时长, 比例和为 1,
      * 排序表头与委托行内两处共用, 保证表头列与行内容列对齐 */
     property var listColumnRatios: [0.7,0.15,0.15];
+    /* 排序表头文字相对列左边缘的内缩: 与委托行的左内边距同值,
+     * 使曲名表头的左边缘与行内封面左边缘对齐; 大小与时长两列的表头不内缩,
+     * 与行内对应列的文字左边缘重合 */
+    property int listHeaderPad: 10;
     /* 歌曲列表行内曲名与歌手列的固定宽度: 不随列宽比例撑开, 超出时省略号截断 */
     property int songColWidth: 240;
     /* 首页推荐卡片: 封面边长(卡片宽度同此值)与卡片间距 */
@@ -118,12 +122,9 @@ Item {
     property int desktopLyricsWidth: 860;
     property int desktopLyricsHeight: 128;
     property int desktopLyricsBottomGap: 120;
-    /* 桌面悬浮歌词字号: 当前行取歌词页基准字号的这个倍数(基准默认 16, 1.625 即 26),
-     * 下一行再乘下一行倍数(15/26), 因此跟随歌词页字号一起变 */
+    /* 桌面悬浮歌词字号: 取歌词页基准字号的这个倍数(基准默认 16, 1.625 即 26),
+     * 因此跟随歌词页字号一起变; 窗口里只显示当前这一行 */
     property real desktopLyricsFontScale: 1.625;
-    property real desktopLyricsNextLineScale: (15.0/26.0);
-    /* 桌面悬浮歌词下一行的不透明度: 与当前行同色, 只压低不透明度 */
-    property real desktopLyricsNextLineOpacity: 0.65;
     /* 桌面悬浮歌词拖动后的位置落盘防抖时长(毫秒): 拖动过程中不逐像素写盘 */
     property int desktopLyricsPosSaveDelayMs: 400;
     /* 就地二次确认的确认态时长(毫秒): 首击进入确认态, 此时长内再击才执行, 超时回归 */

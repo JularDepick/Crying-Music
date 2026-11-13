@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import "./"
 
 import AppHelper 1.0
@@ -16,6 +15,9 @@ Rectangle {
     /* 注入: 内存枢纽(边播边下策略钩子)与侧栏展开状态(播放条按钮间距) */
     property var theMemStorage: null;
     property bool theSidebarSpreaded: true;
+    /* 注入: 桌面悬浮歌词是否打开; 打开时本页即便隐藏也要推进逐字进度,
+     * 悬浮窗直接取本页的当前行与进度, 没有自己的一套解析 */
+    property bool desktopLyricsShown: false;
     /* 歌词行: 每项形如 {t: 秒(无时间戳为 -1), text: 文本} */
     property var lyricLines: [];
     /* 当前播放位置对应的行下标, 无时间戳或未播放时为 -1 */
@@ -250,66 +252,28 @@ Rectangle {
         }
         delegate: Item {
             width: lyricView.width;
-            height: lineText.implicitHeight;
-            /* 底色层: 整行按未唱色画一遍 */
-            Text {
-                id: lineText;
+            height: sungLine.implicitHeight;
+            /* 未唱层, 已唱层与遮罩都在共用组件里, 桌面悬浮歌词用的是同一份实现;
+             * 全部歌词行同一字号与同一字重: 当前行只用颜色区分, 不放大也不加粗 */
+            LyricsSungText {
+                id: sungLine;
                 width: parent.width;
-                horizontalAlignment: Text.AlignHCenter;
-                wrapMode: Text.Wrap;
                 text: String(modelData["text"]);
-                /* 全部歌词行同一字号与同一字重: 当前行只用颜色区分, 不放大也不加粗 */
-                font.pixelSize: root.baseFontSize;
-                font.bold: false;
-                color: (index===root.currentLine? root.currentLineColor:Define.forbdDarkColor);
+                pixelSize: root.baseFontSize;
+                bold: false;
+                baseColor: (index===root.currentLine? root.currentLineColor:Define.forbdDarkColor);
+                sungColor: Define.choseCyanColor;
+                progressEnabled: (index===root.currentLine);
+                /* 可视行布局: 只有当前行需要, 断行与字宽在文本, 字号或列宽变化时重算,
+                 * 进度变化不触发重排 */
+                layout: (index===root.currentLine
+                         ? root.sungLayoutOf(text,sungLine.pixelSize,sungLine.bold,sungLine.width)
+                         : null);
+                /* 遮罩几何: 随进度变化的只有当前行的右边界, 其它行直接不参与 */
+                maskGeom: (index===root.currentLine
+                           ? root.sungMaskOf(layout,modelData,sungLine.textLineCount)
+                           : null);
             }
-            /* 已唱层: 同一份文本, 同一套排版, 只换颜色; 露出多少由遮罩按像素决定,
-             * 因此边界可以停在字的中间而不是整字跳变 */
-            Text {
-                id: sungText;
-                anchors.fill: lineText;
-                horizontalAlignment: lineText.horizontalAlignment;
-                wrapMode: lineText.wrapMode;
-                text: lineText.text;
-                font: lineText.font;
-                color: Define.choseCyanColor;
-                visible: (maskGeom["ready"]===true);
-                layer.enabled: visible;
-                layer.effect: MultiEffect {
-                    maskEnabled: true;
-                    maskSource: sungMask;
-                }
-            }
-            /* 遮罩: 当前行之前的可视行整块铺白, 当前行只铺到边界, 其余透明;
-             * 遮罩不可见, 只作为纹理供 MultiEffect 取用 */
-            Item {
-                id: sungMask;
-                anchors.fill: lineText;
-                visible: false;
-                layer.enabled: true;
-                Rectangle {
-                    color: "white";
-                    x: 0;
-                    y: 0;
-                    width: sungMask.width;
-                    height: (maskGeom["ready"]===true? maskGeom["top"]:0);
-                }
-                Rectangle {
-                    color: "white";
-                    x: 0;
-                    y: (maskGeom["ready"]===true? maskGeom["top"]:0);
-                    width: (maskGeom["ready"]===true? maskGeom["width"]:0);
-                    height: (maskGeom["ready"]===true? maskGeom["row"]:0);
-                }
-            }
-            /* 可视行布局: 只有当前行需要, 断行与字宽在文本, 字号或列宽变化时重算, 进度变化不触发重排 */
-            readonly property var sungLayout: (index===root.currentLine
-                                               ? root.sungLayoutOf(lineText.text,lineText.font.pixelSize,
-                                                                   lineText.font.bold,lineText.width):null);
-            /* 遮罩几何: 随进度变化的只有当前行的右边界, 其它行直接不参与 */
-            readonly property var maskGeom: (index===root.currentLine
-                                             ? root.sungMaskOf(sungLayout,modelData,lineText.lineCount)
-                                             : ({"ready":false,"top":0,"width":0,"row":0}));
         }
         /* 右键歌词区呼出调节菜单: 用 TapHandler, 不打断左键拖动与滚轮 */
         TapHandler {
@@ -1388,7 +1352,8 @@ Rectangle {
         id: wordTimer;
         interval: 33;
         repeat: true;
-        running: (root.visible===true && root.enhancedOn===true && root.currentLine>=0
+        running: ((root.visible===true || root.desktopLyricsShown===true)
+                  && root.enhancedOn===true && root.currentLine>=0
                   && root.currentWord>=0 && root.thePlayerBar!==null
                   && root.thePlayerBar.playing===true);
         onTriggered: {
