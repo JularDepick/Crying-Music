@@ -1012,10 +1012,14 @@ Item {
     }
     /* 整体写回扫描规则 */
     function setMALocalP(a,b,c) {
-        Assist.dlog("落盘","写回扫描规则: 文件夹 ",a.length," 个, 格式 ",b.length," 种, 时长下限 ",c);
-        localScan.scanDirs=a;
-        localScan.scanFmts=b;
-        localScan.scanRadio=c;
+        /* 入参可能缺项: 文件夹与格式缺省为空表, 时长下限缺省为 0, 免得写进 undefined */
+        var dirs=(a===undefined || a===null? []:a);
+        var fmts=(b===undefined || b===null? []:b);
+        var radio=(typeof c==="number"? c:0);
+        Assist.dlog("落盘","写回扫描规则: 文件夹 ",dirs.length," 个, 格式 ",fmts.length," 种, 时长下限 ",radio);
+        localScan.scanDirs=dirs;
+        localScan.scanFmts=fmts;
+        localScan.scanRadio=radio;
         saveLocalScan();
     }
     /* 判断列表中是否含有指定路径 */
