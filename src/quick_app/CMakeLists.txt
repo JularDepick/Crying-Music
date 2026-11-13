@@ -14,6 +14,16 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Quick Multimedia Qml Network Widgets)
 
+# TagLib: 读取本地音频的标签, 内嵌封面与歌词(第三方静态库, 许可见 THIRD-PARTY-NOTICES.md).
+# 默认指向本机的安装前缀, 换机器时改这个缓存变量或传 -DTAGLIB_ROOT=<安装目录>;
+# 该库是静态库, 运行时不需要额外的 DLL, 静态链接时需要 zlib(由 MinGW 工具链自带)
+set(TAGLIB_ROOT "D:/taglib" CACHE PATH "TagLib 安装前缀")
+if(EXISTS "${TAGLIB_ROOT}/lib/cmake/taglib")
+    list(APPEND CMAKE_PREFIX_PATH "${TAGLIB_ROOT}")
+endif()
+find_package(TagLib CONFIG REQUIRED)
+find_library(TAGLIB_ZLIB_LIBRARY NAMES z REQUIRED)
+
 # 业务逻辑源文件
 file(GLOB_RECURSE COMPONENTS_SOURCES CONFIGURE_DEPENDS "components/*.hpp")
 
@@ -65,6 +75,7 @@ endif()
 # 链接库
 target_link_libraries(CryingMusic
     PRIVATE Qt6::Quick Qt6::Multimedia Qt6::Qml Qt6::Network Qt6::Widgets
+            TagLib::TagLib ${TAGLIB_ZLIB_LIBRARY}
 )
 
 # 静态链接 MinGW 运行时

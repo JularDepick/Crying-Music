@@ -9,6 +9,7 @@
 #include "./components/AppNetHelper.hpp"
 #include "./components/AppClickHelper.hpp"
 #include "./components/AppSearchHelper.hpp"
+#include "./components/AppSongFileHelper.hpp"
 #include "./components/SystemTrayHelper.hpp"
 
 /* using namespace std; */
@@ -34,12 +35,14 @@ int main(int argc, char *argv[])
     AppNetHelper _anh_;
     AppClickHelper _ach_;
     AppSearchHelper _ash_;
+    AppSongFileHelper _asfh_;
     SystemTrayHelper _sth_;
     /* qmlRegisterSingletonInstance("AppHelper",1,0,"AppPathHelper",&_aph_); */
     qmlRegisterSingletonInstance("AppHelper",1,0,"AppFileHelper",&_afh_);
     qmlRegisterSingletonInstance("AppHelper",1,0,"AppNetHelper",&_anh_);
     qmlRegisterSingletonInstance("AppHelper",1,0,"AppClickHelper",&_ach_);
     qmlRegisterSingletonInstance("AppHelper",1,0,"AppSearchHelper",&_ash_);
+    qmlRegisterSingletonInstance("AppHelper",1,0,"AppSongFileHelper",&_asfh_);
     qmlRegisterSingletonInstance("AppHelper",1,0,"SystemTray",&_sth_);
     /* 创建QML引擎 */
     QQmlApplicationEngine engine;
