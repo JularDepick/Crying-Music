@@ -209,10 +209,21 @@ MainAreaFatherPage {
                             height: 54;
                             /* 正在播放的卡片常显这个按钮, 其余卡片仍然只在悬停时浮出 */
                             visible: (cardBox.hoveredCard===true || cardBox.playingRow===true);
-                            /* 正在播放且不悬停时把图标位置让给跳动的柱子, 悬停时仍是播放图标 */
-                            icon.source: ((cardBox.playingRow===true && cardBox.hoveredCard!==true)
-                                          ? "":"qrc:/assets/iconfont/playerbar/play.svg");
-                            icon.color: "white";
+                            /* 图标与列表行同一套口径: 正在播放且不悬停时让位给跳动的柱子;
+                             * 悬停时按播放器实际状态给暂停或播放图标, 未在播放的卡片给播放图标 */
+                            icon.source: {
+                                if(cardBox.playingRow===true && cardBox.hoveredCard!==true) {
+                                    return "";
+                                }
+                                if(cardBox.playingRow===true) {
+                                    return ((thePlayer!==null && thePlayer.playing===true)
+                                            ? "qrc:/assets/iconfont/playerbar/pause.svg"
+                                            : "qrc:/assets/iconfont/playerbar/play.svg");
+                                }
+                                return "qrc:/assets/iconfont/playerbar/play.svg";
+                            }
+                            /* 悬停转主题悬停色, 与列表行封面的按钮一致 */
+                            icon.color: (hovered===true? Define.btnHoverColor:"white");
                             icon.width: 54;
                             icon.height: 54;
                             hoverColorEnabled: false;
@@ -227,6 +238,15 @@ MainAreaFatherPage {
                                 visible: (cardBox.playingRow===true && cardBox.hoveredCard!==true);
                             }
                             onClicked: {
+                                /* 正在播放的卡片: 与列表行一样就地暂停或继续 */
+                                if(cardBox.playingRow===true) {
+                                    if(thePlayer!==null && thePlayer.playing===true) {
+                                        thePlayer.pause();
+                                    } else if(thePlayer!==null) {
+                                        thePlayer.play();
+                                    }
+                                    return;
+                                }
                                 mainArea_HomePage.playRow(modelData);
                             }
                         }
