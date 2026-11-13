@@ -1585,6 +1585,15 @@ MainAreaFatherPage {
         }
     }
     /* 由下载记录构造条目: 下载歌曲标签只展示已经下载到本地且文件仍在的歌曲 */
+    /* 下载记录的封面名: 一律按在线标识重算, 记录里存的旧名(把音频扩展名也拼进去的那种)不再使用;
+     * 重算不出来时(清单还没就绪)才退回记录里的旧值 */
+    function coverNameOfDownloaded(one) {
+        var name=Server.coverNameOfOnlineKey(one["onlineId"]);
+        if(name!=="") {
+            return name;
+        }
+        return (one["cover"]===undefined? "":String(one["cover"]));
+    }
     function collectDownloadedSongs() {
         var v=[];
         var src=GlobalFileStorage.downloads;
@@ -1620,7 +1629,7 @@ MainAreaFatherPage {
                     "source": "downloaded",
                     "online": true,
                     "onlineId": one["onlineId"],
-                    "cover": (one["cover"]===undefined? "":one["cover"]),
+                    "cover": mainArea_LocalPage.coverNameOfDownloaded(one),
                     "liked": GlobalFileStorage.isLiked(p),
                     "checked": false});
         }

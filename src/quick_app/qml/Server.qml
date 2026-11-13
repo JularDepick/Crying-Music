@@ -749,6 +749,29 @@ Item {
         }
         return name;
     }
+    /* 封面名(按在线标识算): 去掉 online 前缀与音频扩展名后拼封面扩展名.
+     * 早期下载记录里的封面名是把"标识 + 音频扩展名"再拼封面扩展名(例如 名字.mp3.jpg),
+     * 与清单口径不符会 404, 因此这类记录一律用本函数重算, 不再信任记录里存的旧名 */
+    function coverNameOfOnlineKey(key) {
+        var s=String(key===undefined || key===null? "":key);
+        if(s==="") {
+            return "";
+        }
+        var tag=String(Define.onlineKeyTag);
+        if(tag!=="" && s.indexOf(tag)===0) {
+            s=s.substring(tag.length);
+        }
+        var fe=String(oss.audio_file_ext);
+        if(fe!=="" && s.length>fe.length
+           && s.toLowerCase().endsWith(fe.toLowerCase())) {
+            s=s.substring(0,s.length-fe.length);
+        }
+        var ce=String(oss.audio_cover_ext);
+        if(s==="" || ce==="") {
+            return "";
+        }
+        return sanitizeName(s+ce);
+    }
     /* 歌词名: 主文件名加普通歌词扩展名; 增强歌词只在缺普通歌词时兜底, 缓存仍按这个名字落盘;
      * 与封面名一样先净化, 净化后为空按不可用处理 */
     function lyricsNameOfRow(row) {
