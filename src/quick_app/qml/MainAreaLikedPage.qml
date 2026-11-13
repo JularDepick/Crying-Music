@@ -669,10 +669,6 @@ MainAreaFatherPage {
             function setBatchMode(on) {
                 /* 切换批量态时复位确认按钮, 避免确认态残留到新状态 */
                 batchUnlikeBtn.confirming=false;
-                /* 离开本页时退出批量态: 批量按钮回到"批量", 勾选与确认态一并复位; 页内标签选中状态不变 */
-                if(mainListView.batchMode===true) {
-                    mainListView.setBatchMode(false);
-                }
                 if(batchMode===on) {
                     return;
                 }
@@ -926,7 +922,8 @@ MainAreaFatherPage {
         if(visible) {
             refresh();
         } else {
-            batchUnlikeBtn.confirming=false;
+            /* 离开本页时退出批量态: 批量按钮回到"批量", 勾选与确认态一并复位; 页内标签选中状态不变 */
+            mainListView.setBatchMode(false);
         }
     }
     Component.onCompleted: {
