@@ -1299,7 +1299,7 @@ ApplicationWindow {
                             elide: Text.ElideRight;
                         }
                         /* 等级徽标与等级文本并排: 徽标按累计听歌时长换算的等级取档,
-                          * 未登录时沿用原先的末档徽标与 Lv.100 文案 */
+                          * 未登录时按最低档显示, 即 vip1 徽标与 Lv.0 文案 */
                         Row {
                             spacing: 4;
                             CustomButtonA {
@@ -1308,7 +1308,7 @@ ApplicationWindow {
                                               ? (Account.levelIconOf(Account.levelOf(Account.totalListenSeconds))===""
                                                  ? "qrc:/assets/iconfont/vip/vip10.svg"
                                                  :Account.levelIconOf(Account.levelOf(Account.totalListenSeconds)))
-                                              :"qrc:/assets/iconfont/vip/vip10.svg");
+                                              :"qrc:/assets/iconfont/vip/vip1.svg");
                                 icon.color: Define.vipRed;
                                 transEnabled: false;
                                 hoverHandlerEnabled: false;
@@ -1316,10 +1316,10 @@ ApplicationWindow {
                             Text {
                                 color: Define.textColor;
                                 id: userLevel;
-                                /* 登录后按累计听歌时长换算的等级, 未登录显示末档 */
+                                /* 登录后按累计听歌时长换算的等级, 未登录显示最低档 */
                                 text: "Lv."+String(Account.loggedIn===true
                                                    ? Account.levelOf(Account.totalListenSeconds)
-                                                   :Define.levelMax);
+                                                   :0);
                                 anchors.verticalCenter: parent.verticalCenter;
                                 font.pixelSize: 13;
                             }
@@ -2049,6 +2049,16 @@ ApplicationWindow {
         readonly property var lineNow: ((lyricsSubTab.currentLine>=0
                                          && lyricsSubTab.currentLine<lyricsSubTab.lyricLines.length)
                                         ? lyricsSubTab.lyricLines[lyricsSubTab.currentLine]:null);
+        /* 第一行歌词开始之前: 窗口显示 歌名-歌手 而不是提前顶着第一句 */
+        readonly property bool beforeFirstLine: lyricsSubTab.beforeFirstLine;
+        function openingText() {
+            var song=String(lyricsSubTab.playingSongName);
+            var singer=String(lyricsSubTab.playingSingerName);
+            if(song==="") {
+                return (singer===""? "暂无歌词":singer);
+            }
+            return (singer===""? song:song+" - "+singer);
+        }
         /* 逐字测量用本窗自己的一份度量对象: 与歌词页共用同一份时, 两处绑定会互相
          * 写对方的度量, 表现为 sungLayout 与 layout 的绑定循环告警 */
         TextMetrics {
@@ -2082,13 +2092,16 @@ ApplicationWindow {
                 id: lyricLine;
                 anchors.centerIn: parent;
                 width: parent.width-88;
-                text: (desktopLyrics.lineNow===null? "暂无歌词"
-                                                   :String(desktopLyrics.lineNow["text"]));
+                /* 第一行歌词开始之前显示 歌名-歌手, 让悬浮窗不至于提前顶着第一句歌词 */
+                text: (desktopLyrics.beforeFirstLine===true
+                       ? desktopLyrics.openingText()
+                       :(desktopLyrics.lineNow===null? "暂无歌词"
+                                                     :String(desktopLyrics.lineNow["text"])));
                 pixelSize: desktopLyrics.fontSizeNow;
                 bold: true;
                 baseColor: (desktopLyrics.lineNow===null? "#99FFFFFF":desktopLyrics.lineColor);
                 sungColor: Define.choseCyanColor;
-                progressEnabled: (desktopLyrics.lineNow!==null);
+                progressEnabled: (desktopLyrics.lineNow!==null && desktopLyrics.beforeFirstLine!==true);
                 layout: desktopLyrics.sungLayout;
                 maskGeom: desktopLyrics.sungMask;
             }
@@ -2148,6 +2161,48 @@ ApplicationWindow {
         }
         return false;
     }
+    /* 把悬浮歌词夹回屏幕内: 取窗口中心所在的屏幕, 整窗不出屏;
+     * 中心不在任何屏幕时取最近的屏幕, 因此拖到屏外松手后会被拉回来 */
+    function clampDesktopLyricsToScreen() {
+        var list=Qt.application.screens;
+        if(list===undefined || list===null || list.length<=0) {
+            return false;
+        }
+        var cx=desktopLyrics.x+desktopLyrics.width/2;
+        var cy=desktopLyrics.y+desktopLyrics.height/2;
+        var target=null;
+        for(var i=0;i<list.length;i++) {
+            var s=list[i];
+            if(cx>=s.x && cx<(s.x+s.width) && cy>=s.y && cy<(s.y+s.height)) {
+                target=s;
+                break;
+            }
+        }
+        if(target===null) {
+            var best=1e18;
+            for(var j=0;j<list.length;j++) {
+                var t=list[j];
+                var dx=cx-Math.max(t.x,Math.min(cx,t.x+t.width));
+                var dy=cy-Math.max(t.y,Math.min(cy,t.y+t.height));
+                var d=dx*dx+dy*dy;
+                if(d<best) {
+                    best=d;
+                    target=t;
+                }
+            }
+        }
+        if(target===null) {
+            return false;
+        }
+        var nx=Math.min(Math.max(desktopLyrics.x,target.x),target.x+target.width-desktopLyrics.width);
+        var ny=Math.min(Math.max(desktopLyrics.y,target.y),target.y+target.height-desktopLyrics.height);
+        if(nx===desktopLyrics.x && ny===desktopLyrics.y) {
+            return false;
+        }
+        desktopLyrics.x=nx;
+        desktopLyrics.y=ny;
+        return true;
+    }
     /* 打开时恢复位置: 存储里有记录且该点仍在某块屏幕上就用它, 否则落默认位置并立即保存一次;
      * 写存储不反写 x/y, 因此恢复与落盘不会互相触发 */
     function restoreDesktopLyricsPos() {
@@ -2156,6 +2211,7 @@ ApplicationWindow {
                                                 p["y"]+desktopLyrics.height/2)===true) {
             desktopLyrics.x=p["x"];
             desktopLyrics.y=p["y"];
+            window.clampDesktopLyricsToScreen();
             return true;
         }
         if(window.placeDesktopLyrics()===true) {
@@ -2169,6 +2225,8 @@ ApplicationWindow {
         if(desktopLyrics.posTracking!==true) {
             return false;
         }
+        /* 落盘前先夹回屏幕内: 拖到屏外松手后窗口会自己回来, 存下来的坐标也一定是可见位置 */
+        window.clampDesktopLyricsToScreen();
         return GlobalFileStorage.setDesktopLyricsPos(Math.round(desktopLyrics.x),
                                                      Math.round(desktopLyrics.y));
     }
