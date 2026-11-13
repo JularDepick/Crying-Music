@@ -942,28 +942,31 @@ Rectangle {
         var lines=[];
         var from=0;
         while(from<n) {
-            var sum=0;
-            var cur=from;
+            /* 断行判定按候选子串整体测量: 逐字求和会漏掉字距, 与 Text 的排版对不上;
+             * 行末空格不参与测量, 与 Text 换行时丢掉行末空白同一口径.
+             * 这两个口径合起来才让自算行数等于 Text.lineCount, 否则该行整行不上色 */
+            var cur=from+1;
+            var lastFit=from+1;
             var brk=from;
-            while(cur<n) {
-                var cw=Number(widths[cur]);
-                if(sum+cw>Number(columnWidth) && cur>from) {
+            while(cur<=n) {
+                var sub=s.substring(from,cur).replace(/[ \t]+$/,"");
+                if(cur>from+1
+                   && root.measureTextWidth(sub,pixelSize,bold,metrics)>Number(columnWidth)) {
                     break;
                 }
-                sum=sum+cw;
-                cur=cur+1;
+                lastFit=cur;
                 if(root.isWrapPoint(s.charAt(cur-1))===true) {
                     brk=cur;
                 }
+                cur=cur+1;
             }
-            /* 只有确实因为宽度放不下(cur<n)才在可断点处断行: 整段都放得下时按 Text 的口径
-             * 不额外切行, 否则含空格的英文行会被多切一行, 自算行数与 Text.lineCount 对不上,
-             * 这一行就整行不上色(逐字进度消失) */
-            var to=((cur<n && brk>from)? brk:cur);
-            var w=0;
-            for(var j=from;j<to;j++) {
-                w=w+Number(widths[j]);
+            var to=((cur<=n && brk>from)? brk:lastFit);
+            if(to<=from) {
+                to=from+1;
             }
+            /* 行宽用同一口径测量, 供遮罩按居中排版对齐 */
+            var w=root.measureTextWidth(s.substring(from,to).replace(/[ \t]+$/,""),
+                                        pixelSize,bold,metrics);
             lines.push({"from":from,"to":to,"w":w});
             from=to;
         }
