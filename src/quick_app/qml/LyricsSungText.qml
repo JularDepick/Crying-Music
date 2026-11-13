@@ -40,6 +40,8 @@ Item {
     readonly property bool maskReady: (root.progressEnabled===true
                                        && root.maskGeom!==null
                                        && root.maskGeom["ready"]===true);
+    /* 文本实际占用的宽度: 不换行时可能比控件宽, 调用方据此做水平滚动 */
+    readonly property real contentWidth: baseText.width;
     implicitWidth: baseText.width;
     implicitHeight: baseText.height;
 
@@ -50,7 +52,8 @@ Item {
             root.maskGeom=null;
             return;
         }
-        root.layout=root.measurer.sungLayoutOf(root.text,root.pixelSize,root.bold,root.width);
+        /* 列宽取文本实际宽度: 不换行时文本比控件宽, 用控件宽度会算成多行, 与 Text 的行数对不上 */
+        root.layout=root.measurer.sungLayoutOf(root.text,root.pixelSize,root.bold,baseText.width);
         root.refreshMask();
     }
     /* 遮罩重算: 逐字进度变化时只走这一步, 不重排文本 */
@@ -77,7 +80,8 @@ Item {
     /* 底色层: 整行按未唱色画一遍 */
     Text {
         id: baseText;
-        width: root.width;
+        /* 不换行时按文本自然宽度铺开(可能超出控件), 换行时按控件宽度排版 */
+        width: (root.wrapMode===Text.NoWrap? Math.max(root.width,baseText.implicitWidth):root.width);
         text: root.text;
         horizontalAlignment: root.alignment;
         wrapMode: root.wrapMode;

@@ -2066,28 +2066,89 @@ ApplicationWindow {
             color: "#B8000000";
             border.color: "#26FFFFFF";
             border.width: 1;
-            /* 单行歌词: 已唱部分按歌词页那一套逐字进度着色, 未唱部分取当前行颜色;
-             * 增强歌词关闭或这一行没有词级时间戳时, 遮罩不可用, 整行只有未唱色 */
-            LyricsSungText {
-                id: lyricLine;
+            /* 单行歌词视口: 文本不换行, 超出宽度时按进度水平滚动, 超出部分由这里裁掉 */
+            Item {
+                id: lyricViewport;
                 anchors.centerIn: parent;
                 width: parent.width-88;
-                /* 第一行歌词开始之前显示 歌名-歌手, 让悬浮窗不至于提前顶着第一句歌词 */
-                text: (desktopLyrics.beforeFirstLine===true
-                       ? desktopLyrics.openingText()
-                       :(desktopLyrics.lineNow===null? "暂无歌词"
-                                                     :String(desktopLyrics.lineNow["text"])));
-                pixelSize: desktopLyrics.fontSizeNow;
-                bold: true;
-                baseColor: (desktopLyrics.lineNow===null? "#99FFFFFF":desktopLyrics.lineColor);
-                sungColor: Define.choseCyanColor;
-                progressEnabled: (desktopLyrics.lineNow!==null && desktopLyrics.beforeFirstLine!==true);
-                /* 断行与遮罩由组件按本窗的字号与列宽自己算, 这里只注入数据与进度 */
-                measurer: lyricsSubTab;
-                lineData: desktopLyrics.lineNow;
-                isCurrent: (desktopLyrics.lineNow!==null);
-                currentWord: lyricsSubTab.currentWord;
-                wordProgress: lyricsSubTab.wordProgress;
+                height: Math.max(desktopLyrics.fontSizeNow*1.6,26);
+                clip: true;
+                /* 水平偏移: 0 为行首, 负值向左滚 */
+                property real scrollX: 0;
+                /* 可滚动余量: 文本实际宽度减去视口宽度 */
+                readonly property real overflowPx: Math.max(0,lyricLine.contentWidth-width);
+                LyricsSungText {
+                    id: lyricLine;
+                    x: lyricViewport.scrollX;
+                    y: (parent.height-height)/2;
+                    width: lyricViewport.width;
+                    /* 单行显示: 不换行, 宽度不足时靠滚动跟上 */
+                    wrapMode: Text.NoWrap;
+                    /* 第一行歌词开始之前显示 歌名-歌手, 让悬浮窗不至于提前顶着第一句歌词 */
+                    text: (desktopLyrics.beforeFirstLine===true
+                           ? desktopLyrics.openingText()
+                           :(desktopLyrics.lineNow===null? "暂无歌词"
+                                                         :String(desktopLyrics.lineNow["text"])));
+                    pixelSize: desktopLyrics.fontSizeNow;
+                    bold: true;
+                    baseColor: (desktopLyrics.lineNow===null? "#99FFFFFF":desktopLyrics.lineColor);
+                    sungColor: Define.choseCyanColor;
+                    progressEnabled: (desktopLyrics.lineNow!==null && desktopLyrics.beforeFirstLine!==true);
+                    /* 断行与遮罩由组件自己算, 这里只注入数据与进度 */
+                    measurer: lyricsSubTab;
+                    lineData: desktopLyrics.lineNow;
+                    isCurrent: (desktopLyrics.lineNow!==null);
+                    currentWord: lyricsSubTab.currentWord;
+                    wordProgress: lyricsSubTab.wordProgress;
+                }
+                /* 滚动推进用节拍而不是绑定: 逐字测量会写共享度量对象, 绑定里推进会互相触发 */
+                Timer {
+                    interval: 40;
+                    repeat: true;
+                    running: (desktopLyrics.visible===true && lyricViewport.overflowPx>0);
+                    onTriggered: {
+                        lyricViewport.updateScroll();
+                    }
+                }
+                /* 增强歌词按已唱到的像素位置跟随, 普通歌词按这一行的时间进度平滑推进 */
+                function updateScroll() {
+                    var overflow=overflowPx;
+                    if(overflow<=0) {
+                        scrollX=0;
+                        return;
+                    }
+                    var target=0;
+                    var mask=(lyricLine.maskGeom===null? null:lyricLine.maskGeom);
+                    if(lyricsSubTab.enhancedOn===true && mask!==null && mask["ready"]===true) {
+                        target=Number(mask["width"])-width*0.45;
+                    } else {
+                        var t0=(desktopLyrics.lineNow===null? -1:Number(desktopLyrics.lineNow["t"]));
+                        var idx=lyricsSubTab.currentLine;
+                        var t1=t0+1;
+                        if(idx>=0 && idx+1<lyricsSubTab.lyricLines.length) {
+                            t1=Number(lyricsSubTab.lyricLines[idx+1]["t"]);
+                        }
+                        var sec=0;
+                        if(lyricsSubTab.thePlayerBar!==null && lyricsSubTab.thePlayerBar!==undefined) {
+                            sec=Number(lyricsSubTab.thePlayerBar.positionSec);
+                        }
+                        var f=(t0>=0 && t1>t0? (sec-t0)/(t1-t0):0);
+                        if(!(f>=0)) {
+                            f=0;
+                        }
+                        if(f>1) {
+                            f=1;
+                        }
+                        target=overflow*f;
+                    }
+                    if(!(target>=0)) {
+                        target=0;
+                    }
+                    if(target>overflow) {
+                        target=overflow;
+                    }
+                    scrollX=-target;
+                }
             }
         }
         /* 自绘拖动: 系统移动无法在拖动过程中夹取位置, 这里按"全局指针位移"移动窗口,
