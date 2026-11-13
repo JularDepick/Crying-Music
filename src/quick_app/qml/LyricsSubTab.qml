@@ -172,8 +172,8 @@ Rectangle {
                     : (songTitleViewport.width-implicitWidth)/2);
                 text: root.playingSongName;
                 color: Define.textColor;
-                /* 原 22 的 1.25 倍: 字号按整数像素生效, 取四舍五入的 28 */
-                font.pixelSize: 28;
+                /* 曲名与歌词同字号: 依赖方向是曲名跟随歌词字号, 调歌词字号时曲名一起变 */
+                font.pixelSize: root.baseFontSize;
                 font.weight: 600;
                 wrapMode: Text.NoWrap;
                 /* 换歌或换文本时回到开头, 避免停在上一次的滚动位置 */
@@ -210,13 +210,13 @@ Rectangle {
                 }
             }
         }
-        /* 歌手: 仍按单行省略; 原 13 的 1.5 倍取四舍五入的 20, 字号按整数像素生效 */
+        /* 歌手: 仍按单行省略; 字号取曲名的 Define.lyricsSingerFontScale 倍, 即随曲名一起变 */
         Text {
             width: parent.width;
             horizontalAlignment: Text.AlignHCenter;
             text: root.playingSingerName;
             color: Define.btnIconColor;
-            font.pixelSize: 20;
+            font.pixelSize: Math.round(root.baseFontSize*Define.lyricsSingerFontScale);
             elide: Text.ElideRight;
             maximumLineCount: 1;
         }

@@ -100,6 +100,8 @@ Item {
     property int lyricsFontSizeMin: 16;
     property int lyricsFontSizeMax: 40;
     property int lyricsFontSizeStep: 2;
+    /* 歌词页上方歌手行的字号相对曲名的倍数: 曲名与歌词同字号, 歌手再乘这个系数 */
+    property real lyricsSingerFontScale: 0.75;
     /* 逐字进度的着色窗口上限(毫秒): 单个字或词最多按这么长的时长推进到满,
      * 行间空档很大时用它截断, 避免最后一个字的进度一直拖到下一行的开始时刻 */
     property int lyricsWordMaxSpanMs: 3000;
