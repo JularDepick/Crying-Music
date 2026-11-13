@@ -24,32 +24,24 @@ Item {
     readonly property real barLeft0: 56*root.unit;
     readonly property real contentTop: Math.max(0,(root.height-root.contentHeight)/2);
     readonly property real barBottomY: (root.contentTop+576*root.unit);
-    /* 相位到高度比例的映射: 半高起, 四段各占四分之一周期, 两段变长两段变短 */
+    /* 相位到高度比例的映射: 抛物线弹跳, 顶点(相位 0.25)处速度为零, 形成唯一的静止时段;
+     * 底点(相位 0.75)处速度最大并瞬时折返, 因此不再有第二个静止时段;
+     * 相位 0 与 1 是同一处相位, 值与速度都连续, 循环接缝不跳变 */
     function heightRatioAt(p) {
         var t=Number(p);
         if(!(t>=0)) {
             t=0;
         }
         t=t-Math.floor(t);
-        if(t<0.25) {
-            return (0.5+0.5*root.easeOut(t/0.25));
+        /* 到顶点的相位距离: 取环上较短的一侧, 0 为顶点, 0.5 为底点 */
+        var d=(t-0.25);
+        if(d<0) {
+            d=d+1;
         }
-        if(t<0.5) {
-            return (1.0-0.5*root.easeIn((t-0.25)/0.25));
+        if(d>0.5) {
+            d=1-d;
         }
-        if(t<0.75) {
-            return (0.5-0.5*root.easeOut((t-0.5)/0.25));
-        }
-        return (0.5*root.easeIn((t-0.75)/0.25));
-    }
-    /* 与参考 svg 的 keySplines 同向的缓动: 伸长段先快后慢, 回缩段先慢后快 */
-    function easeOut(x) {
-        var v=1-Number(x);
-        return (1-v*v*v);
-    }
-    function easeIn(x) {
-        var v=Number(x);
-        return (v*v*v);
+        return (1-4*d*d);
     }
     /* 相位推进: 不可见时停下, active 为假时原地停住 */
     NumberAnimation on phase {
