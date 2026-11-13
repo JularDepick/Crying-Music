@@ -18,7 +18,13 @@ MainAreaFatherPage {
     Column {
         id: headColum;
         z: mainViewArea.z+1;
-        y: Math.min(0,mainListView.contentY>=titleText.height? (-titleText.height):(-mainListView.contentY));
+        /* 标题吸顶的纵向位置: 用函数推进而不是绑定 —— Column 的 y 会改变列表高度,
+         * 列表又会夹取 contentY, 两边互为依赖就会报 Column.y 的绑定循环 */
+        function syncHeadY() {
+            var cy=mainListView.contentY;
+            y=Math.min(0,(cy>=titleText.height? (-titleText.height):(-cy)));
+        }
+        Component.onCompleted: syncHeadY()
         anchors {left:parent.left; right:parent.right;}
         leftPadding: 40;
         rightPadding: 40;
@@ -487,6 +493,10 @@ MainAreaFatherPage {
             spacing: 0;
             clip: true;
             boundsBehavior: Flickable.StopAtBounds;
+            /* 滚动时推进标题吸顶位置(不用绑定, 见 headColum.syncHeadY) */
+            onContentYChanged: {
+                headColum.syncHeadY();
+            }
             property string selectedWhich: "";
             property bool batchMode: false;
             /* 列表是否已全部勾选: 供全选按钮在"全选"与"取消全选"之间自动切换 */
@@ -1789,7 +1799,13 @@ MainAreaFatherPage {
                 continue;
             }
             var p=String(v[i]["absfpath"]);
-            if(p==="" || GlobalFileStorage.localTagOf(p)!==null) {
+            if(p==="") {
+                continue;
+            }
+            /* 只有解析成功过的记录才跳过: 早期失败的记录(例如按路径而不是 URL 打开文件)
+             * 要在这次运行里重试, 否则会一直显示兜底信息 */
+            var rec=GlobalFileStorage.localTagOf(p);
+            if(rec!==null && rec["ok"]===true) {
                 continue;
             }
             paths.push(p);
