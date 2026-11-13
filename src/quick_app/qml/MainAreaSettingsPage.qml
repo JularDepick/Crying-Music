@@ -312,6 +312,22 @@ MainAreaFatherPage {
     function chooseDownloadsDir() {
         downloadDirDialog.open();
     }
+    /* 复制下载目录到剪贴板: 显示用的是正斜杠, 复制出去按 Windows 习惯换成反斜杠 */
+    function copyDownloadsDir() {
+        var d=GlobalFileStorage.downloadsDir();
+        if(d==="") {
+            dirTipOk=false;
+            dirTip="存储目录未确定, 无法复制路径";
+            return false;
+        }
+        clipboardHelper.text=String(d).replace(/\//g,"\\");
+        clipboardHelper.selectAll();
+        clipboardHelper.copy();
+        dirTipOk=true;
+        dirTip="已复制路径到剪贴板";
+        Assist.dlog("界面","复制下载目录: ",clipboardHelper.text);
+        return true;
+    }
     /* 恢复默认下载目录 */
     function resetDownloadsDir() {
         var ok=GlobalFileStorage.resetDownloadsDir();
@@ -465,6 +481,13 @@ MainAreaFatherPage {
                     ToolTip.visible: dirPathHh.hovered&&truncated;
                     ToolTip.text: text;
                     ToolTip.delay: 500;
+                    /* 点路径即复制: 不放提示文本, 只用指针形状提示可点 */
+                    TapHandler {
+                        cursorShape: Qt.PointingHandCursor;
+                        onSingleTapped: {
+                            mainArea_SettingsPage.copyDownloadsDir();
+                        }
+                    }
                 }
                 Text {
                     id: dirTagText;
@@ -915,6 +938,13 @@ MainAreaFatherPage {
                 }
             }
         }
+    }
+    /* 剪贴板载体: QML 没有直接的剪贴板接口, 用隐藏的 TextEdit 选中后复制 */
+    TextEdit {
+        id: clipboardHelper;
+        visible: false;
+        width: 0;
+        height: 0;
     }
     /* 系统文件夹选择框: 选中后写入界面状态, 目录不可写时保留原值 */
     FolderDialog {
