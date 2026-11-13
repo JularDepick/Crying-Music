@@ -155,7 +155,10 @@ private:
         rec.insert(QStringLiteral("lyricsEnhancedPath"), QString());
         rec.insert(QStringLiteral("lyricsFormat"), QStringLiteral("none"));
 
-        const QString local = absfpath;
+        /* 入参可能是 file:// 形式的 URL(列表里存的就是这种), 统一转成本地路径再交给 TagLib;
+         * 记录键与缓存命名仍用原始键, 与 AppFileHelper 的哈希口径保持一致 */
+        const QString local = (absfpath.startsWith(QStringLiteral("file:"))
+                               ? QUrl(absfpath).toLocalFile() : absfpath);
         if (local.isEmpty() || !QFile::exists(local)) {
             qWarning() << "AppSongFileHelper readOne failed: file not exists" << local;
             return rec;
@@ -164,6 +167,7 @@ private:
             qWarning() << "AppSongFileHelper readOne skipped: unsupported suffix" << local;
             return rec;
         }
+        rec.insert(QStringLiteral("localPath"), local);
         const QByteArray nativePath = local.toUtf8();
         TagLib::FileRef ref(nativePath.constData(), true, TagLib::AudioProperties::Fast);
         if (ref.isNull() || ref.file() == nullptr) {
