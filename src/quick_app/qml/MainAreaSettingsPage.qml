@@ -22,14 +22,6 @@ MainAreaFatherPage {
         {"id":"keys","label":"按键绑定"},
         {"id":"about","label":"关于与许可"}
     ];
-    /* 下载目录操作的即时提示: 空字符串表示不显示 */
-    property string dirTip: "";
-    property bool dirTipOk: true;
-    /* 封面缓存操作的即时提示: 空字符串表示不显示 */
-    property string cacheTip: "";
-    property bool cacheTipOk: true;
-    /* 字体切换的即时提示: 空字符串表示不显示 */
-    property string fontTip: "";
     /* 封面缓存生命周期候选: 值即天数, 档位来自设计常量 */
     property var ttlOptions: buildTtlOptions();
     function buildTtlOptions() {
@@ -291,33 +283,14 @@ MainAreaFatherPage {
     function downloadsDirIsCustom() {
         return (GlobalFileStorage.downloadsDirOverride()!=="");
     }
-    /* 在线缓存概况文本: 封面与歌词各自的已缓存数量与清单条目数 */
-    function cacheStatsText() {
-        var s=Server.coverCacheStats();
-        var l=Server.lyricsCacheStats();
-        return ("已缓存 "+s["cached"]+" 个封面与 "+l["cached"]+" 份歌词, 清单共 "+s["total"]+" 首");
-    }
     /* 立即清理在线缓存: 封面与歌词一并删除, 只删本地缓存文件, 不动任何数据与偏好 */
     function clearCoverCache() {
         var ok=(Server.clearCoverCache()===true && Server.clearLyricsCache()===true);
-        mainArea_SettingsPage.cacheTipOk=ok;
-        mainArea_SettingsPage.cacheTip=(ok? "已清理封面与歌词缓存, 会在需要时重新缓存"
-                                          :"清理失败, 请查看控制台日志");
         Assist.dlog("界面","清理封面与歌词缓存: ",ok);
-    }
-    /* 音频缓存概况文本: 已缓存份数与占用大小 */
-    function audioCacheStatsText() {
-        var s=Server.audioCacheStats();
-        var mb=Math.round(s["bytes"]/1048576);
-        var capMb=Math.round(s["cap"]/1048576);
-        return ("已缓存 "+s["cached"]+" 首音频, 占用约 "+mb+" MB, 上限 "+capMb+" MB");
     }
     /* 立即清理音频缓存: 只删本地缓存文件, 不动下载记录与播放数据 */
     function clearAudioCache() {
         var ok=(Server.clearAudioCache()===true);
-        mainArea_SettingsPage.cacheTipOk=ok;
-        mainArea_SettingsPage.cacheTip=(ok? "已清理音频缓存, 会在再次播放时重新缓存"
-                                          :"清理失败, 请查看控制台日志");
         Assist.dlog("界面","清理音频缓存: ",ok);
     }
     /* 选择下载目录: 走系统文件夹选择框, 不允许直接改路径文本 */
@@ -328,23 +301,17 @@ MainAreaFatherPage {
     function copyDownloadsDir() {
         var d=GlobalFileStorage.downloadsDir();
         if(d==="") {
-            dirTipOk=false;
-            dirTip="存储目录未确定, 无法复制路径";
             return false;
         }
         clipboardHelper.text=String(d).replace(/\//g,"\\");
         clipboardHelper.selectAll();
         clipboardHelper.copy();
-        dirTipOk=true;
-        dirTip="已复制路径到剪贴板";
         Assist.dlog("界面","复制下载目录: ",clipboardHelper.text);
         return true;
     }
     /* 恢复默认下载目录 */
     function resetDownloadsDir() {
         var ok=GlobalFileStorage.resetDownloadsDir();
-        mainArea_SettingsPage.dirTipOk=(ok===true);
-        mainArea_SettingsPage.dirTip=(ok===true? "已恢复默认下载目录":"恢复失败, 请查看控制台日志");
         Assist.dlog("界面","恢复默认下载目录: ",ok);
     }
     /* 页头: 标题与分类 tab, 固定不随正文滚动; 内边距与子 tab 沿用兄弟页面的列表页写法 */
@@ -437,12 +404,6 @@ MainAreaFatherPage {
                     Assist.dlog("界面","在线播放策略: ",value);
                 }
             }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
-            }
             /* 下载文件命名 */
             Text {
                 color: Define.textColor;
@@ -458,12 +419,6 @@ MainAreaFatherPage {
                     GlobalFileStorage.setDownloadNameTemplate(value);
                     Assist.dlog("界面","下载文件命名: ",value);
                 }
-            }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
             }
             /* 下载目录 */
             Text {
@@ -554,18 +509,6 @@ MainAreaFatherPage {
                     }
                 }
             }
-            Text {
-                visible: (mainArea_SettingsPage.dirTip!=="");
-                text: mainArea_SettingsPage.dirTip;
-                font.pixelSize: 13;
-                color: (mainArea_SettingsPage.dirTipOk? Define.choseCyanColor:Define.btnIconRed);
-            }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
-            }
             /* 界面字体: 窗口内所有文本按这一项取字体族, 歌词页与悬浮歌词各用自己那一项 */
             Text {
                 color: Define.textColor;
@@ -581,15 +524,8 @@ MainAreaFatherPage {
                     GlobalFileStorage.setUiFontFamily(value);
                     Define.uiFontFamily=GlobalFileStorage.uiFontFamily();
                     AppFontHelper.applyUiFamily(Define.uiFontFamilyResolved);
-                    mainArea_SettingsPage.fontTip="界面字体已切换";
                     Assist.dlog("界面","界面字体: ",Define.uiFontFamilyResolved);
                 }
-            }
-            Text {
-                visible: (mainArea_SettingsPage.fontTip!=="");
-                text: mainArea_SettingsPage.fontTip;
-                font.pixelSize: 12;
-                color: Define.choseCyanColor;
             }
         }
         /* 歌词与缓存 */
@@ -614,12 +550,6 @@ MainAreaFatherPage {
                     Assist.dlog("界面","歌词增强: ",on);
                 }
             }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
-            }
             /* 歌词页歌词字体: 只作用于歌词页里的歌词行, 不影响界面与悬浮歌词 */
             Text {
                 color: Define.textColor;
@@ -637,12 +567,6 @@ MainAreaFatherPage {
                     Assist.dlog("界面","歌词字体: ",Define.lyricsFontFamilyResolved);
                 }
             }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
-            }
             /* 桌面悬浮歌词字体 */
             Text {
                 color: Define.textColor;
@@ -659,12 +583,6 @@ MainAreaFatherPage {
                     Define.desktopLyricsFontFamily=GlobalFileStorage.desktopLyricsFontFamily();
                     Assist.dlog("界面","悬浮歌词字体: ",Define.desktopLyricsFontFamilyResolved);
                 }
-            }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
             }
             /* 封面缓存 */
             Text {
@@ -695,25 +613,7 @@ MainAreaFatherPage {
                         mainArea_SettingsPage.clearCoverCache();
                         clearCacheBtn.reset();
                     }
-                    HoverHandler {
-                        id: clearCacheHh;
-                    }
-                    ToolTip.visible: clearCacheHh.hovered;
-                    ToolTip.text: mainArea_SettingsPage.cacheStatsText();
-                    ToolTip.delay: 600;
                 }
-            }
-            Text {
-                visible: (mainArea_SettingsPage.cacheTip!=="");
-                text: mainArea_SettingsPage.cacheTip;
-                font.pixelSize: 13;
-                color: (mainArea_SettingsPage.cacheTipOk? Define.choseCyanColor:Define.btnIconRed);
-            }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
             }
             /* 音频缓存: 播放时后台落盘, 超出上限按最近使用时间淘汰 */
             Text {
@@ -745,12 +645,6 @@ MainAreaFatherPage {
                         mainArea_SettingsPage.clearAudioCache();
                         audioClearBtn.reset();
                     }
-                    HoverHandler {
-                        id: audioClearHh;
-                    }
-                    ToolTip.visible: audioClearHh.hovered;
-                    ToolTip.text: mainArea_SettingsPage.audioCacheStatsText();
-                    ToolTip.delay: 600;
                 }
             }
         }
@@ -779,12 +673,6 @@ MainAreaFatherPage {
                 text: (mainArea_SettingsPage.copyrightLine===""? "版权信息见随包许可文本"
                                                               :mainArea_SettingsPage.copyrightLine);
                 font.pixelSize: 13;
-            }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
             }
             /* 许可文本的切换入口与只读全文 */
             Text {
@@ -1043,8 +931,6 @@ MainAreaFatherPage {
         onAccepted: {
             var p=AppFileHelper.formatPath(String(selectedFolder));
             var ok=GlobalFileStorage.setDownloadsDir(p);
-            mainArea_SettingsPage.dirTipOk=(ok===true);
-            mainArea_SettingsPage.dirTip=(ok===true? "已切换下载目录":"目录不可写, 未切换");
             Assist.dlog("界面","选择下载目录: ",p,", 结果 ",ok);
         }
         onRejected: {
