@@ -239,12 +239,21 @@ public:
             qWarning() << "AppFileHelper writeFileQueued failed: empty path";
             return false;
         }
+        /* 调用方可能给 file:// 地址(存储目录就是以地址形式保存的), 落盘前统一成本地路径 */
+        QString localPath = path;
+        if (localPath.startsWith(QLatin1String("file:"), Qt::CaseInsensitive)) {
+            localPath = QUrl(path).toLocalFile();
+        }
+        if (localPath.isEmpty()) {
+            qWarning() << "AppFileHelper writeFileQueued failed: empty local path" << path;
+            return false;
+        }
         auto encoder = QStringEncoder(codecName.toUtf8().constData());
         if (!encoder.isValid()) {
             qWarning() << "AppFileHelper invalid codec: " << codecName;
             return false;
         }
-        AppFileWriteQueue::instance()->enqueue(path, encoder(content));
+        AppFileWriteQueue::instance()->enqueue(localPath, encoder(content));
         return true;
     }
 
