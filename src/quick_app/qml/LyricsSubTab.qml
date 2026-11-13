@@ -24,6 +24,8 @@ Rectangle {
     property int currentLine: -1;
     /* 当前行内已唱到的词下标: 只有增强歌词(elrc)带词级时间戳, 其它情况为 -1 */
     property int currentWord: -1;
+    /* 播放位置还没到第一行时间戳: 悬浮歌词据此显示 歌名-歌手, 而不是提前把第一行顶上去 */
+    property bool beforeFirstLine: false;
     /* 歌词增强开关: 关闭时用普通歌词且不做逐字着色, 开启时才按增强歌词显示逐字进度 */
     readonly property bool enhancedOn: GlobalFileStorage.lyricsEnhanced();
     /* 当前词的推进比例 0 到 1: 在两次播放位置上报之间按真实时间外推,
@@ -793,6 +795,7 @@ Rectangle {
          * 全部行都没有时间戳的歌词同样把第 0 行当作当前行, 与首行兜底同一口径,
          * 否则这类歌词页不高亮任何行, 桌面歌词恒显示"暂无歌词";
          * 最后一行播完之后固定停在最后一个有时间戳的行, 歌词侧不再换行, 也不干预播放 */
+        root.beforeFirstLine=(idx<0);
         if(idx<0) {
             idx=0;
         }
@@ -1259,15 +1262,19 @@ Rectangle {
         if(it===null || it===undefined) {
             return false;
         }
-        /* 目标偏移按行 y 反算, 再按内容两端收一次:
-         * 首行贴内容顶, 末行贴内容底, 中间行落在锚定线上 */
-        var target=it.y-lyricView.height*root.anchorRatio;
-        if(root.currentLine===0) {
-            target=Math.max(0,target);
-        } else if(root.currentLine===lyricLines.length-1) {
-            target=Math.min(target,Math.max(0,lyricView.contentHeight-lyricView.height));
+        /* 列表的内容原点在第一行, 头部留白落在负偏移一侧(实测 headerItem.y 为负, contentY 初值也是负),
+         * 因此下界是 -锚定高度而不是 0; 只夹 0 会让前几行贴着视口顶, 永远到不了锚定高度 */
+        var anchorY=lyricView.height*root.anchorRatio;
+        var minY=-anchorY;
+        var maxY=Math.max(minY,lyricView.contentHeight-lyricView.height);
+        var target=it.y-anchorY;
+        if(target<minY) {
+            target=minY;
         }
-        lyricView.contentY=Math.max(0,target);
+        if(target>maxY) {
+            target=maxY;
+        }
+        lyricView.contentY=target;
         /* 记下锚定位置: 跳转按钮的可见性按它与当前偏移的差判断 */
         root._anchorContentY=lyricView.contentY;
         return true;
