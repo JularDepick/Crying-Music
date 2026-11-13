@@ -681,6 +681,13 @@ Rectangle {
     onEnhancedOnChanged: {
         root.syncLyrics();
     }
+    /* 歌词字体变化会改行高: 按新字体重新锚定, 保证基准线与遮罩高度都跟上 */
+    Connections {
+        target: Define;
+        function onLyricsFontFamilyResolvedChanged() {
+            Qt.callLater(root.anchorToCurrentLine);
+        }
+    }
     /* 读盘并解析歌词: 没有缓存时清空显示, 缓存就绪时由 lyricsUpdated 再次触发 */
     function loadLyricText() {
         if(activeLyricsName==="") {

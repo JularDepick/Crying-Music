@@ -74,7 +74,8 @@ Item {
     onTextChanged: refreshLayout();
     onPixelSizeChanged: refreshLayout();
     onBoldChanged: refreshLayout();
-    onFamilyChanged: refreshLayout();
+    /* 字体族变化会改行高与断行: 延后一拍再量, 等 Text 用新字体完成排版, 否则遮罩高度会与新文本对不上 */
+    onFamilyChanged: Qt.callLater(root.refreshLayout);
     onWidthChanged: refreshLayout();
     onMeasurerChanged: refreshLayout();
     onLineDataChanged: refreshLayout();

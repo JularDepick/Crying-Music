@@ -96,8 +96,8 @@ Item {
     property int onlineRetryMaxMs: 60000;
     property int onlineRetryStepMs: 5000;
     /* 歌词页字号: 默认值与调节步长, 全部歌词行同一字号 */
-    property int lyricsFontSizeDefault: 16;
-    property int lyricsFontSizeMin: 16;
+    property int lyricsFontSizeDefault: 20;
+    property int lyricsFontSizeMin: 20;
     property int lyricsFontSizeMax: 40;
     property int lyricsFontSizeStep: 2;
     /* 字体: 界面, 歌词页歌词与桌面悬浮歌词三项各自独立设置, 空串表示跟随系统字体;

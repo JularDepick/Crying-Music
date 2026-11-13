@@ -7,7 +7,7 @@ import AppHelper 1.0
 
 import "./"
 
-/* 设置页: 顶部按分类 tab 分成播放与下载, 歌词与缓存, 字体, 按键绑定, 关于与许可五组子页;
+/* 设置页: 顶部按分类 tab 分成播放与下载, 歌词与缓存, 按键绑定, 关于与许可四组子页;
  * 每个子页的正文放在可滚动区域里, 窗口变矮时由右侧细滚动条与滚轮承接;
  * 偏好都写成界面状态, 重启后保持; 换挡统一用 CustomChoose, 开关统一用 CustomSwitch */
 MainAreaFatherPage {
@@ -19,7 +19,6 @@ MainAreaFatherPage {
     property var tabOptions: [
         {"id":"play","label":"播放与下载"},
         {"id":"cache","label":"歌词与缓存"},
-        {"id":"fonts","label":"字体"},
         {"id":"keys","label":"按键绑定"},
         {"id":"about","label":"关于与许可"}
     ];
@@ -414,8 +413,7 @@ MainAreaFatherPage {
         contentWidth: width;
         contentHeight: ((mainArea_SettingsPage.tabId==="play"? playTab.height
                         :(mainArea_SettingsPage.tabId==="cache"? cacheTab.height
-                          :(mainArea_SettingsPage.tabId==="keys"? keysTab.height
-                            :(mainArea_SettingsPage.tabId==="fonts"? fontsTab.height:aboutTab.height))))+48);
+                          :(mainArea_SettingsPage.tabId==="keys"? keysTab.height:aboutTab.height)))+48);
         /* 播放与下载 */
         Column {
             id: playTab;
@@ -562,6 +560,37 @@ MainAreaFatherPage {
                 font.pixelSize: 13;
                 color: (mainArea_SettingsPage.dirTipOk? Define.choseCyanColor:Define.btnIconRed);
             }
+            Rectangle {
+                width: parent.width;
+                height: 2;
+                radius: 1;
+                color: Define.subGrey;
+            }
+            /* 界面字体: 窗口内所有文本按这一项取字体族, 歌词页与悬浮歌词各用自己那一项 */
+            Text {
+                color: Define.textColor;
+                text: "界面字体";
+                font.pixelSize: 15;
+                font.weight: 400;
+            }
+            CustomSelect {
+                id: uiFontSelect;
+                options: mainArea_SettingsPage.fontOptions;
+                currentValue: GlobalFileStorage.uiFontFamily();
+                onChosen: (value, index)=> {
+                    GlobalFileStorage.setUiFontFamily(value);
+                    Define.uiFontFamily=GlobalFileStorage.uiFontFamily();
+                    AppFontHelper.applyUiFamily(Define.uiFontFamilyResolved);
+                    mainArea_SettingsPage.fontTip="界面字体已切换";
+                    Assist.dlog("界面","界面字体: ",Define.uiFontFamilyResolved);
+                }
+            }
+            Text {
+                visible: (mainArea_SettingsPage.fontTip!=="");
+                text: mainArea_SettingsPage.fontTip;
+                font.pixelSize: 12;
+                color: Define.choseCyanColor;
+            }
         }
         /* 歌词与缓存 */
         Column {
@@ -570,6 +599,73 @@ MainAreaFatherPage {
             x: 40;
             width: settingsFlick.width-80;
             spacing: 10;
+            /* 歌词增强 */
+            Text {
+                color: Define.textColor;
+                text: "歌词增强";
+                font.pixelSize: 15;
+                font.weight: 400;
+            }
+            CustomSwitch {
+                id: lyricsEnhancedSwitch;
+                checked: GlobalFileStorage.lyricsEnhanced();
+                onToggled: (on)=> {
+                    GlobalFileStorage.setLyricsEnhanced(on);
+                    Assist.dlog("界面","歌词增强: ",on);
+                }
+            }
+            Rectangle {
+                width: parent.width;
+                height: 2;
+                radius: 1;
+                color: Define.subGrey;
+            }
+            /* 歌词页歌词字体: 只作用于歌词页里的歌词行, 不影响界面与悬浮歌词 */
+            Text {
+                color: Define.textColor;
+                text: "歌词页歌词字体";
+                font.pixelSize: 15;
+                font.weight: 400;
+            }
+            CustomSelect {
+                id: lyricsFontSelect;
+                options: mainArea_SettingsPage.fontOptions;
+                currentValue: GlobalFileStorage.lyricsFontFamily();
+                onChosen: (value, index)=> {
+                    GlobalFileStorage.setLyricsFontFamily(value);
+                    Define.lyricsFontFamily=GlobalFileStorage.lyricsFontFamily();
+                    Assist.dlog("界面","歌词字体: ",Define.lyricsFontFamilyResolved);
+                }
+            }
+            Rectangle {
+                width: parent.width;
+                height: 2;
+                radius: 1;
+                color: Define.subGrey;
+            }
+            /* 桌面悬浮歌词字体 */
+            Text {
+                color: Define.textColor;
+                text: "悬浮歌词字体";
+                font.pixelSize: 15;
+                font.weight: 400;
+            }
+            CustomSelect {
+                id: desktopLyricsFontSelect;
+                options: mainArea_SettingsPage.fontOptions;
+                currentValue: GlobalFileStorage.desktopLyricsFontFamily();
+                onChosen: (value, index)=> {
+                    GlobalFileStorage.setDesktopLyricsFontFamily(value);
+                    Define.desktopLyricsFontFamily=GlobalFileStorage.desktopLyricsFontFamily();
+                    Assist.dlog("界面","悬浮歌词字体: ",Define.desktopLyricsFontFamilyResolved);
+                }
+            }
+            Rectangle {
+                width: parent.width;
+                height: 2;
+                radius: 1;
+                color: Define.subGrey;
+            }
             /* 封面缓存 */
             Text {
                 color: Define.textColor;
@@ -655,106 +751,6 @@ MainAreaFatherPage {
                     ToolTip.visible: audioClearHh.hovered;
                     ToolTip.text: mainArea_SettingsPage.audioCacheStatsText();
                     ToolTip.delay: 600;
-                }
-            }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
-            }
-            /* 歌词增强 */
-            Text {
-                color: Define.textColor;
-                text: "歌词增强";
-                font.pixelSize: 15;
-                font.weight: 400;
-            }
-            CustomSwitch {
-                id: lyricsEnhancedSwitch;
-                checked: GlobalFileStorage.lyricsEnhanced();
-                onToggled: (on)=> {
-                    GlobalFileStorage.setLyricsEnhanced(on);
-                    Assist.dlog("界面","歌词增强: ",on);
-                }
-            }
-        }
-        /* 字体: 界面, 歌词页歌词与桌面悬浮歌词三项各自独立, 首项都是跟随系统 */
-        Column {
-            id: fontsTab;
-            visible: (mainArea_SettingsPage.tabId==="fonts");
-            x: 40;
-            width: settingsFlick.width-80;
-            spacing: 10;
-            /* 界面字体 */
-            Text {
-                color: Define.textColor;
-                text: "界面字体";
-                font.pixelSize: 15;
-                font.weight: 400;
-            }
-            CustomSelect {
-                id: uiFontSelect;
-                options: mainArea_SettingsPage.fontOptions;
-                currentValue: GlobalFileStorage.uiFontFamily();
-                onChosen: (value, index)=> {
-                    GlobalFileStorage.setUiFontFamily(value);
-                    Define.uiFontFamily=GlobalFileStorage.uiFontFamily();
-                    AppFontHelper.applyUiFamily(Define.uiFontFamilyResolved);
-                    mainArea_SettingsPage.fontTip="界面字体已切换";
-                    Assist.dlog("界面","界面字体: ",Define.uiFontFamilyResolved);
-                }
-            }
-            Text {
-                visible: (mainArea_SettingsPage.fontTip!=="");
-                text: mainArea_SettingsPage.fontTip;
-                font.pixelSize: 12;
-                color: Define.choseCyanColor;
-            }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
-            }
-            /* 歌词页歌词字体 */
-            Text {
-                color: Define.textColor;
-                text: "歌词页歌词字体";
-                font.pixelSize: 15;
-                font.weight: 400;
-            }
-            CustomSelect {
-                id: lyricsFontSelect;
-                options: mainArea_SettingsPage.fontOptions;
-                currentValue: GlobalFileStorage.lyricsFontFamily();
-                onChosen: (value, index)=> {
-                    GlobalFileStorage.setLyricsFontFamily(value);
-                    Define.lyricsFontFamily=GlobalFileStorage.lyricsFontFamily();
-                    Assist.dlog("界面","歌词字体: ",Define.lyricsFontFamilyResolved);
-                }
-            }
-            Rectangle {
-                width: parent.width;
-                height: 2;
-                radius: 1;
-                color: Define.subGrey;
-            }
-            /* 桌面悬浮歌词字体 */
-            Text {
-                color: Define.textColor;
-                text: "悬浮歌词字体";
-                font.pixelSize: 15;
-                font.weight: 400;
-            }
-            CustomSelect {
-                id: desktopLyricsFontSelect;
-                options: mainArea_SettingsPage.fontOptions;
-                currentValue: GlobalFileStorage.desktopLyricsFontFamily();
-                onChosen: (value, index)=> {
-                    GlobalFileStorage.setDesktopLyricsFontFamily(value);
-                    Define.desktopLyricsFontFamily=GlobalFileStorage.desktopLyricsFontFamily();
-                    Assist.dlog("界面","悬浮歌词字体: ",Define.desktopLyricsFontFamilyResolved);
                 }
             }
         }
