@@ -381,7 +381,7 @@ MainAreaFatherPage {
         anchors {top:recommendView.top; bottom:recommendView.bottom; right:parent.right;}
         width: 4;
         visible: (recommendView.contentHeight > recommendView.height);
-        handleRatio: Math.max(0.1,recommendView.height/recommendView.contentHeight);
+        handleRatio: Math.max(0.1,recommendView.height/Math.max(1,recommendView.contentHeight));
         hoverHandlerEnabled: false;
         value: from*(recommendView.contentY/Math.max(1,recommendView.contentHeight-recommendView.height));
         onMoved: {

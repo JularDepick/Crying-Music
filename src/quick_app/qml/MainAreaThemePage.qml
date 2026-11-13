@@ -149,7 +149,7 @@ MainAreaFatherPage {
         anchors {top:themeFlick.top; bottom:themeFlick.bottom; right:parent.right;}
         width: 4;
         visible: (themeFlick.contentHeight>themeFlick.height);
-        handleRatio: Math.max(0.1,themeFlick.height/themeFlick.contentHeight);
+        handleRatio: Math.max(0.1,themeFlick.height/Math.max(1,themeFlick.contentHeight));
         hoverHandlerEnabled: false;
         value: from*(themeFlick.contentY/Math.max(1,themeFlick.contentHeight-themeFlick.height));
         onMoved: {

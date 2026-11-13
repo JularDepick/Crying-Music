@@ -373,7 +373,7 @@ Rectangle {
             id: playingListViewScrollBar;
             anchors {top:parent.top; bottom:parent.bottom; right:parent.right;}
             visible: (playingListView.contentHeight > playingListView.height);
-            handleRatio: Math.max(0.1,playingListView.height/playingListView.contentHeight);
+            handleRatio: Math.max(0.1,playingListView.height/Math.max(1,playingListView.contentHeight));
             hoverHandlerEnabled: false;
             value: from*(playingListView.contentY/Math.max(1,playingListView.contentHeight-playingListView.height));
             onMoved: {

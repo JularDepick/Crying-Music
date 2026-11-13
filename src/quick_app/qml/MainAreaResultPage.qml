@@ -374,7 +374,7 @@ MainAreaFatherPage {
         anchors {top:mainViewArea.top; bottom:mainViewArea.bottom; right:parent.right;}
         width: 4;
         visible: (mainListView.contentHeight > mainListView.height);
-        handleRatio: Math.max(0.1,mainListView.height/mainListView.contentHeight);
+        handleRatio: Math.max(0.1,mainListView.height/Math.max(1,mainListView.contentHeight));
         hoverHandlerEnabled: false;
         value: from*(mainListView.contentY/Math.max(1,mainListView.contentHeight-mainListView.height));
         onMoved: {

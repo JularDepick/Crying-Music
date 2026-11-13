@@ -1099,7 +1099,7 @@ MainAreaFatherPage {
         anchors {top:parent.top; bottom:parent.bottom; right:parent.right;}
         width: 4;
         visible: (mainListView.contentHeight > mainListView.height);
-        handleRatio: Math.max(0.1,mainListView.height/mainListView.contentHeight);
+        handleRatio: Math.max(0.1,mainListView.height/Math.max(1,mainListView.contentHeight));
         hoverHandlerEnabled: false;
         value: from*(mainListView.contentY/Math.max(1,mainListView.contentHeight-mainListView.height));
         onMoved: {
@@ -1324,7 +1324,7 @@ MainAreaFatherPage {
                         id: addSongDirListViewScrollBar;
                         anchors {top:parent.top; bottom:parent.bottom; right:parent.right;}
                         visible: (addSongDirListView.contentHeight > addSongDirListView.height);
-                        handleRatio: Math.max(0.1,addSongDirListView.height/addSongDirListView.contentHeight);
+                        handleRatio: Math.max(0.1,addSongDirListView.height/Math.max(1,addSongDirListView.contentHeight));
                         hoverHandlerEnabled: false;
                         value: from*(addSongDirListView.contentY/Math.max(1,addSongDirListView.contentHeight-addSongDirListView.height));
                         onMoved: {
