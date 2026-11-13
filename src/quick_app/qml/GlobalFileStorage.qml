@@ -683,6 +683,8 @@ Item {
                         "scanFmts":(ls.scanFmts===undefined? []:ls.scanFmts),
                         "scanRadio":(ls.scanRadio===undefined? 0:ls.scanRadio),
                         "excludedFiles":(ls.excludedFiles===undefined? []:ls.excludedFiles)});
+            /* 扫描目录里的移除标记只在本次运行有效, 启动时清掉, 让扫描能重新发现被移除的文件 */
+            pruneScanExclusions();
         }
         var lk=readPayload(storageDirPath,likedFilesFileName);
         if(Array.isArray(lk)===true) {
@@ -1079,6 +1081,48 @@ Item {
         }
         localScan.excludedFiles=newe;
         saveLocalScan();
+    }
+    /* 清掉落在扫描目录下的移除标记: 扫描目录里的文件是从磁盘实时枚举出来的,
+     * 一旦被移除标记挡住就再也不会出现在列表里; 手动添加的文件不在这些目录下, 其标记保留 */
+    function pruneScanExclusions() {
+        var dirs=localScan.scanDirs;
+        var cur=localScan.excludedFiles;
+        if(dirs===undefined || dirs===null || dirs.length<=0
+           || cur===undefined || cur===null || cur.length<=0) {
+            return 0;
+        }
+        var keep=[];
+        var removed=0;
+        for(var i=0;i<cur.length;i++) {
+            var p=String(cur[i]).toLowerCase();
+            var hit=false;
+            for(var j=0;j<dirs.length;j++) {
+                var d=String(dirs[j]["absdpath"]===undefined? "":dirs[j]["absdpath"]).toLowerCase();
+                if(d==="" || p==="") {
+                    continue;
+                }
+                if(p===d || p.indexOf(d+"/")===0) {
+                    hit=true;
+                    break;
+                }
+            }
+            if(hit) {
+                removed=removed+1;
+            } else {
+                keep.push(cur[i]);
+            }
+        }
+        if(removed<=0) {
+            return 0;
+        }
+        localScan=({"singleFiles":localScan.singleFiles,
+                    "scanDirs":localScan.scanDirs,
+                    "scanFmts":localScan.scanFmts,
+                    "scanRadio":localScan.scanRadio,
+                    "excludedFiles":keep});
+        saveLocalScan();
+        Assist.dlog("落盘","清掉扫描目录下的移除标记: ",removed," 项");
+        return removed;
     }
     /* 解除单个路径的移除标记 */
     function removeExclude(absfpath) {
