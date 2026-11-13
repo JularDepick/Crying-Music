@@ -2,15 +2,24 @@
 从指定路径 P 复制纯净可独立运行的 Release 内容到指定路径 Q。
 在下方配置 SOURCE_DIR 和 DEST_DIR，然后运行此脚本。
 
-复制来源为 SOURCE_DIR：windeployqt 部署后的构建输出目录，提供主程序与 Qt 运行时依赖；
-项目自身的许可, 版权, 中英说明, 第三方组件声明与 Qt, FFmpeg 的许可文本从源码目录另行附加
+复制原则: 只复制运行时真正会用到的内容。
+- 样式: 程序启动时把 Qt Quick Controls 固定为 Basic, 因此只带 Basic 样式, 其余样式与样式插件一律不带
+- 翻译: 程序不安装 QTranslator, translations 目录不带
+- 多媒体: 程序强制使用 FFmpeg 后端, 因此不带 Windows 多媒体后端插件
+- 图片格式: 界面只用 jpeg 与 svg, 不带 gif 与 ico 插件
+- 网络: HTTPS 走系统 schannel 后端, 不带仅处理证书的 certonly 后端; 程序不查询网络状态, 不带 networkinformation
+- 已停用的模块: 托盘迁移到 QSystemTrayIcon 之后不再需要 Qt.labs.platform 与 Qt.labs.folderlistmodel
+- 工具元数据: 所有 *.qmltypes 属于开发期工具数据, 不带
 
-配置路径以脚本所在目录为基准解析，可在任意工作目录下运行。
-复制结束后会自检构建产物中未纳入清单的 DLL 与插件目录，提示可能漏带的依赖。
+复制来源为 SOURCE_DIR: windeployqt 部署后的构建输出目录, 提供主程序与 Qt 运行时依赖;
+项目自身的许可, 版权, 中英说明, 第三方组件声明与 Qt, FFmpeg 的许可文本从源码目录另行附加。
 
-本脚本同时被 GitHub Actions 工作流 .github/workflows/release-quick_app.yml 调用，
-发布 release 时由它产出上传到 assets 的便携版；因此 SOURCE_DIR 指向的构建输出目录名
-必须与工作流里的构建目录名保持一致，新增依赖时需要同步补充 COPY_TARGETS。
+配置路径以脚本所在目录为基准解析, 可在任意工作目录下运行。
+复制结束后会自检构建产物中既未纳入清单, 也不在忽略表里的 DLL 与插件目录, 提示可能漏带的依赖。
+
+本脚本同时被 GitHub Actions 工作流 .github/workflows/release-quick_app.yml 调用,
+发布 release 时由它产出上传到 assets 的便携版; 因此 SOURCE_DIR 指向的构建输出目录名
+必须与工作流里的构建目录名保持一致, 新增依赖时需要同步补充 COPY_TARGETS。
 """
 
 import shutil
@@ -19,26 +28,25 @@ from pathlib import Path
 
 # ==== 配置区域 ====
 
-# 脚本所在目录：配置路径均以它为基准，避免依赖运行时工作目录
+# 脚本所在目录: 配置路径均以它为基准, 避免依赖运行时工作目录
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-# 源路径：Release 构建输出目录（含主 exe 与已部署的依赖）
+# 源路径: Release 构建输出目录(含主 exe 与已部署的依赖)
 SOURCE_DIR = (SCRIPT_DIR / "../build/Desktop_Qt_6_11_1_MinGW_64_bit_Release").resolve()
 
-# 目标路径：纯净 Release 的输出位置
+# 目标路径: 纯净 Release 的输出位置
 DEST_DIR = (SCRIPT_DIR / "../release/Crying-Music").resolve()
 
 # 主可执行文件名
 MAIN_EXE = "CryingMusic.exe"
 
-# 需要复制的文件和目录列表（相对于 SOURCE_DIR）
-# 清单按 windeployqt 实际产物逐项核对，覆盖 Qt Quick 与 Qt Multimedia 及其插件依赖
+# 需要复制的条目(相对于 SOURCE_DIR); 文件写完整文件名, 目录以 / 结尾
 COPY_TARGETS: list[str] = [
     # 主程序
     MAIN_EXE,
     MAIN_EXE + ".manifest",
 
-    # MinGW 运行时库（Qt6Core/Qt6Gui 依赖）
+    # MinGW 运行时库(Qt6Core/Qt6Gui 依赖)
     "libgcc_s_seh-1.dll",
     "libstdc++-6.dll",
     "libwinpthread-1.dll",
@@ -55,37 +63,22 @@ COPY_TARGETS: list[str] = [
     "Qt6Quick.dll",
     "Qt6QuickEffects.dll",
     "Qt6QuickLayouts.dll",
-    "Qt6QuickShapes.dll",
     "Qt6QuickTemplates2.dll",
     "Qt6Svg.dll",
     "Qt6Widgets.dll",
 
-    # Qt Quick Dialogs（本地页的 FileDialog/FolderDialog 依赖）
-    "Qt6QuickDialogs2.dll",
-    "Qt6QuickDialogs2QuickImpl.dll",
-    "Qt6QuickDialogs2Utils.dll",
-
-    # QML 平台模块（qml/Qt/labs/platform 与 folderlistmodel 插件依赖）
-    "Qt6LabsPlatform.dll",
-    "Qt6LabsFolderListModel.dll",
-
-    # Qt Quick Controls 2：样式由 qml/QtQuick/Controls/<样式> 内插件按需加载
+    # Qt Quick Controls: 只带 Basic 样式(程序启动时已固定为该样式)
     "Qt6QuickControls2.dll",
     "Qt6QuickControls2Impl.dll",
     "Qt6QuickControls2Basic.dll",
     "Qt6QuickControls2BasicStyleImpl.dll",
-    "Qt6QuickControls2FluentWinUI3StyleImpl.dll",
-    "Qt6QuickControls2Fusion.dll",
-    "Qt6QuickControls2FusionStyleImpl.dll",
-    "Qt6QuickControls2Imagine.dll",
-    "Qt6QuickControls2ImagineStyleImpl.dll",
-    "Qt6QuickControls2Material.dll",
-    "Qt6QuickControls2MaterialStyleImpl.dll",
-    "Qt6QuickControls2Universal.dll",
-    "Qt6QuickControls2UniversalStyleImpl.dll",
-    "Qt6QuickControls2WindowsStyleImpl.dll",
 
-    # Qt Multimedia 与 FFmpeg 后端（Main.qml 的 MediaPlayer 依赖）
+    # Qt Quick Dialogs(本地页的 FileDialog/FolderDialog 依赖)
+    "Qt6QuickDialogs2.dll",
+    "Qt6QuickDialogs2QuickImpl.dll",
+    "Qt6QuickDialogs2Utils.dll",
+
+    # Qt Multimedia 与 FFmpeg 后端(Main.qml 的 MediaPlayer 依赖)
     "Qt6Multimedia.dll",
     "Qt6MultimediaQuick.dll",
     "avcodec-61.dll",
@@ -94,23 +87,36 @@ COPY_TARGETS: list[str] = [
     "swresample-5.dll",
     "swscale-8.dll",
 
-    # 平台与插件目录
-    "platforms/",
-    "multimedia/",
-    "generic/",
-    "iconengines/",
-    "imageformats/",
-    "styles/",
-    "tls/",
-    "networkinformation/",
-    "translations/",
+    # 插件逐个列出, 不带整目录: 目录里往往混着用不到的插件
+    "platforms/qwindows.dll",
+    "styles/qmodernwindowsstyle.dll",
+    "multimedia/ffmpegmediaplugin.dll",
+    "imageformats/qjpeg.dll",
+    "imageformats/qsvg.dll",
+    "tls/qschannelbackend.dll",
 
-    # QML 模块（整个目录树）
-    "qml/",
-
-    # 可选：OpenGL 软件渲染器（无显卡驱动的机器需要）
-    "opengl32sw.dll",
+    # QML 模块: QtQuick 与 Controls 按子目录排除, 其余整树复制
+    "qml/QML/",
+    "qml/QtQml/",
+    "qml/QtMultimedia/",
+    "qml/QtQuick/",
+    "qml/QtQuick/Controls/",
 ]
+
+# 目录复制时要跳过的子项: 键为清单里的目录条目(带结尾斜杠), 值为该目录第一层要跳过的名字.
+# 排除只作用于被复制的那个目录本身, 因此 Controls 单独列一条时可以再排除它的样式子目录
+DIR_EXCLUDES: dict[str, set[str]] = {
+    # QtQuick 下只保留界面真正用到的子模块; Controls 单独列为一条, 以便再排除未使用的样式
+    "qml/QtQuick/": {"Controls", "NativeStyle", "Particles", "Timeline", "VectorImage",
+                     "LocalStorage", "Shapes", "tooling"},
+    # 只保留 Basic 与 impl, 其余四种样式与 Windows 原生样式都不带
+    "qml/QtQuick/Controls/": {"Fusion", "Imagine", "Material", "Universal", "FluentWinUI3", "Windows"},
+    # QtQml 下只用到 Models 与 WorkerScript
+    "qml/QtQml/": {"XmlListModel"},
+}
+
+# 复制时跳过的文件后缀: *.qmltypes 只服务于开发期工具, 运行期不需要
+SKIP_SUFFIXES: set[str] = {".qmltypes"}
 
 # 发布包附加文件: 项目许可, 版权, 文档许可, Qt 许可, FFmpeg 许可, 中英说明与第三方组件声明
 # (源路径, 发布包内文件名); 这些文件取自源码目录, 不属于 windeployqt 的构建产物
@@ -128,14 +134,40 @@ EXTRA_SOURCES: list[tuple[Path, str]] = [
     ((SCRIPT_DIR / "../THIRD-PARTY-NOTICES.md").resolve(), "THIRD-PARTY-NOTICES.md"),
 ]
 
-# 允许在源目录中缺失的清单条目: 只有标注为可选的项, 其余条目缺失即视为打包失败
-OPTIONAL_TARGETS: set[str] = {"opengl32sw.dll"}
+# 允许在源目录中缺失的清单条目: 其余条目缺失即视为打包失败
+OPTIONAL_TARGETS: set[str] = set()
 
-# 构建产物中属于开发用途或刻意不分发的条目，自检时跳过
-IGNORED_UNCOVERED = {"qmltooling", "Qt6Quick3DUtils.dll"}
+# 构建产物中刻意不分发的条目: 自检时跳过, 并在提示里给出原因
+IGNORED_UNCOVERED: dict[str, str] = {
+    "translations": "程序不安装 QTranslator, 翻译文件用不到",
+    "generic": "TUIO 触摸输入插件, 用不到",
+    "iconengines": "QIcon 不加载 svg, 图标由界面组件自己绘制",
+    "networkinformation": "程序不查询网络状态",
+    "opengl32sw.dll": "Qt 6 在 Windows 默认走 Direct3D, 不启用软件 OpenGL 兜底",
+    "Qt6Quick3DUtils.dll": "Qt Quick 3D 未使用",
+    "Qt6QuickShapes.dll": "界面未 import QtQuick.Shapes",
+    "Qt6LabsPlatform.dll": "托盘已迁移到 QSystemTrayIcon",
+    "Qt6LabsFolderListModel.dll": "托盘已迁移到 QSystemTrayIcon",
+    "Qt6QuickControls2Fusion.dll": "样式已固定为 Basic",
+    "Qt6QuickControls2FusionStyleImpl.dll": "样式已固定为 Basic",
+    "Qt6QuickControls2Imagine.dll": "样式已固定为 Basic",
+    "Qt6QuickControls2ImagineStyleImpl.dll": "样式已固定为 Basic",
+    "Qt6QuickControls2Material.dll": "样式已固定为 Basic",
+    "Qt6QuickControls2MaterialStyleImpl.dll": "样式已固定为 Basic",
+    "Qt6QuickControls2Universal.dll": "样式已固定为 Basic",
+    "Qt6QuickControls2UniversalStyleImpl.dll": "样式已固定为 Basic",
+    "Qt6QuickControls2FluentWinUI3StyleImpl.dll": "样式已固定为 Basic",
+    "Qt6QuickControls2WindowsStyleImpl.dll": "样式已固定为 Basic",
+    "qmltooling": "开发期调试插件, 不分发",
+}
 
 
 # ==== 逻辑 ====
+
+def is_excluded(target: str, name: str) -> bool:
+    """按 DIR_EXCLUDES 判断某个子项是否要在被复制目录的第一层跳过。"""
+    return name in DIR_EXCLUDES.get(target, set())
+
 
 def copy_entry(src: Path, dst: Path, name: str) -> tuple[int, bool]:
     """复制单个文件或目录树，返回（复制的文件数量，源条目是否存在）。"""
@@ -153,15 +185,23 @@ def copy_entry(src: Path, dst: Path, name: str) -> tuple[int, bool]:
         return 1, True
 
     if src_path.is_dir():
+        base_rel = name.rstrip("/")
         count = 0
         for item in src_path.rglob("*"):
-            if item.is_file():
-                rel = item.relative_to(src)
-                target = dst / rel
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(item, target)
-                count += 1
-        print(f"  [目录] {name}/ ({count} 个文件)")
+            if not item.is_file():
+                continue
+            if item.suffix.lower() in SKIP_SUFFIXES:
+                continue
+            rel = item.relative_to(src)
+            # 排除项只作用于被复制目录的第一层: 这里取相对该目录的第一段路径
+            rel_to_target = item.relative_to(src_path)
+            if is_excluded(name, rel_to_target.parts[0]):
+                continue
+            target = dst / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, target)
+            count += 1
+        print(f"  [目录] {name} ({count} 个文件)")
         return count, True
 
     return 0, False
@@ -181,16 +221,20 @@ def copy_extras(dst: Path) -> int:
 
 
 def check_uncovered(src: Path, covered: set[str]) -> int:
-    """自检构建产物中未纳入清单的 DLL 与插件目录，提示可能漏带的依赖；返回未覆盖项数量。"""
+    """自检构建产物中既未纳入清单也不在忽略表里的 DLL 与插件目录; 返回未覆盖项数量。"""
     uncovered: list[str] = []
     for item in sorted(src.iterdir()):
-        if item.name in covered or item.name in IGNORED_UNCOVERED:
+        name = item.name
+        if name in covered or name in IGNORED_UNCOVERED:
             continue
         if item.is_dir():
+            # 目录只要有一条子项被清单覆盖就算已覆盖
+            if any(entry.startswith(name + "/") for entry in covered):
+                continue
             if any(child.is_file() for child in item.rglob("*.dll")):
-                uncovered.append(f"{item.name}/")
+                uncovered.append(f"{name}/")
         elif item.suffix.lower() == ".dll":
-            uncovered.append(item.name)
+            uncovered.append(name)
 
     if not uncovered:
         return 0
