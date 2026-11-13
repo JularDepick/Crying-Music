@@ -12,8 +12,9 @@ MainAreaFatherPage {
     visible: false;
     /* 推荐列表: 由在线曲库清单构造, 只由重建函数整体替换 */
     property var recommendModel: ([]);
-    /* 排序状态: 0 默认顺序, 1 歌名升, 2 歌名降, 3 歌手升, 4 歌手降 */
-    property int sortStep: 0;
+    /* 默认排序档: 歌名降序; 排序只有四档, 1 歌名升, 2 歌名降, 3 歌手升, 4 歌手降 */
+    readonly property int sortStepDefault: 2;
+    property int sortStep: sortStepDefault;
     /* 标题与功能行 */
     Column {
         id: headColum;
@@ -76,7 +77,8 @@ MainAreaFatherPage {
                 background: Rectangle {
                     anchors.fill: parent;
                     radius: 15;
-                    color: ((mainArea_HomePage.sortStep!==0||parent.hovered)? Define.choseDarkColor:Define.hoverDarkColor);
+                    /* 默认档不点亮, 换成别的档位才点亮 */
+                    color: ((mainArea_HomePage.sortStep!==mainArea_HomePage.sortStepDefault||parent.hovered)? Define.choseDarkColor:Define.hoverDarkColor);
                     Row {
                         anchors.centerIn: parent;
                         spacing: 5;
@@ -359,12 +361,9 @@ MainAreaFatherPage {
         Assist.dlog("在线","首页推荐已更新: 共 ",v.length," 首");
         return true;
     }
-    /* 按排序态重排副本: 0 保持清单顺序, 1/2 按歌名升降, 3/4 按歌手升降 */
+    /* 按排序态重排副本: 1/2 按歌名升降, 3/4 按歌手升降 */
     function sortEntries(v) {
         var step=mainArea_HomePage.sortStep;
-        if(step===0) {
-            return v;
-        }
         var key=((step===1 || step===2)? "songname":"singer");
         var asc=(step===1 || step===3);
         var res=v.slice();
@@ -376,31 +375,25 @@ MainAreaFatherPage {
         });
         return res;
     }
-    /* 排序按钮的文案 */
+    /* 排序按钮的文案: 歌名两档显示 歌名, 歌手两档显示 歌手 */
     function sortLabel() {
         var step=mainArea_HomePage.sortStep;
         if(step===1 || step===2) {
             return "歌名";
         }
-        if(step===3 || step===4) {
-            return "歌手";
-        }
-        return "排序";
+        return "歌手";
     }
-    /* 排序按钮的指示图标 */
+    /* 排序按钮的指示图标: 升序向上, 降序向下 */
     function sortIcon() {
         var step=mainArea_HomePage.sortStep;
         if(step===1 || step===3) {
             return "qrc:/assets/iconfont/listview/upsort.svg";
         }
-        if(step===2 || step===4) {
-            return "qrc:/assets/iconfont/listview/downsort.svg";
-        }
-        return "qrc:/assets/iconfont/listview/justsort.svg";
+        return "qrc:/assets/iconfont/listview/downsort.svg";
     }
-    /* 排序切换: 默认 -> 歌名升 -> 歌名降 -> 歌手升 -> 歌手降 -> 默认 */
+    /* 排序切换: 歌名升 -> 歌名降 -> 歌手升 -> 歌手降 -> 歌名升 */
     function cycleSort() {
-        mainArea_HomePage.sortStep=(mainArea_HomePage.sortStep+1)%5;
+        mainArea_HomePage.sortStep=(mainArea_HomePage.sortStep%4)+1;
         Assist.dlog("在线","首页推荐排序: ",mainArea_HomePage.sortStep,", ",sortLabel());
         return rebuild();
     }
