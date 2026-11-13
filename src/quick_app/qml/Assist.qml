@@ -4,26 +4,30 @@ import QtQuick
 import AppHelper 1.0
 
 Item {
-    /* 调试输出的分类清单与开关取自设计常量 Define.debugCategoryOn */
+    /* 运行期总开关: 只有命令行带 --debug 时为真, 由 C++ 侧在启动时设定 */
+    function runtimeOn() {
+        return (AppDebug.enabled===true);
+    }
+    /* 分类开关: 分类清单与各自的开关取自设计常量 Define.debugCategoryOn */
     function debugOn(category) {
         return (Define.debugCategoryOn[category]===true);
     }
-    /* 调试输出: 该分类关闭时直接短路, 参数不参与求值;
+    /* 常规调试输出: 运行期开关与分类开关同时为真才输出, 否则短路且参数不参与求值;
      * 统一格式为 [分类标签]<具体信息> */
     function dlog(category) {
-        if(debugOn(category)===false) {
+        if(runtimeOn()===false || debugOn(category)===false) {
             return;
         }
         console.log("["+category+"]",...Array.prototype.slice.call(arguments,1));
     }
-    /* 可恢复异常的调试输出, 分类开关与格式同 dlog */
+    /* 可恢复异常的调试输出: 只看分类开关, 不受运行期开关限制, 格式同 dlog */
     function dwarn(category) {
         if(debugOn(category)===false) {
             return;
         }
         console.warn("["+category+"]",...Array.prototype.slice.call(arguments,1));
     }
-    /* 致命与退出路径的调试输出, 分类开关与格式同 dlog */
+    /* 致命与退出路径的调试输出: 只看分类开关, 不受运行期开关限制, 格式同 dlog */
     function derror(category) {
         if(debugOn(category)===false) {
             return;
