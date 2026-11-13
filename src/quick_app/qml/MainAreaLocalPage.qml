@@ -158,8 +158,8 @@ MainAreaFatherPage {
                 id: batchOp;
                 width: 80;
                 height: 30;
-                /* 批量动作只服务本地歌曲: 在线的移除语义不同, 不在此处提供 */
-                visible: (headRow.curr==="localSongs");
+                /* 三个标签都提供批量: 本地歌曲移除条目, 下载歌曲移除下载记录, 正在下载取消任务 */
+                visible: true;
                 onClicked: {
                     mainListView.setBatchMode(!mainListView.batchMode);
                 }
@@ -223,6 +223,8 @@ MainAreaFatherPage {
                     id: batchAddBtn;
                     width: 110;
                     height: 30;
+                    /* 正在下载的行是队列任务, 还不能播放, 这个标签下不提供加入播放列表 */
+                    visible: (headRow.curr!=="downloadingSongs");
                     onClicked: {
                         mainListView.batchInsertNext();
                     }
@@ -1067,13 +1069,33 @@ MainAreaFatherPage {
                 Assist.dlog("列表","批量加入播放列表: ",l);
                 return true;
             }
-            /* 批量移除: 交由 GlobalFileStorage 处理, 外部不直接改写其数据 */
+            /* 批量移除: 按当前标签决定语义, 数据一律经 GlobalFileStorage 与内存枢纽改写, 列表不直接改数据 */
             function batchRemove() {
                 var items=checkedItems();
                 var l=items.length;
                 if(l<=0) {
                     Assist.dlog("列表","批量移除失败: 未勾选任何歌曲");
                     return false;
+                }
+                /* 正在下载: 取消选中的任务 */
+                if(headRow.curr==="downloadingSongs") {
+                    for(var k=0;k<l;k++) {
+                        theMemStorage.cancelDownload(items[k]["taskKey"]);
+                    }
+                    Assist.dlog("列表","批量取消下载: ",l);
+                    mainArea_LocalPage.refreshDownloadingModel();
+                    return true;
+                }
+                /* 下载歌曲: 只删下载记录, 磁盘上的文件不动 */
+                if(headRow.curr==="downloadedSongs") {
+                    var ids=[];
+                    for(var m=0;m<l;m++) {
+                        ids.push(items[m]["onlineId"]);
+                    }
+                    GlobalFileStorage.removeDownloadedMany(ids);
+                    Assist.dlog("列表","批量移除下载记录: ",l);
+                    rebuild();
+                    return true;
                 }
                 var paths=[];
                 for(var i=0;i<l;i++) {

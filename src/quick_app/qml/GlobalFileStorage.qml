@@ -1730,6 +1730,36 @@ Item {
         downloads=res;
         return saveDownloads();
     }
+    /* 批量移除下载记录: 只删记录, 磁盘上的文件留给使用者自己处理 */
+    function removeDownloadedMany(onlineIds) {
+        var ids=(onlineIds===undefined || onlineIds===null? []:onlineIds);
+        if(ids.length<=0) {
+            return false;
+        }
+        var res=[];
+        var l=downloads.length;
+        var removed=0;
+        for(var i=0;i<l;i++) {
+            var hit=false;
+            for(var j=0;j<ids.length;j++) {
+                if(String(downloads[i]["onlineId"])===String(ids[j])) {
+                    hit=true;
+                    break;
+                }
+            }
+            if(hit) {
+                removed=removed+1;
+            } else {
+                res.push(downloads[i]);
+            }
+        }
+        if(removed<=0) {
+            return false;
+        }
+        downloads=res;
+        Assist.dlog("下载","批量移除下载记录: ",removed," 项");
+        return saveDownloads();
+    }
     /* 只写下载记录 */
     function saveDownloads() {
         return writePayload(storageDirPath,downloadsFileName,downloads);
