@@ -630,7 +630,7 @@ Rectangle {
                                                ? "":String(playingEntryData["songname"]));
     readonly property string playingSingerName: ((playingEntryData===null || playingEntryData["singer"]===undefined)
                                                  ? "":String(playingEntryData["singer"]));
-    /* 歌词名: 条目自带优先; 早期落盘的条目没有这一项, 由 Server 按在线标识或下载记录回查清单,
+    /* 歌词名: 条目自带优先; 条目没有这一项时由 Server 按在线标识回查清单,
      * 因此已下载到本地再播放的曲目同样能出歌词 */
     readonly property string playingLyricsName: Server.lyricsNameOfEntry(playingEntryData);
     /* 实际使用的歌词名: 关闭歌词增强时为普通歌词, 开启时为增强歌词 */

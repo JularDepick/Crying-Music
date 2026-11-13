@@ -551,15 +551,14 @@ ApplicationWindow {
             }
             return null;
         }
-        /* 当前播放项的在线标识: 在线条目直接用条目字段, 早期记录里的标识没有前缀就补上;
-         * 已下载到本地再播放时 playingWhich 是本地路径, 因此不能只认它 */
+        /* 当前播放项的在线标识: 在线条目直接用条目字段; 已下载到本地再播放时
+         * playingWhich 是本地路径, 因此不能只认它 */
         function cacheKeyOfPlaying() {
             var one=playingEntry();
             if(one!==null && one["online"]===true) {
                 var raw=(one["onlineId"]===undefined || one["onlineId"]===null? "":String(one["onlineId"]));
                 if(raw!=="") {
-                    var tag=String(Define.onlineKeyTag);
-                    return (raw.indexOf(tag)===0? raw:tag+raw);
+                    return raw;
                 }
             }
             return (Server.isOnlineKey(playingWhich)===true? playingWhich:"");

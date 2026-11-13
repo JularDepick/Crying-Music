@@ -307,14 +307,14 @@ Item {
             Assist.dwarn("在线","音频缓存失败: ",id,", 原因 ",reason);
         }
     }
-    /* 数据根基址归一: 单组节点用 base_url 声明本组的备用数据根, 也容忍旧结构的 audio_base_url,
-     * 允许是数组或单个字符串; 去空白, 补齐末尾分隔符并去重; 不合格时返回空数组 */
+    /* 数据根基址归一: 单组节点用 base_url 声明本组的备用数据根, 允许是数组或单个字符串;
+     * 去空白, 补齐末尾分隔符并去重; 不合格时返回空数组 */
     function _metaRoots(node) {
         var res=[];
         if(node===null || node===undefined || typeof node!=="object") {
             return res;
         }
-        var raw=(node.base_url!==undefined? node.base_url:node.audio_base_url);
+        var raw=node.base_url;
         var list=(Array.isArray(raw)? raw:(typeof raw==="string"? [raw]:[]));
         for(var i=0;i<list.length;i++) {
             var b=(typeof list[i]==="string"? String(list[i]).trim():"");
@@ -330,15 +330,15 @@ Item {
         }
         return res;
     }
-    /* 元信息分组: 新结构是"数据根 + 资源声明"的数组, 每组声明的目录只对本组的根生效;
-     * 旧结构是单个对象, 视为唯一一组; 两种结构都归一到 {roots, res}
+    /* 元信息分组: 结构是"数据根 + 资源声明"的数组, 每组声明的目录只对本组的根生效;
+     * 归一到 {roots, res}
      */
     function _metaGroups(meta) {
         var res=[];
         if(meta===null || meta===undefined) {
             return res;
         }
-        var list=(Array.isArray(meta)? meta:[meta]);
+        var list=(Array.isArray(meta)? meta:[]);
         for(var i=0;i<list.length;i++) {
             var one=list[i];
             if(one===null || typeof one!=="object") {
@@ -349,9 +349,7 @@ Item {
                 continue;
             }
             var r=(one.resource!==undefined && one.resource!==null && typeof one.resource==="object"
-                   ? one.resource
-                   :(one.audio!==undefined && one.audio!==null && typeof one.audio==="object"
-                     ? one.audio:({})));
+                   ? one.resource:({}));
             res.push({"roots":roots,"res":r});
         }
         return res;
@@ -749,9 +747,8 @@ Item {
         }
         return name;
     }
-    /* 封面名(按在线标识算): 去掉 online 前缀与音频扩展名后拼封面扩展名.
-     * 早期下载记录里的封面名是把"标识 + 音频扩展名"再拼封面扩展名(例如 名字.mp3.jpg),
-     * 与清单口径不符会 404, 因此这类记录一律用本函数重算, 不再信任记录里存的旧名 */
+    /* 封面名(按在线标识算): 在线标识是"前缀 + 主文件名 + 音频扩展名", 去掉前缀与音频扩展名
+     * 再拼封面扩展名, 与清单口径一致 */
     function coverNameOfOnlineKey(key) {
         var s=String(key===undefined || key===null? "":key);
         if(s==="") {
@@ -864,8 +861,8 @@ Item {
         }
         return null;
     }
-    /* 某个条目要显示的歌词名: 条目自带就用它; 没有时按在线标识回查清单, 标识也缺就按本地路径查下载记录;
-     * 早期落盘的队列条目既没有歌词名, 在线标识也可能没有前缀, 因此这一层兜底 */
+    /* 某个条目要显示的歌词名: 条目自带就用它; 没有时按在线标识回查清单,
+     * 标识也缺就按本地路径查下载记录 */
     function lyricsNameOfEntry(entry) {
         if(entry===null || entry===undefined) {
             return "";
@@ -1049,9 +1046,8 @@ Item {
         var p=lyricsCache[key];
         return (typeof p==="string"? p:"");
     }
-    /* 歌词主名: 去掉歌词扩展名, 再剥掉可能残留的音频扩展名.
-     * 早期落盘的播放队列与下载记录里带着音频扩展名(形如 名字.mp3.lrc), 而在线歌词文件
-     * 只按主文件名加歌词扩展名命名, 因此拼地址与查缓存之前一律先还原成主文件名 */
+    /* 歌词主名: 去掉歌词扩展名, 得到清单给出的主文件名.
+     * 在线歌词只按主文件名加歌词扩展名命名, 拼地址与查缓存之前统一还原成主文件名 */
     function _lyricsBaseName(lyricsName) {
         var s=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
         if(s==="") {
@@ -1065,16 +1061,6 @@ Item {
         } else if(lrcExt!=="" && s.length>lrcExt.length
                   && s.substring(s.length-lrcExt.length)===lrcExt) {
             s=s.substring(0,s.length-lrcExt.length);
-        }
-        var fmts=Define.audioFormats;
-        var low=s.toLowerCase();
-        for(var i=0;i<fmts.length;i++) {
-            var fe=String(fmts[i]).toLowerCase();
-            if(fe!=="" && low.length>fe.length
-               && low.substring(low.length-fe.length)===fe) {
-                s=s.substring(0,s.length-fe.length);
-                break;
-            }
         }
         return s;
     }
@@ -1148,7 +1134,7 @@ Item {
         if(name==="") {
             return false;
         }
-        /* 名字可能来自早期落盘的记录: 统一还原成 主文件名加档位扩展名, 缓存键才与界面查的一致 */
+        /* 统一还原成 主文件名加档位扩展名, 缓存键才与界面查的一致 */
         name=_lyricsBaseName(name)+_lyricsTierExtOf(name);
         if(lyricsPathOf(name)!=="") {
             return true;
@@ -1716,7 +1702,7 @@ Item {
             var one=list[i];
             var cover=(one["cover"]===undefined? "":String(one["cover"]));
             var lyrics=(one["lyrics"]===undefined? "":String(one["lyrics"]));
-            /* 封面名与歌词名以当前清单为准: 记录里的名字可能来自旧结构, 清单查不到该条时才沿用记录值 */
+            /* 封面名与歌词名以清单为准: 清单查不到该条时才沿用记录里的值 */
             var id=(typeof one["onlineId"]==="string"? one["onlineId"]:"");
             var ent=onlineEntryOfId(id);
             if(ent!==null) {
@@ -2272,23 +2258,14 @@ Item {
         Assist.dlog("在线","普通歌词候选: ",_srcPrefixes(spec.audio_lyrics_lrc_src).join(" "));
         Assist.dlog("在线","增强歌词候选: ",_srcPrefixes(spec.audio_lyrics_elrc_src).join(" "));
     }
-    /* 取一首在线歌曲的已播放缓存: 没有记录时返回 null;
-     * 早期落盘的下载记录与队列条目里, 在线标识只有文件名没有前缀, 补上前缀再查一次 */
+    /* 取一首在线歌曲的已播放缓存: 没有记录时返回 null */
     function playedMetaOf(key) {
         var k=String(key===undefined || key===null? "":key);
         if(k==="") {
             return null;
         }
         var one=playedMeta[k];
-        if(one!==undefined) {
-            return one;
-        }
-        var tag=String(Define.onlineKeyTag);
-        if(k.indexOf(tag)!==0) {
-            var two=playedMeta[tag+k];
-            return (two===undefined? null:two);
-        }
-        return null;
+        return (one===undefined? null:one);
     }
     /* 记一次在线歌曲的时长: 只接受正数秒, 值没变时不写盘 */
     function rememberDuration(key,seconds) {
