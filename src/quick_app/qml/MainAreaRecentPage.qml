@@ -152,7 +152,7 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[0];
             color: Define.nocolor;
-            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
+            /* 表头文字左对齐: 文字自列左边缘起排, 排序指示图标紧跟其后 */
             Button {
                 anchors.fill: parent;
                 onClicked: {
@@ -161,7 +161,7 @@ MainAreaFatherPage {
                 background: Item {
                     Text {
                         id: nameSortText;
-                        anchors.centerIn: parent;
+                        anchors {left:parent.left; verticalCenter:parent.verticalCenter; leftMargin:Define.listHeaderPad;}
                         color: Define.textColor;
                         text: mainListView.nameSortLabel();
                     }
@@ -179,7 +179,7 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[1];
             color: Define.nocolor;
-            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
+            /* 表头文字左对齐: 文字自列左边缘起排, 排序指示图标紧跟其后 */
             Button {
                 anchors.fill: parent;
                 onClicked: {
@@ -188,7 +188,7 @@ MainAreaFatherPage {
                 background: Item {
                     Text {
                         id: sizeSortText;
-                        anchors.centerIn: parent;
+                        anchors {left:parent.left; verticalCenter:parent.verticalCenter;}
                         color: Define.textColor;
                         text: "大小";
                     }
@@ -206,7 +206,7 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[2];
             color: Define.nocolor;
-            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
+            /* 表头文字左对齐: 文字自列左边缘起排, 排序指示图标紧跟其后 */
             Button {
                 anchors.fill: parent;
                 onClicked: {
@@ -215,7 +215,7 @@ MainAreaFatherPage {
                 background: Item {
                     Text {
                         id: durationSortText;
-                        anchors.centerIn: parent;
+                        anchors {left:parent.left; verticalCenter:parent.verticalCenter;}
                         color: Define.textColor;
                         text: "时长";
                     }

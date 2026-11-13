@@ -393,7 +393,7 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[0];
             color: Define.nocolor;
-            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
+            /* 表头文字左对齐: 文字自列左边缘起排, 排序指示图标紧跟其后 */
             Button {
                 anchors.fill: parent;
                 onClicked: {
@@ -402,7 +402,7 @@ MainAreaFatherPage {
                 background: Item {
                     Text {
                         id: nameSortText;
-                        anchors.centerIn: parent;
+                        anchors {left:parent.left; verticalCenter:parent.verticalCenter; leftMargin:Define.listHeaderPad;}
                         color: Define.textColor;
                         text: mainListView.nameSortLabel();
                     }
@@ -420,7 +420,7 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[1];
             color: Define.nocolor;
-            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
+            /* 表头文字左对齐: 文字自列左边缘起排, 排序指示图标紧跟其后 */
             Button {
                 anchors.fill: parent;
                 onClicked: {
@@ -429,7 +429,7 @@ MainAreaFatherPage {
                 background: Item {
                     Text {
                         id: sizeSortText;
-                        anchors.centerIn: parent;
+                        anchors {left:parent.left; verticalCenter:parent.verticalCenter;}
                         color: Define.textColor;
                         text: "大小";
                     }
@@ -447,7 +447,7 @@ MainAreaFatherPage {
             anchors {top:parent.top; bottom:parent.bottom;}
             width: parent.width*Define.listColumnRatios[2];
             color: Define.nocolor;
-            /* 表头文字水平居中: 文字以列中心定位, 排序指示图标紧跟其后 */
+            /* 表头文字左对齐: 文字自列左边缘起排, 排序指示图标紧跟其后 */
             Button {
                 anchors.fill: parent;
                 onClicked: {
@@ -456,7 +456,7 @@ MainAreaFatherPage {
                 background: Item {
                     Text {
                         id: durationSortText;
-                        anchors.centerIn: parent;
+                        anchors {left:parent.left; verticalCenter:parent.verticalCenter;}
                         color: Define.textColor;
                         text: "时长";
                     }
@@ -723,9 +723,12 @@ MainAreaFatherPage {
                                 }
                                 CustomButtonA {
                                     id: songAddIntoBtn;
-                                    /* 加入播放列表与下载按钮跟着行悬停出现, 点赞按钮常驻 */
-                                    visible: (!mainListView.batchMode && headRow.curr!=="downloadingSongs"
-                                              && box.hoveredRow);
+                                    /* 加入播放列表只在悬停时露出, 但始终占住自己的位置:
+                                     * 若随悬停直接隐藏, 它会从 Row 里被摘掉, 把右侧常驻的
+                                     * 已下载按钮往前顶, 指针进出整行时按钮就会左右跳 */
+                                    visible: (!mainListView.batchMode && headRow.curr!=="downloadingSongs");
+                                    opacity: (box.hoveredRow? 1:0);
+                                    enabled: (box.hoveredRow===true);
                                     height: 20;
                                     width: 20;
                                     icon.source: "qrc:/assets/iconfont/function/addinto.svg";
