@@ -603,9 +603,6 @@ ApplicationWindow {
         /* 播放栏显示的曲名与歌手: 由 syncPlayingInfo 从当前播放项刷新, 空字符串表示未在播放 */
         property string playingTitle: "";
         property string playingSinger: "";
-        /*[
-            {songname:"心做し 心理作用", singer:"双笙-陈元汐", absfpath:"file:///C:\\Users\\liwenfang\\GitHub\\JularDepick\\Crying-Music\\src\\quick_app\\心做し_心理作用_双笙_陈元汐_.mp3"}
-        ];*/
         function jump2play(which) {
             if(playbackOk(which)===false) {
                 Assist.derror("播放","跳转错误: ",which);
