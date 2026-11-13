@@ -121,37 +121,32 @@ MainAreaFatherPage {
         }
         Assist.dlog("界面","关于与许可: 选中 ",licenseFileId," 字数 ",licenseText.length);
     }
-    /* 按键绑定: 正在录制的动作 id, 空串表示没有在录制; 预览与提示只在录制过程中出现 */
+    /* 按键绑定: 正在录制的动作 id, 空串表示没有在录制; 录制中只有实时预览, 不出提示也不弹浮层 */
     property string capturingAction: "";
     property string capturePreview: "";
-    property string captureTip: "";
-    property bool captureTipOk: true;
-    /* 动作 id 对应的中文名, 只在提示文案里用 */
-    function shortcutLabelOf(actionId) {
+    /* 某一行显示的组合文本: 录制中显示实时预览, 其余显示已保存的组合 */
+    function comboTextOf(actionId) {
         var id=String(actionId===undefined || actionId===null? "":actionId);
-        var list=Define.shortcutActions;
-        for(var i=0;i<list.length;i++) {
-            if(String(list[i]["id"])===id) {
-                return String(list[i]["label"]);
-            }
+        if(id!=="" && id===capturingAction) {
+            return (capturePreview!==""? capturePreview:"按下组合键");
         }
-        return id;
+        return GlobalFileStorage.shortcutKeyOf(id);
     }
-    function captureLabel() {
-        return shortcutLabelOf(capturingAction);
-    }
-    /* 开始录制: 覆盖层随 capturingAction 出现, 焦点交给收键的那一项 */
+    /* 开始录制: 点组合文本即进入, 焦点交给收键项, 界面上只有这一行的文本跟着变 */
     function startCapture(actionId) {
-        capturingAction=String(actionId===undefined || actionId===null? "":actionId);
+        var id=String(actionId===undefined || actionId===null? "":actionId);
+        if(id==="" || id===capturingAction) {
+            return false;
+        }
+        capturingAction=id;
         capturePreview="";
-        captureTip="";
-        captureTipOk=true;
         if(captureKeys!==null && captureKeys!==undefined) {
             captureKeys.forceActiveFocus();
         }
         Assist.dlog("界面","按键绑定: 开始录制 ",capturingAction);
+        return true;
     }
-    /* 取消录制: 切分类, 页面隐藏与 Esc 都走这里 */
+    /* 取消录制: 切分类, 离开页面, 焦点移走与 Esc 都走这里, 不弹任何提示 */
     function cancelCapture() {
         if(capturingAction==="") {
             return false;
@@ -159,8 +154,6 @@ MainAreaFatherPage {
         Assist.dlog("界面","按键绑定: 取消录制 ",capturingAction);
         capturingAction="";
         capturePreview="";
-        captureTip="";
-        captureTipOk=true;
         return true;
     }
     /* 按键码转按键序列里的写法: 只认常用的键, 认不出的直接拒绝 */
@@ -208,7 +201,25 @@ MainAreaFatherPage {
         parts.push(name);
         return parts.join("+");
     }
-    /* 录制中的一个按键: Esc 取消, 只按修饰键时继续等, 其余先查冲突再写入 */
+    /* 只按修饰键时的预览: 让界面立刻显示已经按下的修饰键 */
+    function modifiersPreviewOf(event) {
+        var parts=[];
+        var m=event.modifiers;
+        if(m & 0x04000000) {
+            parts.push("Ctrl");
+        }
+        if(m & 0x08000000) {
+            parts.push("Alt");
+        }
+        if(m & 0x02000000) {
+            parts.push("Shift");
+        }
+        if(m & 0x10000000) {
+            parts.push("Meta");
+        }
+        return (parts.length>0? parts.join("+")+"+":"");
+    }
+    /* 录制中的一个按键: Esc 退出, 只按修饰键时更新预览, 组合被占用或写入失败都直接回退 */
     function handleCapture(event) {
         if(event.key===0x01000000) {
             cancelCapture();
@@ -216,22 +227,20 @@ MainAreaFatherPage {
         }
         var seq=sequenceOfEvent(event);
         if(seq==="") {
-            capturePreview="";
-            captureTip="再按一个非修饰键, Esc 取消";
-            captureTipOk=true;
+            capturePreview=modifiersPreviewOf(event);
             return false;
         }
         capturePreview=seq;
         var owner=GlobalFileStorage.shortcutOwnerOf(seq);
         if(owner!=="" && owner!==capturingAction) {
-            captureTip=("这个组合已用于 "+shortcutLabelOf(owner));
-            captureTipOk=false;
+            Assist.dlog("界面","按键绑定: 组合已被占用, 回退 ",seq);
+            cancelCapture();
             return false;
         }
         var ok=GlobalFileStorage.setShortcutKey(capturingAction,seq);
         if(ok!==true) {
-            captureTip="写入失败, 请查看控制台日志";
-            captureTipOk=false;
+            Assist.dwarn("界面","按键绑定写入失败, 已回退: ",capturingAction," -> ",seq);
+            cancelCapture();
             return false;
         }
         Assist.dlog("界面","按键绑定: ",capturingAction," -> ",seq);
@@ -751,7 +760,7 @@ MainAreaFatherPage {
                 wrapMode: Text.Wrap;
             }
         }
-        /* 按键绑定: 每个动作一行, 右侧是当前组合与修改入口; 点修改后由录制层收下一次按键 */
+        /* 按键绑定: 每个动作一行, 组合文本即修改入口, 录制中该行直接显示实时预览 */
         Column {
             id: keysTab;
             visible: (mainArea_SettingsPage.tabId==="keys");
@@ -776,38 +785,29 @@ MainAreaFatherPage {
                         font.pixelSize: 14;
                         color: Define.textColor;
                     }
-                    Text {
+                    /* 组合文本本身就是修改入口: 点它进入录制, 录制中这一行直接显示实时预览 */
+                    Item {
                         anchors.verticalCenter: parent.verticalCenter;
-                        width: 150;
-                        text: GlobalFileStorage.shortcutKeyOf(modelData["id"]);
-                        font.pixelSize: 13;
-                        color: (GlobalFileStorage.shortcutIsCustom(modelData["id"])
-                                ? Define.choseCyanColor:Define.btnIconColor);
-                        elide: Text.ElideRight;
-                        wrapMode: Text.NoWrap;
-                    }
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter;
-                        text: (GlobalFileStorage.shortcutIsCustom(modelData["id"])? "(自定义)":"(默认)");
-                        font.pixelSize: 13;
-                        color: Define.btnIconColor;
-                    }
-                    CustomButtonA {
-                        width: 80;
+                        width: 170;
                         height: 30;
-                        transEnabled: false;
-                        background: Rectangle {
-                            anchors.fill: parent;
-                            radius: 15;
-                            color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
-                            Text {
-                                anchors.centerIn: parent;
-                                text: "修改";
-                                color: Define.textColor;
-                            }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter;
+                            width: parent.width;
+                            text: mainArea_SettingsPage.comboTextOf(modelData["id"]);
+                            font.pixelSize: 13;
+                            color: ((mainArea_SettingsPage.capturingAction===modelData["id"]
+                                     || GlobalFileStorage.shortcutIsCustom(modelData["id"]))
+                                    ? Define.choseCyanColor:Define.btnIconColor);
+                            elide: Text.ElideRight;
+                            wrapMode: Text.NoWrap;
                         }
-                        onClicked: {
-                            mainArea_SettingsPage.startCapture(modelData["id"]);
+                        HoverHandler {
+                            cursorShape: Qt.PointingHandCursor;
+                        }
+                        TapHandler {
+                            onSingleTapped: {
+                                mainArea_SettingsPage.startCapture(modelData["id"]);
+                            }
                         }
                     }
                     CustomButtonA {
@@ -850,69 +850,23 @@ MainAreaFatherPage {
             });
         }
     }
-    /* 按键录制层: 覆盖整页, 抢到焦点后由 Keys 收键; 点空白处或按 Esc 取消 */
-    Rectangle {
-        id: captureLayer;
-        anchors.fill: parent;
-        visible: (mainArea_SettingsPage.capturingAction!=="");
-        color: Qt.rgba(0,0,0,0.35);
-        topLeftRadius: Define.windowRadius;
-        topRightRadius: Define.windowRadius;
-        bottomLeftRadius: Define.windowRadius;
-        bottomRightRadius: Define.windowRadius;
-        /* 点卡片之外的地方取消录制; 声明在卡片之前, 卡片压在上面 */
-        MouseArea {
-            anchors.fill: parent;
-            acceptedButtons: Qt.LeftButton;
-            onClicked: {
-                mainArea_SettingsPage.cancelCapture();
-            }
+    /* 按键收键项: 不遮挡界面也不弹浮层, 只在录制时抢焦点; 焦点被别的控件拿走即退出录制 */
+    Item {
+        id: captureKeys;
+        width: 0;
+        height: 0;
+        focus: (mainArea_SettingsPage.capturingAction!=="");
+        Keys.onPressed: (event)=> {
+            mainArea_SettingsPage.handleCapture(event);
+            event.accepted=true;
         }
-        Rectangle {
-            anchors.centerIn: parent;
-            width: 440;
-            height: 150;
-            radius: 10;
-            color: Define.mainAreaColor;
-            border.width: 1;
-            border.color: Define.subGrey;
-            Column {
-                anchors.centerIn: parent;
-                spacing: 12;
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter;
-                    text: ("为 " + mainArea_SettingsPage.captureLabel() + " 设置快捷键");
-                    font.pixelSize: 15;
-                    color: Define.textColor;
-                }
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter;
-                    text: (mainArea_SettingsPage.capturePreview===""? "请按下新的组合键"
-                                                                    :mainArea_SettingsPage.capturePreview);
-                    font.pixelSize: 20;
-                    font.weight: 600;
-                    color: Define.choseCyanColor;
-                }
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter;
-                    text: (mainArea_SettingsPage.captureTip===""? "Esc 取消"
-                                                                :mainArea_SettingsPage.captureTip);
-                    font.pixelSize: 13;
-                    color: (mainArea_SettingsPage.captureTipOk? Define.btnIconColor:Define.btnIconRed);
-                }
-            }
-            /* 键盘捕获: 卡片本身不抢焦点, 由这个铺满卡片的不可见项统一收键 */
-            Item {
-                id: captureKeys;
-                anchors.fill: parent;
-                focus: (captureLayer.visible===true);
-                Keys.onPressed: (event)=> {
-                    mainArea_SettingsPage.handleCapture(event);
-                    event.accepted=true;
-                }
-                Keys.onReleased: (event)=> {
-                    event.accepted=true;
-                }
+        Keys.onReleased: (event)=> {
+            event.accepted=true;
+        }
+        /* 焦点被别的控件拿走就退出录制, 不留一个收不到键的录制态 */
+        onActiveFocusChanged: {
+            if(activeFocus!==true && mainArea_SettingsPage.capturingAction!=="") {
+                mainArea_SettingsPage.cancelCapture();
             }
         }
     }
