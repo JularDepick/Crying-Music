@@ -412,11 +412,13 @@ Item {
         }
         var f=dir+"/"+dataDirName+"/"+fileName;
         var txt=JSON.stringify({"version":dataVersion,"payload":payload});
-        var ok=AppFileHelper.writeFile(f,txt,"UTF-8");
+        /* 入队即返回: 真正的磁盘写由后台线程完成, 界面线程不碰磁盘;
+         * 同一文件连续入队时只保留最后一次, 高频写入不会堆积 */
+        var ok=AppFileHelper.writeFileQueued(f,txt,"UTF-8");
         if(ok===true) {
-            Assist.dlog("落盘","写入数据文件: ",fileName);
+            Assist.dlog("落盘","排队写入数据文件: ",fileName);
         } else {
-            Assist.dwarn("落盘","写入数据文件失败: ",f);
+            Assist.dwarn("落盘","排队写入数据文件失败: ",f);
         }
         return ok;
     }
@@ -461,6 +463,10 @@ Item {
             mergeWholePayload(srcDir,dstDir,uiStateFileName);
             mergeAccount(srcDir,dstDir);
             mergeListenState(srcDir,dstDir);
+            /* 迁移是读目标再写目标的过程: 等后台写完再返回, 下一个来源目录才读得到刚合并的结果 */
+            if(AppFileHelper.flushQueuedWrites(3000)!==true) {
+                Assist.dwarn("存储目录","迁移写入未在超时内排空");
+            }
             Assist.dlog("存储目录","迁移完成: ",dirLabel(srcDir)," -> ",dirLabel(dstDir));
             return true;
         } catch(e) {
@@ -803,6 +809,10 @@ Item {
         writePayload(storageDirPath,accountFileName,account);
         writePayload(storageDirPath,listenStateFileName,listenState);
         writePayload(storageDirPath,localTagsFileName,localTags);
+        /* 退出前等后台队列排空: 否则进程结束会丢掉最后一批写入 */
+        if(AppFileHelper.flushQueuedWrites(3000)!==true) {
+            Assist.dwarn("落盘","后台写入未在超时内排空");
+        }
         return true;
     }
     /* 本地曲目标签缓存: 键为标准化路径, 值由 AppSongFileHelper 给出; 跨模块只经此处交换 */

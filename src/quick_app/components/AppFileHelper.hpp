@@ -5,6 +5,8 @@
 #include <QUrl>
 #include <QFile>
 #include <QSaveFile>
+
+#include "./AppFileWriteQueue.hpp"
 #include <QDir>
 #include <QFileInfo>
 #include <QStringList>
@@ -230,6 +232,27 @@ public:
 
     /* 新建文件夹: 入参为标准化绝对路径。
      * 默认不递归创建各级文件夹。成功 true,失败 false。 */
+    /* 入队写入: 立即返回, 真正的磁盘写由后台线程完成; 同一路径的多次入队只保留最后一次.
+     * 数据文件走这条路径, 界面线程不做磁盘 I/O. 成功 true,失败 false(仅表示入队是否被接受) */
+    Q_INVOKABLE bool writeFileQueued(const QString &path, const QString &content, const QString &codecName) {
+        if (path.isEmpty()) {
+            qWarning() << "AppFileHelper writeFileQueued failed: empty path";
+            return false;
+        }
+        auto encoder = QStringEncoder(codecName.toUtf8().constData());
+        if (!encoder.isValid()) {
+            qWarning() << "AppFileHelper invalid codec: " << codecName;
+            return false;
+        }
+        AppFileWriteQueue::instance()->enqueue(path, encoder(content));
+        return true;
+    }
+
+    /* 等后台队列排空: 退出与需要立刻读回文件的场景使用 */
+    Q_INVOKABLE bool flushQueuedWrites(int timeoutMs) {
+        return AppFileWriteQueue::instance()->flush(timeoutMs);
+    }
+
     Q_INVOKABLE bool makeDir(const QUrl &url) const {
         return makeDir(url, false);
     }
