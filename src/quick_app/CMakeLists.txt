@@ -21,8 +21,12 @@ set(TAGLIB_ROOT "D:/taglib" CACHE PATH "TagLib 安装前缀")
 if(EXISTS "${TAGLIB_ROOT}/lib/cmake/taglib")
     list(APPEND CMAKE_PREFIX_PATH "${TAGLIB_ROOT}")
 endif()
+if(POLICY CMP0144)
+    cmake_policy(SET CMP0144 NEW)
+endif()
 find_package(TagLib CONFIG REQUIRED)
-find_library(TAGLIB_ZLIB_LIBRARY NAMES z REQUIRED)
+# zlib: TagLib 的静态库会引用 zlib 的符号, 由 MinGW 工具链自带(x86_64-w64-mingw32/lib/libz.a),
+# 直接在链接行写 z, 让链接器按自己的搜索路径去找, 不走 find_library
 
 # 业务逻辑源文件
 file(GLOB_RECURSE COMPONENTS_SOURCES CONFIGURE_DEPENDS "components/*.hpp")
@@ -75,7 +79,7 @@ endif()
 # 链接库
 target_link_libraries(CryingMusic
     PRIVATE Qt6::Quick Qt6::Multimedia Qt6::Qml Qt6::Network Qt6::Widgets
-            TagLib::TagLib ${TAGLIB_ZLIB_LIBRARY}
+            TagLib::TagLib z
 )
 
 # 静态链接 MinGW 运行时

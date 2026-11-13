@@ -45,6 +45,18 @@ Qt 官方二进制包在编译时把下列组件静态链接进 Qt 动态库, �
 | 许可全文 | 见发布包内 LICENSE.FFmpeg, 即 GNU LGPL version 2.1 全文 |
 | 源码获取 | FFmpeg 官方源码发布见 https://ffmpeg.org/download.html , 本程序所用的版本与构建配置见 Qt 官方文档的第三方组件清单 https://doc.qt.io/qt-6/licenses-used-in-qt.html , 需要对应源码时也可向项目作者索取 |
 
+## TagLib 音频标签库
+
+| 事项 | 说明 |
+|:---:|:---:|
+| 组件 | TagLib 2.3.2 |
+| 用途 | 读取本地音频(mp3, m4a, wav, flac, ogg)的标签, 内嵌封面与内嵌歌词 |
+| 分发形式 | 静态链接进 CryingMusic.exe, 发布包里没有单独的 DLL |
+| 许可 | GNU LGPL version 2.1 与 Mozilla Public License version 1.1 双许可; 本程序按 MPL-1.1 使用未修改的上游源码 |
+| 版权 | Copyright (C) TagLib 项目及其贡献者 |
+| 源码获取 | https://taglib.org/ 与 https://github.com/taglib/taglib , 本程序未修改其源码 |
+| 补充 | 若后续改为动态库分发, 需要把 tag.dll 一并放进发布包并更新本节 |
+
 ## 随包分发的说明与许可文件
 
 | 文件 | 说明 |

@@ -13,6 +13,7 @@
 #include <QTimer>
 #include <QImage>
 #include <QByteArray>
+#include <QUrl>
 #include <QRegularExpression>
 #include <qdebug.h>
 
@@ -148,6 +149,7 @@ private:
         rec.insert(QStringLiteral("hasTitle"), false);
         rec.insert(QStringLiteral("hasArtist"), false);
         rec.insert(QStringLiteral("coverPath"), QString());
+        rec.insert(QStringLiteral("coverUrl"), QString());
         rec.insert(QStringLiteral("hasCover"), false);
         rec.insert(QStringLiteral("lyricsPath"), QString());
         rec.insert(QStringLiteral("lyricsEnhancedPath"), QString());
@@ -196,9 +198,15 @@ private:
             QString coverPath;
             if (saveCover(coverData, absfpath, coverPath)) {
                 rec.insert(QStringLiteral("coverPath"), coverPath);
+                /* QML 侧直接用它, 免得自己拼 file:// 与百分号转义 */
+                rec.insert(QStringLiteral("coverUrl"), QUrl::fromLocalFile(coverPath).toString());
                 rec.insert(QStringLiteral("hasCover"), true);
             }
         }
+
+        /* 歌词缓存主名: 与列表页登记给歌词页的名字同一口径 */
+        const QString lyricsName = QStringLiteral("local_") + shortHash(absfpath);
+        rec.insert(QStringLiteral("lyricsName"), lyricsName);
 
         /* 歌词: 统一转 LRC, 有词级时间戳时另存 ELRC; 都没有时写占位文本 */
         QString plain;
@@ -245,10 +253,11 @@ private:
         return TagLib::String(text.toUtf8().constData(), TagLib::String::UTF8);
     }
 
-    /* 路径的短哈希: 缓存文件名用它, 与文件内容无关 */
+    /* 路径的短哈希: 与 AppFileHelper 的本地封面与歌词缓存同一算法(SHA-256 前 16 位),
+     * 因此两边写出的缓存文件名一致, 旧缓存也能直接命中 */
     static QString shortHash(const QString &absfpath) {
         return QString::fromUtf8(QCryptographicHash::hash(absfpath.toUtf8(),
-                                                          QCryptographicHash::Sha1).toHex().left(16));
+                                                          QCryptographicHash::Sha256).toHex().left(16));
     }
 
     /* 毫秒转 LRC 行首时间戳 [mm:ss.cc] */
