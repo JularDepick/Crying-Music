@@ -9,11 +9,16 @@ import QtQuick.Effects
  * 只有当前行参与测量, 其它行不量也不遮罩 */
 Item {
     id: root;
+    /* 界面字体遍历时整棵跳过: 歌词的字体族由歌词页与悬浮歌词各自决定 */
+    property bool uiFontExempt: true;
     /* 整行文本 */
     property string text: "";
-    /* 字号与字重 */
+    /* 字号, 字重与字体族: 字体族为空时跟随应用字体 */
     property int pixelSize: 16;
     property bool bold: false;
+    property string family: "";
+    /* 实际生效的字体族: 空串落到应用字体 */
+    readonly property string familyNow: (family!==""? family:Qt.application.font.family);
     /* 未唱色与已唱色 */
     property color baseColor: "#434343";
     property color sungColor: "#00cc65";
@@ -53,7 +58,8 @@ Item {
             return;
         }
         /* 列宽取文本实际宽度: 不换行时文本比控件宽, 用控件宽度会算成多行, 与 Text 的行数对不上 */
-        root.layout=root.measurer.sungLayoutOf(root.text,root.pixelSize,root.bold,baseText.width);
+        root.layout=root.measurer.sungLayoutOf(root.text,root.pixelSize,root.bold,baseText.width,
+                                               undefined,undefined,root.familyNow);
         root.refreshMask();
     }
     /* 遮罩重算: 逐字进度变化时只走这一步, 不重排文本 */
@@ -68,6 +74,7 @@ Item {
     onTextChanged: refreshLayout();
     onPixelSizeChanged: refreshLayout();
     onBoldChanged: refreshLayout();
+    onFamilyChanged: refreshLayout();
     onWidthChanged: refreshLayout();
     onMeasurerChanged: refreshLayout();
     onLineDataChanged: refreshLayout();
@@ -87,6 +94,7 @@ Item {
         wrapMode: root.wrapMode;
         font.pixelSize: root.pixelSize;
         font.bold: root.bold;
+        font.family: root.familyNow;
         color: root.baseColor;
     }
     /* 已唱层: 同一份文本, 同一套排版, 只换颜色; 露出多少由遮罩按像素决定 */

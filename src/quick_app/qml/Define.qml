@@ -100,6 +100,17 @@ Item {
     property int lyricsFontSizeMin: 16;
     property int lyricsFontSizeMax: 40;
     property int lyricsFontSizeStep: 2;
+    /* 字体: 界面, 歌词页歌词与桌面悬浮歌词三项各自独立设置, 空串表示跟随系统字体;
+     * 系统字体族取自应用字体, 三项的"跟随系统"都以它为基准,
+     * 因此改了界面字体不会顺带改掉另两项的默认观感 */
+    readonly property string systemFontFamily: Qt.application.font.family;
+    property string uiFontFamily: "";
+    property string lyricsFontFamily: "";
+    property string desktopLyricsFontFamily: "";
+    readonly property string uiFontFamilyResolved: (uiFontFamily===""? systemFontFamily:uiFontFamily);
+    readonly property string lyricsFontFamilyResolved: (lyricsFontFamily===""? systemFontFamily:lyricsFontFamily);
+    readonly property string desktopLyricsFontFamilyResolved:
+        (desktopLyricsFontFamily===""? systemFontFamily:desktopLyricsFontFamily);
     /* 歌词页上方歌手行的字号相对曲名的倍数: 曲名与歌词同字号, 歌手再乘这个系数 */
     property real lyricsSingerFontScale: 0.75;
     /* 逐字进度的着色窗口上限(毫秒): 单个字或词最多按这么长的时长推进到满,

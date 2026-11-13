@@ -130,6 +130,10 @@ Item {
         lyricsFontSize: 0,
         lyricsTextColor: "",
         lyricsAnchorRatio: 0,
+        /* 字体偏好: 三项各自独立, 空串表示跟随系统字体 */
+        uiFontFamily: "",
+        lyricsFontFamily: "",
+        desktopLyricsFontFamily: "",
         audioCacheCapMb: 0,
         /* 快捷键自定义键位: 动作名到按键序列, 空表表示全部用设计默认值 */
         shortcutKeys: ({}),
@@ -726,6 +730,10 @@ Item {
                        "lyricsTextColor":(typeof us.lyricsTextColor==="string"? us.lyricsTextColor:""),
                        /* 歌词当前行锚定比例: 0 表示用设计默认值 */
                        "lyricsAnchorRatio":(typeof us.lyricsAnchorRatio==="number"? us.lyricsAnchorRatio:0),
+                       /* 字体偏好: 缺失或非法时按跟随系统处理 */
+                       "uiFontFamily":(typeof us.uiFontFamily==="string"? us.uiFontFamily:""),
+                       "lyricsFontFamily":(typeof us.lyricsFontFamily==="string"? us.lyricsFontFamily:""),
+                       "desktopLyricsFontFamily":(typeof us.desktopLyricsFontFamily==="string"? us.desktopLyricsFontFamily:""),
                        "audioCacheCapMb":(typeof us.audioCacheCapMb==="number"? us.audioCacheCapMb:0),
                        /* 快捷键自定义键位: 动作名到按键序列, 空表表示全部用设计默认值 */
                        "shortcutKeys":(us.shortcutKeys!==null && typeof us.shortcutKeys==="object"
@@ -1385,6 +1393,10 @@ Item {
                  "lyricsFontSize":(typeof uiState.lyricsFontSize!=="number"? 0:uiState.lyricsFontSize),
                  "lyricsTextColor":(typeof uiState.lyricsTextColor!=="string"? "":uiState.lyricsTextColor),
                  "lyricsAnchorRatio":(typeof uiState.lyricsAnchorRatio!=="number"? 0:uiState.lyricsAnchorRatio),
+                 "uiFontFamily":(typeof uiState.uiFontFamily!=="string"? "":uiState.uiFontFamily),
+                 "lyricsFontFamily":(typeof uiState.lyricsFontFamily!=="string"? "":uiState.lyricsFontFamily),
+                 "desktopLyricsFontFamily":(typeof uiState.desktopLyricsFontFamily!=="string"
+                                             ? "":uiState.desktopLyricsFontFamily),
                  "audioCacheCapMb":(typeof uiState.audioCacheCapMb!=="number"? 0:uiState.audioCacheCapMb),
                  /* 快捷键自定义键位: 非对象时按空表处理, 保持"只存改动"的口径 */
                  "shortcutKeys":(uiState.shortcutKeys!==null && typeof uiState.shortcutKeys==="object"
@@ -1557,6 +1569,39 @@ Item {
         }
         Assist.dlog("落盘","写入歌词锚定比例: ",r);
         uiState=_uiStateWith({"lyricsAnchorRatio":r});
+        return saveUIState();
+    }
+    /* 界面字体: 空串表示跟随系统 */
+    function uiFontFamily() {
+        return (typeof uiState.uiFontFamily==="string"? uiState.uiFontFamily:"");
+    }
+    /* 写入界面字体: 空串即回到跟随系统 */
+    function setUiFontFamily(family) {
+        var f=String(family===undefined || family===null? "":family);
+        Assist.dlog("落盘","写入界面字体: ",(f===""? "跟随系统":f));
+        uiState=_uiStateWith({"uiFontFamily":f});
+        return saveUIState();
+    }
+    /* 歌词页歌词字体: 空串表示跟随系统 */
+    function lyricsFontFamily() {
+        return (typeof uiState.lyricsFontFamily==="string"? uiState.lyricsFontFamily:"");
+    }
+    /* 写入歌词页歌词字体 */
+    function setLyricsFontFamily(family) {
+        var f=String(family===undefined || family===null? "":family);
+        Assist.dlog("落盘","写入歌词字体: ",(f===""? "跟随系统":f));
+        uiState=_uiStateWith({"lyricsFontFamily":f});
+        return saveUIState();
+    }
+    /* 桌面悬浮歌词字体: 空串表示跟随系统 */
+    function desktopLyricsFontFamily() {
+        return (typeof uiState.desktopLyricsFontFamily==="string"? uiState.desktopLyricsFontFamily:"");
+    }
+    /* 写入桌面悬浮歌词字体 */
+    function setDesktopLyricsFontFamily(family) {
+        var f=String(family===undefined || family===null? "":family);
+        Assist.dlog("落盘","写入悬浮歌词字体: ",(f===""? "跟随系统":f));
+        uiState=_uiStateWith({"desktopLyricsFontFamily":f});
         return saveUIState();
     }
     /* 下载目录: 用户指定过目录时用指定的, 否则用存储目录下的默认目录;

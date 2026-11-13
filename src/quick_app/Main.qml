@@ -2011,6 +2011,15 @@ ApplicationWindow {
          * 必须在窗口显示前完成, 避免先按默认配色闪一帧 */
         Assist.dlog("界面","恢复预设主题: ",GlobalFileStorage.themeId(),", 结果 ",
                    Define.applyTheme(GlobalFileStorage.themeId()));
+        /* 恢复字体偏好: 三项各自独立, 空串表示跟随系统; 界面字体由窗口的 font 属性向下传,
+         * 歌词页与悬浮歌词各自显式取自己那一项 */
+        Define.uiFontFamily=GlobalFileStorage.uiFontFamily();
+        Define.lyricsFontFamily=GlobalFileStorage.lyricsFontFamily();
+        Define.desktopLyricsFontFamily=GlobalFileStorage.desktopLyricsFontFamily();
+        Assist.dlog("界面","恢复字体偏好: ",Define.uiFontFamilyResolved,", ",
+                    Define.lyricsFontFamilyResolved,", ",Define.desktopLyricsFontFamilyResolved);
+        /* 界面字体在窗口显示前落到应用字体并刷新已建好的文本, 此后新建的文本自动跟随 */
+        AppFontHelper.applyUiFamily(Define.uiFontFamilyResolved);
         /* 在线曲库先用磁盘缓存立即可用, 再在后台静默刷新, 这一过程不改界面加载状态 */
         Assist.dlog("在线","启动时恢复在线曲库缓存: ",Server.bootstrap());
         Assist.dlog("界面","恢复上次停留的页面: ",mainArea.applyStoredPage());
@@ -2086,6 +2095,7 @@ ApplicationWindow {
                            :(desktopLyrics.lineNow===null? "暂无歌词"
                                                          :String(desktopLyrics.lineNow["text"])));
                     pixelSize: desktopLyrics.fontSizeNow;
+                    family: Define.desktopLyricsFontFamilyResolved;
                     bold: true;
                     baseColor: (desktopLyrics.lineNow===null? "#99FFFFFF":desktopLyrics.lineColor);
                     sungColor: Define.choseCyanColor;

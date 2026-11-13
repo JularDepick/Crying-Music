@@ -63,6 +63,7 @@ Rectangle {
         id: bandFontMetrics;
         font.pixelSize: root.baseFontSize;
         font.bold: false;
+        font.family: Define.lyricsFontFamilyResolved;
     }
     /* 基准高度范围: 高度取歌词行高, 因此"范围内"等价于这一行正好嵌在基准位置上, 随字号变化 */
     readonly property real anchorBandHeight: bandFontMetrics.height;
@@ -262,6 +263,7 @@ Rectangle {
                 width: parent.width;
                 text: String(modelData["text"]);
                 pixelSize: root.baseFontSize;
+                family: Define.lyricsFontFamilyResolved;
                 bold: false;
                 baseColor: (index===root.currentLine? root.currentLineColor:Define.forbdDarkColor);
                 sungColor: Define.choseCyanColor;
@@ -895,13 +897,18 @@ Rectangle {
     }
     /* 逐字宽度: metrics 可传入调用方自己的一份 TextMetrics. 两处调用共用同一个对象时,
      * 一方写文本会让另一方的绑定失效, 表现为 sungLayout 与 layout 的绑定循环告警 */
-    function measureTextWidth(text,pixelSize,bold,metrics) {
+    function measureTextWidth(text,pixelSize,bold,metrics,family) {
         var m=(metrics===undefined || metrics===null? lyricMetrics:metrics);
+        var fam=(family===undefined || family===null || family===""
+                 ? Define.lyricsFontFamilyResolved:String(family));
         if(m.font.pixelSize!==pixelSize) {
             m.font.pixelSize=pixelSize;
         }
         if(m.font.bold!==bold) {
             m.font.bold=bold;
+        }
+        if(m.font.family!==fam) {
+            m.font.family=fam;
         }
         var s=String(text);
         if(m.text!==s) {
@@ -911,13 +918,18 @@ Rectangle {
     }
     /* 与 Text 的默认行距一致的行高: 遮罩按它定位当前行的上下边界 */
     /* 行高: 与 measureTextWidth 同一口径, fontMetrics 可传入调用方自己的一份 */
-    function rowHeightOf(pixelSize,bold,fontMetrics) {
+    function rowHeightOf(pixelSize,bold,fontMetrics,family) {
         var m=(fontMetrics===undefined || fontMetrics===null? lyricFontMetrics:fontMetrics);
+        var fam=(family===undefined || family===null || family===""
+                 ? Define.lyricsFontFamilyResolved:String(family));
         if(m.font.pixelSize!==pixelSize) {
             m.font.pixelSize=pixelSize;
         }
         if(m.font.bold!==bold) {
             m.font.bold=bold;
+        }
+        if(m.font.family!==fam) {
+            m.font.family=fam;
         }
         return m.height;
     }
@@ -932,12 +944,12 @@ Rectangle {
     }
     /* 当前行的可视行切分: 按列宽贪心断行, 返回每行在整行文本里的起止下标与宽度,
      * 以及逐字宽度与行高; 断行只在文本, 字号或列宽变化时重算 */
-    function sungLayoutOf(text,pixelSize,bold,columnWidth,metrics,fontMetrics) {
+    function sungLayoutOf(text,pixelSize,bold,columnWidth,metrics,fontMetrics,family) {
         var s=String(text);
         var n=s.length;
         var widths=[];
         for(var i=0;i<n;i++) {
-            widths.push(root.measureTextWidth(s.charAt(i),pixelSize,bold,metrics));
+            widths.push(root.measureTextWidth(s.charAt(i),pixelSize,bold,metrics,family));
         }
         var lines=[];
         var from=0;
@@ -951,7 +963,7 @@ Rectangle {
             while(cur<=n) {
                 var sub=s.substring(from,cur).replace(/[ \t]+$/,"");
                 if(cur>from+1
-                   && root.measureTextWidth(sub,pixelSize,bold,metrics)>Number(columnWidth)) {
+                   && root.measureTextWidth(sub,pixelSize,bold,metrics,family)>Number(columnWidth)) {
                     break;
                 }
                 lastFit=cur;
@@ -966,7 +978,7 @@ Rectangle {
             }
             /* 行宽用同一口径测量, 供遮罩按居中排版对齐 */
             var w=root.measureTextWidth(s.substring(from,to).replace(/[ \t]+$/,""),
-                                        pixelSize,bold,metrics);
+                                        pixelSize,bold,metrics,family);
             lines.push({"from":from,"to":to,"w":w});
             from=to;
         }
@@ -974,7 +986,7 @@ Rectangle {
             lines.push({"from":0,"to":0,"w":0});
         }
         return ({"lines":lines,"widths":widths,
-                 "rowHeight":root.rowHeightOf(pixelSize,bold,fontMetrics),
+                 "rowHeight":root.rowHeightOf(pixelSize,bold,fontMetrics,family),
                  "columnWidth":Number(columnWidth)});
     }
     /* 遮罩几何: top 是当前行之前的整块高度, width 是当前行已唱到的像素位置, row 是行高;

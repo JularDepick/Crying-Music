@@ -11,6 +11,7 @@
 /* #include "./components/AppPathHelper.hpp" */
 #include "./components/AppDebugHelper.hpp"
 #include "./components/AppFileHelper.hpp"
+#include "./components/AppFontHelper.hpp"
 #include "./components/AppNetHelper.hpp"
 #include "./components/AppClickHelper.hpp"
 #include "./components/AppSearchHelper.hpp"
@@ -74,6 +75,7 @@ int main(int argc, char *argv[])
     AppSongFileHelper _asfh_;
     SystemTrayHelper _sth_;
     AppDebugHelper _adbg_;
+    AppFontHelper _afont_;
     /* qmlRegisterSingletonInstance("AppHelper",1,0,"AppPathHelper",&_aph_); */
     qmlRegisterSingletonInstance("AppHelper",1,0,"AppFileHelper",&_afh_);
     qmlRegisterSingletonInstance("AppHelper",1,0,"AppNetHelper",&_anh_);
@@ -82,6 +84,7 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonInstance("AppHelper",1,0,"AppSongFileHelper",&_asfh_);
     qmlRegisterSingletonInstance("AppHelper",1,0,"SystemTray",&_sth_);
     qmlRegisterSingletonInstance("AppHelper",1,0,"AppDebug",&_adbg_);
+    qmlRegisterSingletonInstance("AppHelper",1,0,"AppFontHelper",&_afont_);
     /* 创建QML引擎 */
     QQmlApplicationEngine engine;
     /* 当QML引擎创建失败时自动退出应用 */
