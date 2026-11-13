@@ -18,7 +18,7 @@ A desktop music player built as an implementation of mainstream players, with th
 
 ## Features
 
-- Music library: add files by hand or scan a local folder, read title, artist, duration and cover, then list them
+- Music library: add files by hand or scan a local folder, read title, artist, album, embedded cover and embedded lyrics from the tags, then list them
 - Playback: play/pause, previous/next, seek, volume, play modes, playlist and resume from the last position
 - Online library: recommendation grid on the home page, streaming playback and download, covers and lyrics cached on disk, played tracks cached whole for reuse when downloading
 - Search: top bar keyword search with exact and fuzzy matching, results can be played directly
@@ -39,6 +39,7 @@ A desktop music player built as an implementation of mainstream players, with th
 | GUI | Qt 6 Quick / QML |
 | Multimedia | Qt Multimedia |
 | Network | Qt Network |
+| Tag reading | TagLib (statically linked) |
 | Build System | CMake |
 
 
