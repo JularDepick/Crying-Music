@@ -15,6 +15,12 @@ MainAreaFatherPage {
     /* 默认排序档: 歌名降序; 排序只有四档, 1 歌名升, 2 歌名降, 3 歌手升, 4 歌手降 */
     readonly property int sortStepDefault: 2;
     property int sortStep: sortStepDefault;
+    /* 网格每行放几张卡片: 与 GridView 的分列口径一致(内容宽度除以单元格宽度向下取整),
+     * 定位按钮按它把卡片下标换算成行列位置 */
+    readonly property int gridColumns: Math.max(1,Math.floor((recommendView.width
+                                                             -recommendView.leftMargin
+                                                             -recommendView.rightMargin)
+                                                            /recommendView.cellWidth));
     /* 标题与功能行 */
     Column {
         id: headColum;
@@ -180,11 +186,11 @@ MainAreaFatherPage {
                             }
                             source: mainArea_HomePage.coverPathOf(modelData);
                         }
-                        /* 悬停暗层: 让浮出的播放按钮在任何封面上都清晰 */
+                        /* 悬停与正在播放的暗层: 让浮出的播放按钮与跳动的柱子在任意封面上都清晰 */
                         Rectangle {
                             anchors.fill: parent;
                             radius: 10;
-                            color: (cardBox.hoveredCard? Qt.rgba(0,0,0,0.28):Define.nocolor);
+                            color: ((cardBox.playingRow||cardBox.hoveredCard)? Qt.rgba(0,0,0,0.28):Define.nocolor);
                         }
                         MouseArea {
                             id: coverClick;
@@ -200,13 +206,25 @@ MainAreaFatherPage {
                             anchors.centerIn: parent;
                             width: 34;
                             height: 34;
-                            visible: cardBox.hoveredCard;
-                            icon.source: "qrc:/assets/iconfont/playerbar/play.svg";
+                            /* 正在播放的卡片常显这个按钮, 其余卡片仍然只在悬停时浮出 */
+                            visible: (cardBox.hoveredCard===true || cardBox.playingRow===true);
+                            /* 正在播放且不悬停时把图标位置让给跳动的柱子, 悬停时仍是播放图标 */
+                            icon.source: ((cardBox.playingRow===true && cardBox.hoveredCard!==true)
+                                          ? "":"qrc:/assets/iconfont/playerbar/play.svg");
                             icon.color: "white";
                             icon.width: 18;
                             icon.height: 18;
                             hoverColorEnabled: false;
                             transEnabled: false;
+                            /* 播放中的状态图标: 与歌曲列表行用的是同一份组件, 播放中才推进 */
+                            PlayingBars {
+                                anchors.centerIn: parent;
+                                width: 18;
+                                height: 18;
+                                barColor: Define.mainAreaColor;
+                                active: (thePlayer!==null && thePlayer.playing===true);
+                                visible: (cardBox.playingRow===true && cardBox.hoveredCard!==true);
+                            }
                             onClicked: {
                                 mainArea_HomePage.playRow(modelData);
                             }
@@ -308,6 +326,53 @@ MainAreaFatherPage {
                 }
             }
         }
+        /* 两个悬浮按钮用同一列自下而上排列: 只有一个可见时也落在右下角同一位置;
+         * 与歌曲列表页同款, 只是这里的视域是网格, 行位置按每行卡片数换算 */
+        Column {
+            id: jumpBtnColumn;
+            anchors {bottom:parent.bottom; right:parent.right; bottomMargin:15; rightMargin:15;}
+            spacing: 10;
+            CustomButtonA {
+                id: jump2PlayingBtn;
+                width: 30;
+                height: 30;
+                icon.source: "qrc:/assets/iconfont/function/jump2playing.svg";
+                icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                icon.width: 20;
+                icon.height: 20;
+                transEnabled: false;
+                visible: mainArea_HomePage.playingOutOfView();
+                background: Rectangle {
+                    anchors.fill: parent;
+                    color: Qt.rgba(246,246,246,0.8);
+                    border.width: 1.25;
+                    border.color: (jump2PlayingBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                }
+                onClicked: {
+                    mainArea_HomePage.jump2playing();
+                }
+            }
+            CustomButtonA {
+                id: jump2TopBtn;
+                width: 30;
+                height: 30;
+                icon.source: "qrc:/assets/iconfont/function/jump2top.svg";
+                icon.color: (hovered? Define.btnHoverColor:Define.subGrey);
+                icon.width: 20;
+                icon.height: 20;
+                transEnabled: false;
+                visible: (recommendView.contentY>0);
+                background: Rectangle {
+                    anchors.fill: parent;
+                    color: Qt.rgba(246,246,246,0.8);
+                    border.width: 1.25;
+                    border.color: (jump2TopBtn.hovered? Define.btnHoverColor:Define.subGrey);
+                }
+                onClicked: {
+                    recommendView.contentY=0;
+                }
+            }
+        }
     }
     /* 网格滚动条: 与其它列表共用同一个组件, 轨道与网格视口等高以保证滑块比例正确 */
     CustomSliderC {
@@ -340,6 +405,41 @@ MainAreaFatherPage {
             }
         }
         return v;
+    }
+    /* 当前播放项在推荐列表里的下标: 不在列表里时为 -1 */
+    function playingRowIndex() {
+        var which=GlobalFileStorage.playState.playingWhich;
+        if(which===undefined || which===null || which==="") {
+            return -1;
+        }
+        var v=mainArea_HomePage.recommendModel;
+        for(var i=0;i<v.length;i++) {
+            if(v[i]["absfpath"]===which) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    /* 当前播放项是否落在网格视域之外: 按每行卡片数把下标换算成整行的高度 */
+    function playingOutOfView() {
+        var idx=mainArea_HomePage.playingRowIndex();
+        if(idx<0) {
+            return false;
+        }
+        var top=Math.floor(idx/mainArea_HomePage.gridColumns)*recommendView.cellHeight;
+        var bottom=top+recommendView.cellHeight;
+        return (bottom<=recommendView.contentY || top>=recommendView.contentY+recommendView.height);
+    }
+    /* 定位到当前播放的卡片 */
+    function jump2playing() {
+        var idx=mainArea_HomePage.playingRowIndex();
+        if(idx<0) {
+            Assist.dlog("在线","定位失败: 当前播放的歌曲不在首页推荐里");
+            return false;
+        }
+        recommendView.positionViewAtIndex(idx,GridView.Beginning);
+        Assist.dlog("在线","定位到当前播放的卡片: 下标 ",idx);
+        return true;
     }
     /* 重建推荐列表: 按当前排序态重排 */
     function rebuild() {
