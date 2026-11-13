@@ -1302,9 +1302,7 @@ ApplicationWindow {
                             CustomButtonA {
                                 id: userVIP;
                                 icon.source: (Account.loggedIn===true
-                                              ? (Account.levelIconOf(Account.levelOf(Account.totalListenSeconds))===""
-                                                 ? "qrc:/assets/iconfont/vip/vip10.svg"
-                                                 :Account.levelIconOf(Account.levelOf(Account.totalListenSeconds)))
+                                              ? Account.levelIconOf(Account.levelOf(Account.totalListenSeconds))
                                               :"qrc:/assets/iconfont/vip/vip1.svg");
                                 icon.color: Define.vipRed;
                                 transEnabled: false;
