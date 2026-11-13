@@ -1796,7 +1796,10 @@ ApplicationWindow {
     /* 完成提示浮层: 独立于进度条, 因此进度条收起后仍短暂可见 */
     Rectangle {
         id: loadingTip;
-        anchors {bottom:loadingRate.top; bottomMargin:10; horizontalCenter:parent.horizontalCenter;}
+        /* 画面位置: 下边界贴主播放条上边界再上移 5. 按窗口默认高度 690, 播放条高 80 与 windowPadding 10
+         * 算出: 播放条上沿 600, 提示下沿 595, 提示高 26, 因此 y 取 569; 元素树位置不变, 不再用锚点串起来 */
+        y: 569
+        anchors.horizontalCenter: parent.horizontalCenter;
         width: loadingTipText.width+24;
         height: 26;
         radius: 5;
@@ -1901,6 +1904,13 @@ ApplicationWindow {
         thePlayer: player;
         theWindow: window;
         guard: window.shortcutAllowed;
+    }
+    /* 窗口失去激活: 用户的点击落到应用窗口之外, 此时把全部子面板收起;
+     * 传一个不可能命中任何控件的坐标, 让 subsHide 走"落点在所有子面板之外"这一条 */
+    onActiveChanged: {
+        if(active!==true) {
+            window.subsHide(Qt.point(-1,-1));
+        }
     }
     function subsHide(scenePos) {
         /* 歌词页盖住画布时, 它自己的菜单与播放条子面板也要按同一次点击收起 */
