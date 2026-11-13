@@ -51,11 +51,12 @@ Qt 官方二进制包在编译时把下列组件静态链接进 Qt 动态库, �
 |:---:|:---:|
 | 组件 | TagLib 2.3.2 |
 | 用途 | 读取本地音频(mp3, m4a, wav, flac, ogg)的标签, 内嵌封面与内嵌歌词 |
-| 分发形式 | 静态链接进 CryingMusic.exe, 发布包里没有单独的 DLL |
+| 分发形式 | 静态链接进 CryingMusic.exe, 发布包里没有单独的 DLL; 源码目录内随附一份预构建产物, 即静态库与公开头文件(`src/quick_app/external/taglib/`), 便于他人从源码构建 |
 | 许可 | GNU LGPL version 2.1 与 Mozilla Public License version 1.1 双许可; 本程序按 MPL-1.1 使用未修改的上游源码 |
-| 版权 | Copyright (C) TagLib 项目及其贡献者 |
-| 源码获取 | https://taglib.org/ 与 https://github.com/taglib/taglib , 本程序未修改其源码 |
-| 补充 | 若后续改为动态库分发, 需要把 tag.dll 一并放进发布包并更新本节 |
+| 版权 | Copyright (C) TagLib 项目及其贡献者, 主要作者 Scott Wheeler 等, 完整名单见上游仓库的 AUTHORS |
+| 上游依赖 | https://github.com/taglib/taglib 与 https://taglib.org/ , 本程序未修改其源码 |
+| 许可全文 | 随包分发的 `LICENSE.TagLib-LGPL` 与 `LICENSE.TagLib-MPL`, 即上游 COPYING.LGPL 与 COPYING.MPL 原文; 源码目录内见 `src/quick_app/external/taglib/` 下的同名文件 |
+| 补充 | 若后续改为动态库分发, 需要把 tag.dll 一并放进发布包并更新本节; 随源码携带的那份是 MinGW 64 位构建的静态库, 只用于构建期链接, 不进发布包 |
 
 ## 随包分发的说明与许可文件
 
@@ -66,6 +67,8 @@ Qt 官方二进制包在编译时把下列组件静态链接进 Qt 动态库, �
 | LICENSE.Qt | Qt 的 GNU GPLv3 与 GNU LGPLv3 全文以及 Qt 版权声明 |
 | LICENSE.FDL | GNU 文档许可, 本项目不分发 Qt 文档 |
 | LICENSE.FFmpeg | FFmpeg 后端的 GNU LGPL version 2.1 全文 |
+| LICENSE.TagLib-LGPL | TagLib 的 GNU LGPL version 2.1 全文 |
+| LICENSE.TagLib-MPL | TagLib 的 Mozilla Public License version 1.1 全文 |
 | README.md | 本程序的中文说明文档 |
 | README_en-US.md | 本程序的英文说明文档 |
 | THIRD-PARTY-NOTICES.md | 本文件 |

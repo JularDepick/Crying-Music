@@ -118,17 +118,20 @@ DIR_EXCLUDES: dict[str, set[str]] = {
 # 复制时跳过的文件后缀: *.qmltypes 只服务于开发期工具, 运行期不需要
 SKIP_SUFFIXES: set[str] = {".qmltypes"}
 
-# 发布包附加文件: 项目许可, 版权, 文档许可, Qt 许可, FFmpeg 许可, 中英说明与第三方组件声明
+# 发布包附加文件: 项目许可, 版权, 文档许可, Qt 许可, FFmpeg 许可, TagLib 双许可, 中英说明与第三方组件声明
 # (源路径, 发布包内文件名); 这些文件取自源码目录, 不属于 windeployqt 的构建产物
 # 许可四件套 COPYRIGHT, LICENSE, LICENSE.FDL, LICENSE.Qt 与 qml/GlobalFileStorage.qml 的
 # licenseFileNames 以及 resource.qrc 内嵌的 licenses/ 别名保持同一口径;
-# LICENSE.FFmpeg 与 THIRD-PARTY-NOTICES.md 只随包分发, 供合规查阅, 不嵌入界面
+# LICENSE.FFmpeg, LICENSE.TagLib-LGPL, LICENSE.TagLib-MPL 与 THIRD-PARTY-NOTICES.md 只随包分发,
+# 供合规查阅, 不嵌入界面; TagLib 的两份全文取自 external/taglib 下的上游原文
 EXTRA_SOURCES: list[tuple[Path, str]] = [
     ((SCRIPT_DIR / "../../../LICENSE").resolve(), "LICENSE"),
     ((SCRIPT_DIR / "../../../COPYRIGHT").resolve(), "COPYRIGHT"),
     ((SCRIPT_DIR / "../LICENSE.FDL").resolve(), "LICENSE.FDL"),
     ((SCRIPT_DIR / "../LICENSE.Qt").resolve(), "LICENSE.Qt"),
     ((SCRIPT_DIR / "../LICENSE.FFmpeg").resolve(), "LICENSE.FFmpeg"),
+    ((SCRIPT_DIR / "../external/taglib/COPYING.LGPL").resolve(), "LICENSE.TagLib-LGPL"),
+    ((SCRIPT_DIR / "../external/taglib/COPYING.MPL").resolve(), "LICENSE.TagLib-MPL"),
     ((SCRIPT_DIR / "../README.md").resolve(), "README.md"),
     ((SCRIPT_DIR / "../README_en-US.md").resolve(), "README_en-US.md"),
     ((SCRIPT_DIR / "../THIRD-PARTY-NOTICES.md").resolve(), "THIRD-PARTY-NOTICES.md"),
