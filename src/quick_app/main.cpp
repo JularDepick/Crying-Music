@@ -24,6 +24,10 @@ int main(int argc, char *argv[])
     /* 创建GUI应用并接收命令行参数:
      * 托盘改用 QtWidgets 的 QSystemTrayIcon, 因此基类取 QApplication 而不是 QGuiApplication */
     QApplication app(argc, argv);
+    /* 固定 Qt Quick Controls 的样式为 Basic: 界面全部按 Basic 设计, 固定后发布包只需要带 Basic 一份样式,
+     * 不必把 Fusion/Imagine/Material/Universal/FluentWinUI3 一并打进包里.
+     * 用环境变量而不是 QQuickStyle, 免得为这一行额外链接 QuickControls2 模块 */
+    qputenv("QT_QUICK_CONTROLS_STYLE", "Basic");
     /* 设置GUI应用版本号 */
     QApplication::setApplicationVersion(VERSION);
     QCoreApplication::setOrganizationName(ORG_NAME);
