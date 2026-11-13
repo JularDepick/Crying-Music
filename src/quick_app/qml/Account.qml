@@ -345,7 +345,7 @@ Item {
                 accountRoot.codeSentTo=wasSentTo;
                 accountRoot.resendAt=wasResendAt;
                 accountRoot.nowMs=Date.now();
-                accountRoot.setHint(true,"无法连接服务器, 请检查网络");
+                accountRoot.setHint(true,"网络连接失败, 请重试");
                 return;
             }
             if(status>=200 && status<300 && body!==null && body.ok===true) {
@@ -394,7 +394,7 @@ Item {
                 return;
             }
             if(sent!==true) {
-                accountRoot.setHint(true,"无法连接服务器, 请检查网络");
+                accountRoot.setHint(true,"网络连接失败, 请重试");
                 return;
             }
             var ok=(status>=200 && status<300 && body!==null && body.ok===true
@@ -407,13 +407,13 @@ Item {
             }
             if(accountRoot.verifySign(body.email,body.issuedAt,body.sign)!==true) {
                 Assist.dwarn("用户","登录凭证签名校验失败: ",body.email);
-                accountRoot.setHint(true,"登录凭证签名校验失败");
+                accountRoot.setHint(true,"登录失败, 请重试");
                 return;
             }
             /* 登录状态秘钥: 服务端没给就视为登录失败, 没有秘钥的后续用户操作一律被拒 */
             if(typeof body.sessionKey!=="string" || body.sessionKey==="") {
                 Assist.dwarn("用户","服务端未下发登录状态秘钥: ",body.email);
-                accountRoot.setHint(true,"服务端未下发登录状态秘钥");
+                accountRoot.setHint(true,"登录失败, 请重试");
                 return;
             }
             var saved=GlobalFileStorage.setAccount(body.email,body.issuedAt,body.sign,body.sessionKey);
@@ -421,8 +421,7 @@ Item {
             accountRoot.codeSentTo="";
             accountRoot.resendAt=0;
             accountRoot.nowMs=Date.now();
-            accountRoot.setHint(saved!==true,(saved===true
-                ? "登录成功, 登录状态保留 "+String(Define.loginKeepDays)+" 天":"登录记录保存失败"));
+            accountRoot.setHint(saved!==true,(saved===true? "登录成功":"登录失败, 请重试"));
             /* 头像只在 onLoggedInChanged 里取一次: 上面的 setAccount 已把登录状态置真,
              * 那里会随状态变化发起同一键的请求, 这里不再重复发起 */
             if(saved===true) {
@@ -559,13 +558,13 @@ Item {
         if(signOk!==true) {
             Assist.dwarn("用户","登录记录签名不符, 视为未登录: ",email);
             GlobalFileStorage.clearAccount();
-            setHint(true,"本地登录记录被改动过, 请重新登录");
+            setHint(true,"登录状态已失效, 请重新登录");
             return false;
         }
         if(nowMs>=expireAt) {
             Assist.dlog("用户","登录状态已过期: ",email);
             GlobalFileStorage.clearAccount();
-            setHint(true,"登录状态已保留满 "+String(Define.loginKeepDays)+" 天, 请重新登录");
+            setHint(true,"登录已过期, 请重新登录");
             return false;
         }
         requestAvatars(false);
@@ -602,7 +601,7 @@ Item {
                 }
             }
             accountRoot.phase=0;
-            accountRoot.setHint(true,"请求超时, 请检查网络后重试");
+            accountRoot.setHint(true,"网络连接失败, 请重试");
             Assist.dwarn("用户","请求超时");
         }
     }

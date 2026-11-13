@@ -5,7 +5,7 @@ import "./"
 
 /* 用户页: 邮箱验证码登录, 无需注册
  * 未登录时是一段紧凑的行内表单: 标签在上, 输入框与按钮同一行, 宽度受限不铺满,
- * 发送验证码后原地加出验证码行, 重发做成文字链接, 只在需要时出现提示.
+ * 发送验证码后原地加出验证码行, 重发只经发送按钮, 只在确实有内容时出现提示.
  * 已登录时只留头像, 邮箱, 等级与累计听歌, 以及退出按钮, 不放时间与说明类文字.
  * 登录状态由 Account 单例持有, 本页只负责输入与显示, 不自行读写落盘记录 */
 MainAreaFatherPage {
@@ -116,11 +116,6 @@ MainAreaFatherPage {
             font.pixelSize: 32;
             font.weight: 700;
         }
-        Text {
-            text: "邮箱验证码登录, 无需注册";
-            font.pixelSize: 13;
-            color: Define.btnIconColor;
-        }
     }
 
     /* 未登录: 紧凑的行内表单, 左对齐, 宽度受限; 输入框与按钮同一行 */
@@ -148,7 +143,7 @@ MainAreaFatherPage {
                     id: emailField;
                     width: Math.max(0,loginForm.width-Define.loginActionWidth-10);
                     height: Define.loginFieldHeight;
-                    placeholderText: "QQ 邮箱, 例如 123456789@qq.com";
+                    placeholderText: "QQ 邮箱";
                     text: Account.email;
                     onAccepted: {
                         mainArea_ProfilePage.submitEmail();
@@ -272,13 +267,6 @@ MainAreaFatherPage {
                     outlineColor: Define.subGrey;
                     source: (Account.avatarSource(Define.avatarSpecLarge)===""
                              ? "qrc:/favicon.jpg":Account.avatarSource(Define.avatarSpecLarge));
-                    HoverHandler {
-                        id: avatarHh;
-                    }
-                    /* 非纯数字 QQ 邮箱没有头像可缓存, 用悬停提示代替常驻说明文字 */
-                    ToolTip.visible: (avatarHh.hovered && Account.qqNumber==="");
-                    ToolTip.text: "该邮箱不是纯数字 QQ 邮箱, 不展示 QQ 头像";
-                    ToolTip.delay: 600;
                 }
                 Column {
                     anchors.verticalCenter: parent.verticalCenter;
@@ -318,28 +306,18 @@ MainAreaFatherPage {
                 radius: 1;
                 color: Define.subGrey;
             }
-            Row {
-                spacing: 10;
-                /* 二次确认落在按钮上: 首击进入确认态, 三秒内再击才退出登录, 超时回归 */
-                ConfirmButton {
-                    id: logoutBtn;
-                    width: 100;
-                    height: 36;
-                    label: "退出登录";
-                    confirmLabel: "确认退出";
-                    cornerRadius: 8;
-                    fontSize: 13;
-                    onConfirmed: {
-                        Account.logout();
-                        logoutBtn.reset();
-                    }
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter;
-                    visible: (Account.hint!=="");
-                    text: Account.hint;
-                    font.pixelSize: 12;
-                    color: (Account.hintError? Define.btnIconRed:Define.choseCyanColor);
+            /* 二次确认落在按钮上: 首击进入确认态, 三秒内再击才退出登录, 超时回归 */
+            ConfirmButton {
+                id: logoutBtn;
+                width: 100;
+                height: 36;
+                label: "退出登录";
+                confirmLabel: "确认退出";
+                cornerRadius: 8;
+                fontSize: 13;
+                onConfirmed: {
+                    Account.logout();
+                    logoutBtn.reset();
                 }
             }
         }
