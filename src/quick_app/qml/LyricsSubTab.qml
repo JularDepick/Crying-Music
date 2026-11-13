@@ -956,7 +956,10 @@ Rectangle {
                     brk=cur;
                 }
             }
-            var to=(brk>from && brk<cur? brk:cur);
+            /* 只有确实因为宽度放不下(cur<n)才在可断点处断行: 整段都放得下时按 Text 的口径
+             * 不额外切行, 否则含空格的英文行会被多切一行, 自算行数与 Text.lineCount 对不上,
+             * 这一行就整行不上色(逐字进度消失) */
+            var to=((cur<n && brk>from)? brk:cur);
             var w=0;
             for(var j=from;j<to;j++) {
                 w=w+Number(widths[j]);
