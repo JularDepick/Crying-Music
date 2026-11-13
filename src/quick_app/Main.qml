@@ -2090,12 +2090,40 @@ ApplicationWindow {
                 wordProgress: lyricsSubTab.wordProgress;
             }
         }
-        /* 整窗拖动交给系统移动, 不自绘拖影 */
+        /* 自绘拖动: 系统移动无法在拖动过程中夹取位置, 这里按"全局指针位移"移动窗口,
+         * 每次移动都先夹进屏幕, 因此窗口在拖动途中也不会离开屏幕.
+         * 全局指针取 窗口左上角 + 指针在窗口内的坐标, 窗口移动时这个值不变, 不会产生反馈 */
         MouseArea {
+            id: desktopLyricsDrag;
             anchors.fill: parent;
             acceptedButtons: Qt.LeftButton;
-            onPressed: {
-                desktopLyrics.startSystemMove();
+            property real grabGlobalX: 0;
+            property real grabGlobalY: 0;
+            property real startX: 0;
+            property real startY: 0;
+            onPressed: (mouse)=> {
+                desktopLyricsDrag.grabGlobalX=desktopLyrics.x+mouse.x;
+                desktopLyricsDrag.grabGlobalY=desktopLyrics.y+mouse.y;
+                desktopLyricsDrag.startX=desktopLyrics.x;
+                desktopLyricsDrag.startY=desktopLyrics.y;
+            }
+            onPositionChanged: (mouse)=> {
+                if(pressed!==true) {
+                    return;
+                }
+                var gx=desktopLyrics.x+mouse.x;
+                var gy=desktopLyrics.y+mouse.y;
+                window.moveDesktopLyrics(desktopLyricsDrag.startX+(gx-desktopLyricsDrag.grabGlobalX),
+                                         desktopLyricsDrag.startY+(gy-desktopLyricsDrag.grabGlobalY));
+            }
+        }
+        /* 兜底: 显示器布局变化或外部改动后, 半秒内把窗口拉回屏幕 */
+        Timer {
+            interval: 500;
+            repeat: true;
+            running: (desktopLyrics.visible===true);
+            onTriggered: {
+                window.clampDesktopLyricsToScreen();
             }
         }
         /* 拖动只改 x/y, 停手后延时落盘一次, 拖动过程中不逐像素写盘 */
@@ -2145,47 +2173,51 @@ ApplicationWindow {
         }
         return false;
     }
-    /* 把悬浮歌词夹回屏幕内: 取窗口中心所在的屏幕, 整窗不出屏;
-     * 中心不在任何屏幕时取最近的屏幕, 因此拖到屏外松手后会被拉回来 */
-    function clampDesktopLyricsToScreen() {
+    /* 悬浮歌词所在屏幕: 取该点所在的屏幕, 不在任何屏幕时取离它最近的屏幕 */
+    function desktopLyricsScreenOf(px,py) {
         var list=Qt.application.screens;
         if(list===undefined || list===null || list.length<=0) {
-            return false;
+            return null;
         }
-        var cx=desktopLyrics.x+desktopLyrics.width/2;
-        var cy=desktopLyrics.y+desktopLyrics.height/2;
-        var target=null;
         for(var i=0;i<list.length;i++) {
             var s=list[i];
-            if(cx>=s.x && cx<(s.x+s.width) && cy>=s.y && cy<(s.y+s.height)) {
-                target=s;
-                break;
+            if(px>=s.x && px<(s.x+s.width) && py>=s.y && py<(s.y+s.height)) {
+                return s;
             }
         }
-        if(target===null) {
-            var best=1e18;
-            for(var j=0;j<list.length;j++) {
-                var t=list[j];
-                var dx=cx-Math.max(t.x,Math.min(cx,t.x+t.width));
-                var dy=cy-Math.max(t.y,Math.min(cy,t.y+t.height));
-                var d=dx*dx+dy*dy;
-                if(d<best) {
-                    best=d;
-                    target=t;
-                }
+        var best=null;
+        var bestD=1e18;
+        for(var j=0;j<list.length;j++) {
+            var t=list[j];
+            var dx=px-Math.max(t.x,Math.min(px,t.x+t.width));
+            var dy=py-Math.max(t.y,Math.min(py,t.y+t.height));
+            var d=dx*dx+dy*dy;
+            if(d<bestD) {
+                bestD=d;
+                best=t;
             }
         }
-        if(target===null) {
+        return best;
+    }
+    /* 移动悬浮歌词: 先把目标位置夹进屏幕再赋值, 因此窗口任何时刻都不会离开屏幕 */
+    function moveDesktopLyrics(nx,ny) {
+        var s=window.desktopLyricsScreenOf(nx+desktopLyrics.width/2,
+                                           ny+desktopLyrics.height/2);
+        if(s===null) {
             return false;
         }
-        var nx=Math.min(Math.max(desktopLyrics.x,target.x),target.x+target.width-desktopLyrics.width);
-        var ny=Math.min(Math.max(desktopLyrics.y,target.y),target.y+target.height-desktopLyrics.height);
-        if(nx===desktopLyrics.x && ny===desktopLyrics.y) {
+        var x=Math.min(Math.max(nx,s.x),s.x+s.width-desktopLyrics.width);
+        var y=Math.min(Math.max(ny,s.y),s.y+s.height-desktopLyrics.height);
+        if(x===desktopLyrics.x && y===desktopLyrics.y) {
             return false;
         }
-        desktopLyrics.x=nx;
-        desktopLyrics.y=ny;
+        desktopLyrics.x=x;
+        desktopLyrics.y=y;
         return true;
+    }
+    /* 把悬浮歌词夹回屏幕内: 以当前位置为目标再走一次夹取 */
+    function clampDesktopLyricsToScreen() {
+        return window.moveDesktopLyrics(desktopLyrics.x,desktopLyrics.y);
     }
     /* 打开时恢复位置: 存储里有记录且该点仍在某块屏幕上就用它, 否则落默认位置并立即保存一次;
      * 写存储不反写 x/y, 因此恢复与落盘不会互相触发 */
