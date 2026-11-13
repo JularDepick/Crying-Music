@@ -1045,8 +1045,51 @@ Item {
         if(typeof lyricsName!=="string" || lyricsName==="") {
             return "";
         }
-        var p=lyricsCache[lyricsName];
+        var key=_lyricsBaseName(lyricsName)+_lyricsTierExtOf(lyricsName);
+        var p=lyricsCache[key];
         return (typeof p==="string"? p:"");
+    }
+    /* 歌词主名: 去掉歌词扩展名, 再剥掉可能残留的音频扩展名.
+     * 早期落盘的播放队列与下载记录里带着音频扩展名(形如 名字.mp3.lrc), 而在线歌词文件
+     * 只按主文件名加歌词扩展名命名, 因此拼地址与查缓存之前一律先还原成主文件名 */
+    function _lyricsBaseName(lyricsName) {
+        var s=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        if(s==="") {
+            return "";
+        }
+        var lrcExt=String(oss.audio_lyrics_lrc_ext);
+        var elrcExt=String(oss.audio_lyrics_elrc_ext);
+        if(elrcExt!=="" && s.length>elrcExt.length
+           && s.substring(s.length-elrcExt.length)===elrcExt) {
+            s=s.substring(0,s.length-elrcExt.length);
+        } else if(lrcExt!=="" && s.length>lrcExt.length
+                  && s.substring(s.length-lrcExt.length)===lrcExt) {
+            s=s.substring(0,s.length-lrcExt.length);
+        }
+        var fmts=Define.audioFormats;
+        var low=s.toLowerCase();
+        for(var i=0;i<fmts.length;i++) {
+            var fe=String(fmts[i]).toLowerCase();
+            if(fe!=="" && low.length>fe.length
+               && low.substring(low.length-fe.length)===fe) {
+                s=s.substring(0,s.length-fe.length);
+                break;
+            }
+        }
+        return s;
+    }
+    /* 名字本身带的档位扩展名: 带增强歌词扩展名时按增强档, 其余按普通档 */
+    function _lyricsTierExtOf(lyricsName) {
+        var s=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        if(s==="") {
+            return "";
+        }
+        var elrcExt=String(oss.audio_lyrics_elrc_ext);
+        if(elrcExt!=="" && s.length>elrcExt.length
+           && s.substring(s.length-elrcExt.length)===elrcExt) {
+            return elrcExt;
+        }
+        return String(oss.audio_lyrics_lrc_ext);
     }
     /* 按歌词增强开关取这一档实际使用的歌词名: 关闭时用普通歌词(lrc), 开启时用增强歌词(elrc);
      * 入参是清单给出的普通歌词名, 出参是这一档要缓存与显示的文件名 */
@@ -1057,15 +1100,10 @@ Item {
         }
         var lrcExt=String(oss.audio_lyrics_lrc_ext);
         var elrcExt=String(oss.audio_lyrics_elrc_ext);
-        var main=name;
-        /* 入参可能已经是某一档的歌词名: 两档的扩展名都剥掉, 保证本函数可以重复调用 */
-        if(lrcExt!=="" && main.length>lrcExt.length
-           && main.substring(main.length-lrcExt.length)===lrcExt) {
-            main=main.substring(0,main.length-lrcExt.length);
-        }
-        if(elrcExt!=="" && main.length>elrcExt.length
-           && main.substring(main.length-elrcExt.length)===elrcExt) {
-            main=main.substring(0,main.length-elrcExt.length);
+        /* 主名归一后可以直接重复调用: 两档扩展名与残留的音频扩展名都会被剥掉 */
+        var main=_lyricsBaseName(name);
+        if(main==="") {
+            return "";
         }
         if(GlobalFileStorage.lyricsEnhanced()!==true || elrcExt==="") {
             return main+lrcExt;
@@ -1082,14 +1120,9 @@ Item {
         }
         var lrcExt=String(oss.audio_lyrics_lrc_ext);
         var elrcExt=String(oss.audio_lyrics_elrc_ext);
-        var main=name;
-        if(lrcExt!=="" && main.length>lrcExt.length
-           && main.substring(main.length-lrcExt.length)===lrcExt) {
-            main=main.substring(0,main.length-lrcExt.length);
-        }
-        if(elrcExt!=="" && main.length>elrcExt.length
-           && main.substring(main.length-elrcExt.length)===elrcExt) {
-            main=main.substring(0,main.length-elrcExt.length);
+        var main=_lyricsBaseName(name);
+        if(main==="") {
+            return res;
         }
         var wantElrc=(elrcExt!=="" && name.length>elrcExt.length
                       && name.substring(name.length-elrcExt.length)===elrcExt);
@@ -1115,6 +1148,8 @@ Item {
         if(name==="") {
             return false;
         }
+        /* 名字可能来自早期落盘的记录: 统一还原成 主文件名加档位扩展名, 缓存键才与界面查的一致 */
+        name=_lyricsBaseName(name)+_lyricsTierExtOf(name);
         if(lyricsPathOf(name)!=="") {
             return true;
         }
@@ -1265,6 +1300,7 @@ Item {
     /* 某份歌词的偏移量(毫秒): 无记录时为零 */
     function lyricsOffsetMs(lyricsName) {
         var name=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        name=_lyricsBaseName(name)+_lyricsTierExtOf(name);
         var one=lyricsIndex[name];
         if(one===null || one===undefined || typeof one["offsetMs"]!=="number") {
             return 0;
@@ -1277,6 +1313,7 @@ Item {
         if(name==="") {
             return false;
         }
+        name=_lyricsBaseName(name)+_lyricsTierExtOf(name);
         var v=Math.round(Number(ms));
         if(isNaN(v)===true) {
             return false;
