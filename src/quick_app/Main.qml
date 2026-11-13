@@ -1863,8 +1863,12 @@ ApplicationWindow {
         }
         return (hasInput===true? window.clearInputFocus():false);
     }
-    /* 快捷键的生效条件: 焦点链上存在文本输入类控件时不响应, 避免吞掉打字用的空格与方向键 */
+    /* 快捷键的生效条件: 焦点链上存在文本输入类控件时不响应, 避免吞掉打字用的空格与方向键;
+     * 设置页正在录制新键位时整组让位, 否则按下的组合会同时触发播放动作 */
     function shortcutAllowed() {
+        if(mainArea_SettingsPage.capturingAction!=="") {
+            return false;
+        }
         var it=window.activeFocusItem;
         while(it!==null && it!==undefined) {
             if(window.isTextInputItem(it)===true) {
@@ -1890,53 +1894,13 @@ ApplicationWindow {
         GlobalFileStorage.setVolume(v);
         Assist.dlog("播放","音量: ",v);
     }
-    /* 全局键盘快捷键: 键位表集中在 Define.shortcutKeys, 这里只做动作映射;
-     * 输入焦点在输入框里时统一不响应, 由 shortcutAllowed 判定 */
-    Shortcut {
-        sequence: Define.shortcutKeys["playPause"];
-        enabled: window.shortcutAllowed();
-        onActivated: {
-            if(player.playing) {
-                player.pause();
-            } else {
-                player.play();
-            }
-        }
-    }
-    Shortcut {
-        sequence: Define.shortcutKeys["stopPlay"];
-        enabled: window.shortcutAllowed();
-        onActivated: {
-            player.stopPlayback();
-        }
-    }
-    Shortcut {
-        sequence: Define.shortcutKeys["prevSong"];
-        enabled: window.shortcutAllowed();
-        onActivated: {
-            player.playPrev();
-        }
-    }
-    Shortcut {
-        sequence: Define.shortcutKeys["nextSong"];
-        enabled: window.shortcutAllowed();
-        onActivated: {
-            player.playNext(false);
-        }
-    }
-    Shortcut {
-        sequence: Define.shortcutKeys["volumeUp"];
-        enabled: window.shortcutAllowed();
-        onActivated: {
-            window.changeVolume(Define.volumeStep);
-        }
-    }
-    Shortcut {
-        sequence: Define.shortcutKeys["volumeDown"];
-        enabled: window.shortcutAllowed();
-        onActivated: {
-            window.changeVolume(-Define.volumeStep);
-        }
+    /* 全局键盘快捷键: 六组动作全部交给 ShortcutHelper, 默认键位在 Define.shortcutKeys,
+     * 用户改过的键位存在界面状态里, 由设置页的按键绑定编辑;
+     * 输入焦点在输入框里或设置页正在录制按键时统一不响应, 由 shortcutAllowed 判定 */
+    ShortcutHelper {
+        thePlayer: player;
+        theWindow: window;
+        guard: window.shortcutAllowed;
     }
     function subsHide(scenePos) {
         /* 歌词页盖住画布时, 它自己的菜单与播放条子面板也要按同一次点击收起 */
@@ -2075,12 +2039,22 @@ ApplicationWindow {
         readonly property var lineNow: ((lyricsSubTab.currentLine>=0
                                          && lyricsSubTab.currentLine<lyricsSubTab.lyricLines.length)
                                         ? lyricsSubTab.lyricLines[lyricsSubTab.currentLine]:null);
+        /* 逐字测量用本窗自己的一份度量对象: 与歌词页共用同一份时, 两处绑定会互相
+         * 写对方的度量, 表现为 sungLayout 与 layout 的绑定循环告警 */
+        TextMetrics {
+            id: lyricLineMetrics;
+        }
+        FontMetrics {
+            id: lyricLineFontMetrics;
+        }
         /* 逐字进度: 与歌词页同一套算法, 断行与遮罩按本窗的字号与列宽重算 */
         readonly property var sungLayout: (lineNow===null
                                            ? null
                                            : lyricsSubTab.sungLayoutOf(String(lineNow["text"]),
                                                                        fontSizeNow,true,
-                                                                       lyricLine.width));
+                                                                       lyricLine.width,
+                                                                       lyricLineMetrics,
+                                                                       lyricLineFontMetrics));
         readonly property var sungMask: (sungLayout===null
                                          ? null
                                          : lyricsSubTab.sungMaskOf(sungLayout,lineNow,

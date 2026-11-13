@@ -13,10 +13,10 @@
 - Lyrics page: full screen overlay, line highlight, per word progress for enhanced lyrics, four context menu items (font size, color, display position, offset), streaming lyrics shown while downloading
 - Desktop floating lyrics: a separate floating window, its dragged position and colors are saved, toggled from the player bar, the lyrics page and the system tray
 - System tray: menu with now playing, play/pause, previous, next, play order, like, desktop lyrics, show or hide the window and quit
-- Settings: three categories (playback and download, lyrics and cache, about and license), online play strategy, two download naming templates (title-artist, artist-title), download folder, cover cache lifetime and immediate cleanup, audio cache limit and immediate cleanup, lyrics enhancement switch
+- Settings: four categories (playback and download, lyrics and cache, key bindings, about and license), online play strategy, two download naming templates (title-artist, artist-title), download folder, cover cache lifetime and immediate cleanup, audio cache limit and immediate cleanup, lyrics enhancement switch, rebindable shortcuts for six playback actions
 - Themes: six preset color schemes (four light and two dark), the choice is saved as a UI preference
 - User: email code login without registration, login kept on disk for 7 days, QQ mailboxes get a cached QQ avatar, listening time is converted to a user level and reported periodically, playback is unaffected when signed out
-- Shortcuts: Space for play/pause, Ctrl+Space to stop, Ctrl+Left and Ctrl+Right for previous and next, Ctrl+Up and Ctrl+Down for volume
+- Shortcuts: Space for play/pause, Ctrl+Space to stop, Ctrl+Alt+, and Ctrl+Alt+. for previous and next, Ctrl+Up and Ctrl+Down for volume
 - Playlist panel: one instance on the main window and one on the lyrics page, shared playlist, independent switches
 
 # Architecture and Technology

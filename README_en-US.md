@@ -25,9 +25,9 @@ A desktop music player built as an implementation of mainstream players, with th
 - Lyrics page: full screen lyrics, line highlight, per word progress for enhanced lyrics, a context menu for font size, color, display position and offset
 - Desktop floating lyrics: a separate floating window, its dragged position and colors are saved, toggled from the player bar, the lyrics page and the system tray
 - System tray: menu with now playing, play/pause, previous, next, play order, like, desktop lyrics, show or hide the window and quit
-- Settings and themes: three settings categories (playback and download, lyrics and cache, about and license), online play strategy, download naming and folder, cover and audio cache limits and cleanup, lyrics enhancement switch, six preset color schemes (four light and two dark)
+- Settings and themes: four settings categories (playback and download, lyrics and cache, key bindings, about and license), online play strategy, download naming and folder, cover and audio cache limits and cleanup, lyrics enhancement switch, rebindable shortcuts for six playback actions, six preset color schemes (four light and two dark)
 - User: email code login without registration, login kept locally for 7 days, QQ mailboxes get a cached QQ avatar, listening time is converted to a user level and reported periodically, browsing and playback are unaffected when signed out
-- Shortcuts: Space for play/pause, Ctrl+Space to stop, Ctrl+Left and Ctrl+Right for previous and next, Ctrl+Up and Ctrl+Down for volume
+- Shortcuts: Space for play/pause, Ctrl+Space to stop, Ctrl+Alt+, and Ctrl+Alt+. for previous and next, Ctrl+Up and Ctrl+Down for volume
 
 
 ## Architecture and Technology

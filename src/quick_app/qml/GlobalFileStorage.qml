@@ -112,8 +112,8 @@ Item {
          * 否则主界面静音后到歌词页取消静音会跳到 100 */
         lastVolume: 100
     });
-    /* 界面状态: 需要落盘的界面偏好(左侧栏展开, 当前页面, 下载命名与播放策略, 下载目录, 预设主题);
-     * 跨模块只经此处交换 */
+    /* 界面状态: 需要落盘的界面偏好(左侧栏展开, 当前页面, 下载命名与播放策略, 下载目录, 预设主题,
+     * 缓存档位与歌词偏好, 快捷键自定义键位); 跨模块只经此处交换 */
     /* 存到 #/data/UI_State.json */
     property var uiState:
     ({
@@ -129,6 +129,8 @@ Item {
         lyricsTextColor: "",
         lyricsAnchorRatio: 0,
         audioCacheCapMb: 0,
+        /* 快捷键自定义键位: 动作名到按键序列, 空表表示全部用设计默认值 */
+        shortcutKeys: ({}),
         /* 桌面悬浮歌词窗口位置: null 表示尚未记录过, 打开时落默认位置 */
         desktopLyricsX: null,
         desktopLyricsY: null
@@ -721,6 +723,9 @@ Item {
                        /* 歌词当前行锚定比例: 0 表示用设计默认值 */
                        "lyricsAnchorRatio":(typeof us.lyricsAnchorRatio==="number"? us.lyricsAnchorRatio:0),
                        "audioCacheCapMb":(typeof us.audioCacheCapMb==="number"? us.audioCacheCapMb:0),
+                       /* 快捷键自定义键位: 动作名到按键序列, 空表表示全部用设计默认值 */
+                       "shortcutKeys":(us.shortcutKeys!==null && typeof us.shortcutKeys==="object"
+                                       ? us.shortcutKeys:{}),
                        /* 桌面悬浮歌词窗口位置: 缺失或非法时记为未设置 */
                        "desktopLyricsX":(typeof us.desktopLyricsX==="number"? Math.round(us.desktopLyricsX):null),
                        "desktopLyricsY":(typeof us.desktopLyricsY==="number"? Math.round(us.desktopLyricsY):null)});
@@ -790,6 +795,89 @@ Item {
     /* 只写界面状态 */
     function saveUIState() {
         return writePayload(storageDirPath,uiStateFileName,uiState);
+    }
+    /* 快捷键: 某个动作当前生效的按键序列; 用户改过就用改过的, 否则用设计默认值 */
+    function shortcutKeyOf(action) {
+        var id=String(action===undefined || action===null? "":action);
+        var m=uiState.shortcutKeys;
+        if(m!==null && m!==undefined && typeof m==="object"
+           && typeof m[id]==="string" && m[id]!=="") {
+            return String(m[id]);
+        }
+        return (Define.shortcutKeys[id]===undefined? "":String(Define.shortcutKeys[id]));
+    }
+    /* 快捷键: 某个动作是否被用户改过(与设计默认值不同) */
+    function shortcutIsCustom(action) {
+        var id=String(action===undefined || action===null? "":action);
+        return (shortcutKeyOf(id)!==(Define.shortcutKeys[id]===undefined? "":String(Define.shortcutKeys[id])));
+    }
+    /* 快捷键: 某个序列当前被哪个动作占用, 没有被占用返回空串 */
+    function shortcutOwnerOf(sequence) {
+        var seq=String(sequence===undefined || sequence===null? "":sequence);
+        if(seq==="") {
+            return "";
+        }
+        var list=Define.shortcutActions;
+        for(var i=0;i<list.length;i++) {
+            var id=String(list[i]["id"]);
+            if(shortcutKeyOf(id)===seq) {
+                return id;
+            }
+        }
+        return "";
+    }
+    /* 快捷键: 写入一个动作的键位; 与设计默认值相同时从自定义表里删掉, 表里只留真正的改动 */
+    function setShortcutKey(action, sequence) {
+        var id=String(action===undefined || action===null? "":action);
+        var seq=String(sequence===undefined || sequence===null? "":sequence);
+        if(Define.shortcutKeys[id]===undefined || seq==="") {
+            Assist.dwarn("落盘","写入快捷键失败: 动作或序列非法 ",id," / ",seq);
+            return false;
+        }
+        var owner=shortcutOwnerOf(seq);
+        if(owner!=="" && owner!==id) {
+            Assist.dwarn("落盘","写入快捷键失败: 序列已被占用 ",seq," -> ",owner);
+            return false;
+        }
+        var m={};
+        for(var k in uiState.shortcutKeys) {
+            m[k]=uiState.shortcutKeys[k];
+        }
+        if(String(Define.shortcutKeys[id])===seq) {
+            delete m[id];
+        } else {
+            m[id]=seq;
+        }
+        uiState=_uiStateWith({"shortcutKeys":m});
+        var ok=saveUIState();
+        Assist.dlog("落盘","写入快捷键: ",id," -> ",seq," 结果 ",ok);
+        return ok;
+    }
+    /* 快捷键: 单个动作恢复设计默认值 */
+    function resetShortcutKey(action) {
+        var id=String(action===undefined || action===null? "":action);
+        if(Define.shortcutKeys[id]===undefined) {
+            return false;
+        }
+        var m={};
+        for(var k in uiState.shortcutKeys) {
+            m[k]=uiState.shortcutKeys[k];
+        }
+        if(m[id]===undefined) {
+            return true;
+        }
+        delete m[id];
+        uiState=_uiStateWith({"shortcutKeys":m});
+        var ok=saveUIState();
+        Assist.dlog("落盘","快捷键恢复默认: ",id," 结果 ",ok);
+        return ok;
+    }
+    /* 快捷键: 全部恢复设计默认值 */
+    function resetAllShortcutKeys() {
+        uiState=_uiStateWith({"shortcutKeys":{}});
+        var ok=saveUIState();
+        Assist.dlog("落盘","全部快捷键恢复默认, 结果 ",ok);
+        return ok;
     }
     /* 用户头像缓存目录: 存储目录未确定时返回空字符串 */
     function avatarCacheDir() {
@@ -1189,6 +1277,9 @@ Item {
                  "lyricsTextColor":(typeof uiState.lyricsTextColor!=="string"? "":uiState.lyricsTextColor),
                  "lyricsAnchorRatio":(typeof uiState.lyricsAnchorRatio!=="number"? 0:uiState.lyricsAnchorRatio),
                  "audioCacheCapMb":(typeof uiState.audioCacheCapMb!=="number"? 0:uiState.audioCacheCapMb),
+                 /* 快捷键自定义键位: 非对象时按空表处理, 保持"只存改动"的口径 */
+                 "shortcutKeys":(uiState.shortcutKeys!==null && typeof uiState.shortcutKeys==="object"
+                                 ? uiState.shortcutKeys:{}),
                  /* 桌面悬浮歌词位置: 未设置时保持 null, 不能在这里丢掉 */
                  "desktopLyricsX":(typeof uiState.desktopLyricsX!=="number"? null:uiState.desktopLyricsX),
                  "desktopLyricsY":(typeof uiState.desktopLyricsY!=="number"? null:uiState.desktopLyricsY)});

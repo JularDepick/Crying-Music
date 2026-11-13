@@ -892,17 +892,33 @@ Rectangle {
     FontMetrics {
         id: lyricFontMetrics;
     }
-    function measureTextWidth(text,pixelSize,bold) {
-        lyricMetrics.font.pixelSize=pixelSize;
-        lyricMetrics.font.bold=bold;
-        lyricMetrics.text=String(text);
-        return lyricMetrics.advanceWidth;
+    /* 逐字宽度: metrics 可传入调用方自己的一份 TextMetrics. 两处调用共用同一个对象时,
+     * 一方写文本会让另一方的绑定失效, 表现为 sungLayout 与 layout 的绑定循环告警 */
+    function measureTextWidth(text,pixelSize,bold,metrics) {
+        var m=(metrics===undefined || metrics===null? lyricMetrics:metrics);
+        if(m.font.pixelSize!==pixelSize) {
+            m.font.pixelSize=pixelSize;
+        }
+        if(m.font.bold!==bold) {
+            m.font.bold=bold;
+        }
+        var s=String(text);
+        if(m.text!==s) {
+            m.text=s;
+        }
+        return m.advanceWidth;
     }
     /* 与 Text 的默认行距一致的行高: 遮罩按它定位当前行的上下边界 */
-    function rowHeightOf(pixelSize,bold) {
-        lyricFontMetrics.font.pixelSize=pixelSize;
-        lyricFontMetrics.font.bold=bold;
-        return lyricFontMetrics.height;
+    /* 行高: 与 measureTextWidth 同一口径, fontMetrics 可传入调用方自己的一份 */
+    function rowHeightOf(pixelSize,bold,fontMetrics) {
+        var m=(fontMetrics===undefined || fontMetrics===null? lyricFontMetrics:fontMetrics);
+        if(m.font.pixelSize!==pixelSize) {
+            m.font.pixelSize=pixelSize;
+        }
+        if(m.font.bold!==bold) {
+            m.font.bold=bold;
+        }
+        return m.height;
     }
     /* 可断行位置: 空白与中日韩字符(含全角标点)之后都可以断, 与 Text 的换行口径对齐 */
     function isWrapPoint(ch) {
@@ -915,12 +931,12 @@ Rectangle {
     }
     /* 当前行的可视行切分: 按列宽贪心断行, 返回每行在整行文本里的起止下标与宽度,
      * 以及逐字宽度与行高; 断行只在文本, 字号或列宽变化时重算 */
-    function sungLayoutOf(text,pixelSize,bold,columnWidth) {
+    function sungLayoutOf(text,pixelSize,bold,columnWidth,metrics,fontMetrics) {
         var s=String(text);
         var n=s.length;
         var widths=[];
         for(var i=0;i<n;i++) {
-            widths.push(root.measureTextWidth(s.charAt(i),pixelSize,bold));
+            widths.push(root.measureTextWidth(s.charAt(i),pixelSize,bold,metrics));
         }
         var lines=[];
         var from=0;
@@ -950,7 +966,8 @@ Rectangle {
         if(lines.length<=0) {
             lines.push({"from":0,"to":0,"w":0});
         }
-        return ({"lines":lines,"widths":widths,"rowHeight":root.rowHeightOf(pixelSize,bold),
+        return ({"lines":lines,"widths":widths,
+                 "rowHeight":root.rowHeightOf(pixelSize,bold,fontMetrics),
                  "columnWidth":Number(columnWidth)});
     }
     /* 遮罩几何: top 是当前行之前的整块高度, width 是当前行已唱到的像素位置, row 是行高;

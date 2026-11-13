@@ -167,17 +167,26 @@ Item {
     property int listenReportIntervalMs: 10000;
     property int listenChunkSeconds: 10;
     property int listenDailyMaxSeconds: 18000;
-    /* 全局键盘快捷键: 动作名到按键序列的映射, 界面按它注册 Shortcut 并随界面状态启停;
-     * 输入框获得焦点时统一不响应, 避免吞掉打字; 改键位只动这张表 */
+    /* 全局键盘快捷键的默认键位: 动作名到按键序列的映射, 设置页的按键绑定以它为默认值;
+     * 用户改过的键位存在界面状态里, 取值一律经 GlobalFileStorage.shortcutKeyOf, 不直接读这张表 */
     property var shortcutKeys:
     ({
         "playPause": "Space",
         "stopPlay": "Ctrl+Space",
-        "prevSong": "Ctrl+Left",
-        "nextSong": "Ctrl+Right",
+        "prevSong": "Ctrl+Alt+,",
+        "nextSong": "Ctrl+Alt+.",
         "volumeUp": "Ctrl+Up",
         "volumeDown": "Ctrl+Down"
     });
+    /* 快捷键动作清单: 设置页按这个顺序列出可绑定的动作, id 与 shortcutKeys 的键一致 */
+    property var shortcutActions: [
+        {"id":"playPause","label":"播放 / 暂停"},
+        {"id":"stopPlay","label":"停止"},
+        {"id":"prevSong","label":"上一曲"},
+        {"id":"nextSong","label":"下一曲"},
+        {"id":"volumeUp","label":"音量加"},
+        {"id":"volumeDown","label":"音量减"}
+    ];
     /* 音量快捷键的单次步长(百分比) */
     property int volumeStep: 5;
     /* 调试输出的分类开关: 分类名到开关的映射, 置 false 即关闭该分类的输出;

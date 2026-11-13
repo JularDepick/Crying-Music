@@ -7,18 +7,19 @@ import AppHelper 1.0
 
 import "./"
 
-/* 设置页: 顶部按分类 tab 分成播放与下载, 歌词与缓存, 关于与许可三组子页;
+/* 设置页: 顶部按分类 tab 分成播放与下载, 歌词与缓存, 按键绑定, 关于与许可四组子页;
  * 每个子页的正文放在可滚动区域里, 窗口变矮时由右侧细滚动条与滚轮承接;
  * 偏好都写成界面状态, 重启后保持; 换挡统一用 CustomChoose, 开关统一用 CustomSwitch */
 MainAreaFatherPage {
     id: mainArea_SettingsPage;
     visible: false;
-    /* 当前分类: play 为播放与下载, cache 为歌词与缓存, about 为关于与许可 */
+    /* 当前分类: play 为播放与下载, cache 为歌词与缓存, keys 为按键绑定, about 为关于与许可 */
     property string tabId: "play";
     /* 分类候选 */
     property var tabOptions: [
         {"id":"play","label":"播放与下载"},
         {"id":"cache","label":"歌词与缓存"},
+        {"id":"keys","label":"按键绑定"},
         {"id":"about","label":"关于与许可"}
     ];
     /* 下载目录操作的即时提示: 空字符串表示不显示 */
@@ -116,12 +117,136 @@ MainAreaFatherPage {
         }
         Assist.dlog("界面","关于与许可: 选中 ",licenseFileId," 字数 ",licenseText.length);
     }
+    /* 按键绑定: 正在录制的动作 id, 空串表示没有在录制; 预览与提示只在录制过程中出现 */
+    property string capturingAction: "";
+    property string capturePreview: "";
+    property string captureTip: "";
+    property bool captureTipOk: true;
+    /* 动作 id 对应的中文名, 只在提示文案里用 */
+    function shortcutLabelOf(actionId) {
+        var id=String(actionId===undefined || actionId===null? "":actionId);
+        var list=Define.shortcutActions;
+        for(var i=0;i<list.length;i++) {
+            if(String(list[i]["id"])===id) {
+                return String(list[i]["label"]);
+            }
+        }
+        return id;
+    }
+    function captureLabel() {
+        return shortcutLabelOf(capturingAction);
+    }
+    /* 开始录制: 覆盖层随 capturingAction 出现, 焦点交给收键的那一项 */
+    function startCapture(actionId) {
+        capturingAction=String(actionId===undefined || actionId===null? "":actionId);
+        capturePreview="";
+        captureTip="";
+        captureTipOk=true;
+        if(captureKeys!==null && captureKeys!==undefined) {
+            captureKeys.forceActiveFocus();
+        }
+        Assist.dlog("界面","按键绑定: 开始录制 ",capturingAction);
+    }
+    /* 取消录制: 切分类, 页面隐藏与 Esc 都走这里 */
+    function cancelCapture() {
+        if(capturingAction==="") {
+            return false;
+        }
+        Assist.dlog("界面","按键绑定: 取消录制 ",capturingAction);
+        capturingAction="";
+        capturePreview="";
+        captureTip="";
+        captureTipOk=true;
+        return true;
+    }
+    /* 按键码转按键序列里的写法: 只认常用的键, 认不出的直接拒绝 */
+    function keyNameOf(code) {
+        var map={0x20:"Space",0x2C:",",0x2E:".",0x2D:"-",0x3D:"=",0x2F:"/",
+                 0x3B:";",0x27:"'",0x5B:"[",0x5D:"]",0x5C:"\\",0x60:"`",
+                 0x01000001:"Tab",0x01000003:"Backspace",0x01000004:"Return",
+                 0x01000005:"Enter",0x01000007:"Delete",
+                 0x12:"Left",0x13:"Up",0x14:"Right",0x15:"Down",
+                 0x01000010:"Home",0x01000011:"End",0x01000015:"PageUp",0x01000016:"PageDown"};
+        if(map[code]!==undefined) {
+            return map[code];
+        }
+        if(code>=0x41 && code<=0x5A) {
+            return String.fromCharCode(code);
+        }
+        if(code>=0x30 && code<=0x39) {
+            return String.fromCharCode(code);
+        }
+        if(code>=0x01000030 && code<=0x0100003B) {
+            return "F"+String(code-0x01000030+1);
+        }
+        return "";
+    }
+    /* 按键事件转序列: 修饰键按 Ctrl, Alt, Shift, Meta 的顺序拼; 只按修饰键时返回空串 */
+    function sequenceOfEvent(event) {
+        var name=keyNameOf(event.key);
+        if(name==="") {
+            return "";
+        }
+        var parts=[];
+        var m=event.modifiers;
+        if(m & 0x04000000) {
+            parts.push("Ctrl");
+        }
+        if(m & 0x08000000) {
+            parts.push("Alt");
+        }
+        if(m & 0x02000000) {
+            parts.push("Shift");
+        }
+        if(m & 0x10000000) {
+            parts.push("Meta");
+        }
+        parts.push(name);
+        return parts.join("+");
+    }
+    /* 录制中的一个按键: Esc 取消, 只按修饰键时继续等, 其余先查冲突再写入 */
+    function handleCapture(event) {
+        if(event.key===0x01000000) {
+            cancelCapture();
+            return true;
+        }
+        var seq=sequenceOfEvent(event);
+        if(seq==="") {
+            capturePreview="";
+            captureTip="再按一个非修饰键, Esc 取消";
+            captureTipOk=true;
+            return false;
+        }
+        capturePreview=seq;
+        var owner=GlobalFileStorage.shortcutOwnerOf(seq);
+        if(owner!=="" && owner!==capturingAction) {
+            captureTip=("这个组合已用于 "+shortcutLabelOf(owner));
+            captureTipOk=false;
+            return false;
+        }
+        var ok=GlobalFileStorage.setShortcutKey(capturingAction,seq);
+        if(ok!==true) {
+            captureTip="写入失败, 请查看控制台日志";
+            captureTipOk=false;
+            return false;
+        }
+        Assist.dlog("界面","按键绑定: ",capturingAction," -> ",seq);
+        cancelCapture();
+        return true;
+    }
+    /* 单个动作恢复默认键位 */
+    function resetShortcut(actionId) {
+        var ok=GlobalFileStorage.resetShortcutKey(actionId);
+        Assist.dlog("界面","按键绑定恢复默认: ",actionId," 结果 ",ok);
+        return ok;
+    }
     /* 切换分类: 同时把滚动位置复位, 新的一页从顶部开始 */
     function setTab(id) {
         var next=String(id===undefined? "":id);
         if(next===tabId) {
             return false;
         }
+        cancelCapture();
         tabId=next;
         settingsFlick.contentY=0;
         if(tabId==="about") {
@@ -259,7 +384,8 @@ MainAreaFatherPage {
         boundsBehavior: Flickable.StopAtBounds;
         contentWidth: width;
         contentHeight: ((mainArea_SettingsPage.tabId==="play"? playTab.height
-                        :(mainArea_SettingsPage.tabId==="cache"? cacheTab.height:aboutTab.height))+48);
+                        :(mainArea_SettingsPage.tabId==="cache"? cacheTab.height
+                          :(mainArea_SettingsPage.tabId==="keys"? keysTab.height:aboutTab.height)))+48);
         /* 播放与下载 */
         Column {
             id: playTab;
@@ -625,6 +751,88 @@ MainAreaFatherPage {
                 wrapMode: Text.Wrap;
             }
         }
+        /* 按键绑定: 每个动作一行, 右侧是当前组合与修改入口; 点修改后由录制层收下一次按键 */
+        Column {
+            id: keysTab;
+            visible: (mainArea_SettingsPage.tabId==="keys");
+            x: 40;
+            width: settingsFlick.width-80;
+            spacing: 10;
+            Text {
+                color: Define.textColor;
+                text: "按键绑定";
+                font.pixelSize: 15;
+                font.weight: 400;
+            }
+            Repeater {
+                model: Define.shortcutActions;
+                delegate: Row {
+                    width: keysTab.width;
+                    spacing: 10;
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        width: 120;
+                        text: String(modelData["label"]);
+                        font.pixelSize: 14;
+                        color: Define.textColor;
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        width: 150;
+                        text: GlobalFileStorage.shortcutKeyOf(modelData["id"]);
+                        font.pixelSize: 13;
+                        color: (GlobalFileStorage.shortcutIsCustom(modelData["id"])
+                                ? Define.choseCyanColor:Define.btnIconColor);
+                        elide: Text.ElideRight;
+                        wrapMode: Text.NoWrap;
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter;
+                        text: (GlobalFileStorage.shortcutIsCustom(modelData["id"])? "(自定义)":"(默认)");
+                        font.pixelSize: 13;
+                        color: Define.btnIconColor;
+                    }
+                    CustomButtonA {
+                        width: 80;
+                        height: 30;
+                        transEnabled: false;
+                        background: Rectangle {
+                            anchors.fill: parent;
+                            radius: 15;
+                            color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                            Text {
+                                anchors.centerIn: parent;
+                                text: "修改";
+                                color: Define.textColor;
+                            }
+                        }
+                        onClicked: {
+                            mainArea_SettingsPage.startCapture(modelData["id"]);
+                        }
+                    }
+                    CustomButtonA {
+                        width: 100;
+                        height: 30;
+                        transEnabled: false;
+                        enabled: GlobalFileStorage.shortcutIsCustom(modelData["id"]);
+                        opacity: (enabled? 1:0.5);
+                        background: Rectangle {
+                            anchors.fill: parent;
+                            radius: 15;
+                            color: (parent.hovered? Define.choseDarkColor:Define.hoverDarkColor);
+                            Text {
+                                anchors.centerIn: parent;
+                                text: "恢复默认";
+                                color: Define.textColor;
+                            }
+                        }
+                        onClicked: {
+                            mainArea_SettingsPage.resetShortcut(modelData["id"]);
+                        }
+                    }
+                }
+            }
+        }
     }
     /* 正文的细滚动条: 与其它列表共用同一个组件, 内容不超出时自动隐藏 */
     CustomSliderC {
@@ -640,6 +848,72 @@ MainAreaFatherPage {
             value=Qt.binding(function() {
                 return from*(settingsFlick.contentY/Math.max(1,settingsFlick.contentHeight-settingsFlick.height));
             });
+        }
+    }
+    /* 按键录制层: 覆盖整页, 抢到焦点后由 Keys 收键; 点空白处或按 Esc 取消 */
+    Rectangle {
+        id: captureLayer;
+        anchors.fill: parent;
+        visible: (mainArea_SettingsPage.capturingAction!=="");
+        color: Qt.rgba(0,0,0,0.35);
+        topLeftRadius: Define.windowRadius;
+        topRightRadius: Define.windowRadius;
+        bottomLeftRadius: Define.windowRadius;
+        bottomRightRadius: Define.windowRadius;
+        /* 点卡片之外的地方取消录制; 声明在卡片之前, 卡片压在上面 */
+        MouseArea {
+            anchors.fill: parent;
+            acceptedButtons: Qt.LeftButton;
+            onClicked: {
+                mainArea_SettingsPage.cancelCapture();
+            }
+        }
+        Rectangle {
+            anchors.centerIn: parent;
+            width: 440;
+            height: 150;
+            radius: 10;
+            color: Define.mainAreaColor;
+            border.width: 1;
+            border.color: Define.subGrey;
+            Column {
+                anchors.centerIn: parent;
+                spacing: 12;
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter;
+                    text: ("为 " + mainArea_SettingsPage.captureLabel() + " 设置快捷键");
+                    font.pixelSize: 15;
+                    color: Define.textColor;
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter;
+                    text: (mainArea_SettingsPage.capturePreview===""? "请按下新的组合键"
+                                                                    :mainArea_SettingsPage.capturePreview);
+                    font.pixelSize: 20;
+                    font.weight: 600;
+                    color: Define.choseCyanColor;
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter;
+                    text: (mainArea_SettingsPage.captureTip===""? "Esc 取消"
+                                                                :mainArea_SettingsPage.captureTip);
+                    font.pixelSize: 13;
+                    color: (mainArea_SettingsPage.captureTipOk? Define.btnIconColor:Define.btnIconRed);
+                }
+            }
+            /* 键盘捕获: 卡片本身不抢焦点, 由这个铺满卡片的不可见项统一收键 */
+            Item {
+                id: captureKeys;
+                anchors.fill: parent;
+                focus: (captureLayer.visible===true);
+                Keys.onPressed: (event)=> {
+                    mainArea_SettingsPage.handleCapture(event);
+                    event.accepted=true;
+                }
+                Keys.onReleased: (event)=> {
+                    event.accepted=true;
+                }
+            }
         }
     }
     /* 系统文件夹选择框: 选中后写入界面状态, 目录不可写时保留原值 */
@@ -660,6 +934,12 @@ MainAreaFatherPage {
     }
     function refresh() {
         normalizeNameTemplate();
+    }
+    /* 页面隐藏时收掉录制层, 免得回来时还在等按键 */
+    onVisibleChanged: {
+        if(visible!==true) {
+            cancelCapture();
+        }
     }
     Component.onCompleted: {
         normalizeNameTemplate();
