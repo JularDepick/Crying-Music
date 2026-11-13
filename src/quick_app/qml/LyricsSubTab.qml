@@ -266,15 +266,13 @@ Rectangle {
                 baseColor: (index===root.currentLine? root.currentLineColor:Define.forbdDarkColor);
                 sungColor: Define.choseCyanColor;
                 progressEnabled: (index===root.currentLine);
-                /* 可视行布局: 只有当前行需要, 断行与字宽在文本, 字号或列宽变化时重算,
-                 * 进度变化不触发重排 */
-                layout: (index===root.currentLine
-                         ? root.sungLayoutOf(text,sungLine.pixelSize,sungLine.bold,sungLine.width)
-                         : null);
-                /* 遮罩几何: 随进度变化的只有当前行的右边界, 其它行直接不参与 */
-                maskGeom: (index===root.currentLine
-                           ? root.sungMaskOf(layout,modelData,sungLine.textLineCount)
-                           : null);
+                /* 断行与遮罩由组件自己按需重算: 只有当前行参与测量,
+                 * 逐字进度变化只重算遮罩, 不重排文本 */
+                measurer: root;
+                lineData: modelData;
+                isCurrent: (index===root.currentLine);
+                currentWord: (index===root.currentLine? root.currentWord:-1);
+                wordProgress: (index===root.currentLine? root.wordProgress:0);
             }
         }
         /* 右键歌词区呼出调节菜单: 用 TapHandler, 不打断左键拖动与滚轮 */

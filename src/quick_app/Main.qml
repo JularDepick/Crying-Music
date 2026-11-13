@@ -2059,26 +2059,6 @@ ApplicationWindow {
             }
             return (singer===""? song:song+" - "+singer);
         }
-        /* 逐字测量用本窗自己的一份度量对象: 与歌词页共用同一份时, 两处绑定会互相
-         * 写对方的度量, 表现为 sungLayout 与 layout 的绑定循环告警 */
-        TextMetrics {
-            id: lyricLineMetrics;
-        }
-        FontMetrics {
-            id: lyricLineFontMetrics;
-        }
-        /* 逐字进度: 与歌词页同一套算法, 断行与遮罩按本窗的字号与列宽重算 */
-        readonly property var sungLayout: (lineNow===null
-                                           ? null
-                                           : lyricsSubTab.sungLayoutOf(String(lineNow["text"]),
-                                                                       fontSizeNow,true,
-                                                                       lyricLine.width,
-                                                                       lyricLineMetrics,
-                                                                       lyricLineFontMetrics));
-        readonly property var sungMask: (sungLayout===null
-                                         ? null
-                                         : lyricsSubTab.sungMaskOf(sungLayout,lineNow,
-                                                                   lyricLine.textLineCount));
 
         Rectangle {
             anchors.fill: parent;
@@ -2102,8 +2082,12 @@ ApplicationWindow {
                 baseColor: (desktopLyrics.lineNow===null? "#99FFFFFF":desktopLyrics.lineColor);
                 sungColor: Define.choseCyanColor;
                 progressEnabled: (desktopLyrics.lineNow!==null && desktopLyrics.beforeFirstLine!==true);
-                layout: desktopLyrics.sungLayout;
-                maskGeom: desktopLyrics.sungMask;
+                /* 断行与遮罩由组件按本窗的字号与列宽自己算, 这里只注入数据与进度 */
+                measurer: lyricsSubTab;
+                lineData: desktopLyrics.lineNow;
+                isCurrent: (desktopLyrics.lineNow!==null);
+                currentWord: lyricsSubTab.currentWord;
+                wordProgress: lyricsSubTab.wordProgress;
             }
         }
         /* 整窗拖动交给系统移动, 不自绘拖影 */
