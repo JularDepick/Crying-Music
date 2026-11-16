@@ -193,7 +193,6 @@ MainAreaFatherPage {
                     id: codeField;
                     width: Math.max(0,loginForm.width-Define.loginActionWidth-10);
                     height: Define.loginFieldHeight;
-                    placeholderText: "六位数字";
                     maximumLength: 6;
                     /* 只接受数字: 邮箱里收到的验证码一定是六位数字 */
                     validator: RegularExpressionValidator { regularExpression: /[0-9]{0,6}/ }
