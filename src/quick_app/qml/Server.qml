@@ -1256,6 +1256,14 @@ Item {
         lyricsUpdated(lyricsName);
         return true;
     }
+    /* 歌词文本已经就绪(本地歌词补做解析完成时同样走这里): 按界面使用的档位名
+     * 通知歌词页重新读一次文本, 与在线歌词落盘后的通知同一口径 */
+    function notifyLyricsReady(lyricsName) {
+        var n=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        if(n!=="") {
+            lyricsUpdated(n);
+        }
+    }
     /* 歌词全部候选源都失败: 本进程内不再重试 */
     function _lyricsFailed(lyricsName,reason) {
         delete _lyricsPending[lyricsName];

@@ -1755,11 +1755,24 @@ MainAreaFatherPage {
             mainArea_LocalPage.onCoverReady(absfpath,coverPath);
         }
     }
+    /* 换曲时补一次本地歌词: 歌词缓存被设置页清空后不必等到下次启动才重新解析 */
+    Connections {
+        target: thePlayer;
+        function onPlayingIndexChanged() {
+            mainArea_LocalPage.healPlayingLyrics();
+        }
+    }
     /* 本地标签缓存就绪: 逐个收进存储, 整批结束后按新数据刷新一次列表(保持滚动位置) */
     Connections {
         target: AppSongFileHelper;
         function onSongReady(record) {
             GlobalFileStorage.setLocalTag(record);
+            /* 补做解析完成且正是当前播放项的歌词: 让歌词页按新文件重新读一次文本 */
+            var name=(record["lyricsName"]===undefined? "":String(record["lyricsName"]));
+            var playing=mainArea_LocalPage.playingLyricsNameOf();
+            if(name!=="" && playing!=="" && name===playing) {
+                Server.notifyLyricsReady(Server.lyricsVariantName(name));
+            }
         }
         function onFinished(count) {
             if(count<=0 || headRow.curr!=="localSongs") {
@@ -2008,6 +2021,50 @@ MainAreaFatherPage {
         setLyricName(absfpath,mainName);
         lyricsCacheDirty=true;
         Assist.dlog("元数据","内嵌歌词已缓存: ",mainName);
+    }
+    /* 运行期补做过歌词解析的文件: 同一文件每次运行只补一次, 免得反复重读标签 */
+    property var lyricHealTried: ({});
+    /* 记一次补做 */
+    function markLyricHealTried(absfpath) {
+        var m=({});
+        for(var k in lyricHealTried) {
+            m[k]=lyricHealTried[k];
+        }
+        m[absfpath]=true;
+        lyricHealTried=m;
+    }
+    /* 当前播放项的歌词名: 没有播放项或条目没有这一项时为空 */
+    function playingLyricsNameOf() {
+        var one=(thePlayer===null || thePlayer===undefined? null:thePlayer.playingEntry());
+        if(one===null || one===undefined) {
+            return "";
+        }
+        return (one["lyrics"]===undefined? "":String(one["lyrics"]));
+    }
+    /* 播放本地曲目时补一次歌词: 设置页的立即清理会把歌词缓存连同 local_ 文件删掉,
+     * 而标签缓存已判定该曲解析过, 不补做就永远取不回内嵌歌词; 解析队列正在跑时不插队
+     * (批处理入口会清空已有队列), 留到下次换曲再补 */
+    function healPlayingLyrics() {
+        var one=(thePlayer===null || thePlayer===undefined? null:thePlayer.playingEntry());
+        if(one===null || one===undefined || one["online"]===true) {
+            return false;
+        }
+        var p=(one["absfpath"]===undefined? "":String(one["absfpath"]));
+        if(p==="" || lyricHealTried[p]===true) {
+            return false;
+        }
+        var name=(one["lyrics"]===undefined? "":String(one["lyrics"]));
+        if(name!=="" && Server.localLyricsPathOf(name)!=="") {
+            return false;
+        }
+        if(AppSongFileHelper.busy()===true) {
+            return false;
+        }
+        markLyricHealTried(p);
+        AppSongFileHelper.processFiles([p],AppFileHelper.localCoverDir(),
+                                       GlobalFileStorage.lyricsCacheDir());
+        Assist.dlog("元数据","补做本地歌词解析: ",p);
+        return true;
     }
     /* 由标准化路径取歌曲名 */
     function nameOfFile(absfpath) {
