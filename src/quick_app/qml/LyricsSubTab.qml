@@ -688,16 +688,25 @@ Rectangle {
             Qt.callLater(root.anchorToCurrentLine);
         }
     }
-    /* 读盘并解析歌词: 没有缓存时清空显示, 缓存就绪时由 lyricsUpdated 再次触发 */
-    function loadLyricText() {
-        if(activeLyricsName==="") {
-            lyricLines=[];
-            currentLine=-1;
-            currentWord=-1;
+    /* 没有可读歌词时的占位文本: 与本地标签解析写出的占位同一口径 */
+    readonly property string noLyricsText: "暂无歌词";
+    /* 当前播放的是否为本地曲目: 在线条目带 online 标记, 本地条目没有这一项 */
+    function isLocalPlaying() {
+        if(playingEntryData===null || playingEntryData===undefined) {
             return false;
         }
-        var path=Server.lyricsPathOf(activeLyricsName);
+        return (playingEntryData["online"]!==true);
+    }
+    /* 读盘并解析歌词: 没有缓存时清空显示, 缓存就绪时由 lyricsUpdated 再次触发;
+     * 本地曲目没有可读的歌词文件时给一行占位文本, 在线曲目仍按空歌词处理 */
+    function loadLyricText() {
+        var path=(activeLyricsName===""? "":Server.lyricsPathOf(activeLyricsName));
         if(path==="") {
+            if(root.isLocalPlaying()===true) {
+                lyricLines=[({"t":-1,"text":root.noLyricsText,"words":[],"headLength":0})];
+                root.syncCurrentLine();
+                return true;
+            }
             lyricLines=[];
             currentLine=-1;
             currentWord=-1;

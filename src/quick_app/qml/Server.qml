@@ -1037,10 +1037,70 @@ Item {
             from=a+1;
         }
     }
-    /* 歌词缓存路径: 未缓存时为空字符串, 值是可直接读盘的文件地址 */
+    /* 本地曲目的歌词缓存名前缀: 本地标签解析写进歌词缓存目录的文件都带这个前缀,
+     * 这类歌词只读盘, 一律不参与在线拉取 */
+    readonly property string localLyricsTag: "local_"
+    /* 名字是否属于本地曲目的歌词缓存: 主名固定是 local_ 加 16 位小写十六进制摘要,
+     * 在线清单里恰好以 local_ 开头的曲目不会被误判成本地歌词 */
+    function isLocalLyricsName(lyricsName) {
+        var s=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        if(s.indexOf(localLyricsTag)!==0) {
+            return false;
+        }
+        var hex=_localLyricsBaseOf(s).substring(localLyricsTag.length);
+        if(hex.length!==16) {
+            return false;
+        }
+        for(var i=0;i<hex.length;i++) {
+            var c=hex.charCodeAt(i);
+            if((c<48 || c>57) && (c<97 || c>102)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    /* 本地歌词的主名: 只认 .elrc 与 .lrc 两种档位扩展名, 其余原样返回 */
+    function _localLyricsBaseOf(lyricsName) {
+        var s=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        if(s.length>5 && s.substring(s.length-5)===".elrc") {
+            return s.substring(0,s.length-5);
+        }
+        if(s.length>4 && s.substring(s.length-4)===".lrc") {
+            return s.substring(0,s.length-4);
+        }
+        return s;
+    }
+    /* 本地歌词的落盘路径: 先按这一档的文件名找, 增强档缺失时退回普通档(两档只差逐字进度),
+     * 两档都不在时再试一次不带扩展名的历史命名; 都没有时返回空字符串, 由界面按占位文本处理 */
+    function localLyricsPathOf(lyricsName) {
+        var name=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
+        if(isLocalLyricsName(name)!==true) {
+            return "";
+        }
+        var dir=GlobalFileStorage.lyricsCacheDir();
+        var base=_localLyricsBaseOf(name);
+        if(dir==="" || base==="") {
+            return "";
+        }
+        var wantElrc=(name.length>5 && name.substring(name.length-5)===".elrc");
+        var exts=(wantElrc===true? [".elrc",".lrc"]:[".lrc",".elrc"]);
+        for(var i=0;i<exts.length;i++) {
+            var p=dir+"/"+base+exts[i];
+            if(AppFileHelper.existsFile(p)===true) {
+                return p;
+            }
+        }
+        var bare=dir+"/"+base;
+        return (AppFileHelper.existsFile(bare)===true? bare:"");
+    }
+    /* 歌词缓存路径: 未缓存时为空字符串, 值是可直接读盘的文件地址;
+     * 本地曲目的歌词不进在线缓存索引, 每次按磁盘现状解析 */
     function lyricsPathOf(lyricsName) {
         if(typeof lyricsName!=="string" || lyricsName==="") {
             return "";
+        }
+        if(isLocalLyricsName(lyricsName)===true) {
+            return localLyricsPathOf(lyricsName);
         }
         var key=_lyricsBaseName(lyricsName)+_lyricsTierExtOf(lyricsName);
         var p=lyricsCache[key];
@@ -1133,6 +1193,10 @@ Item {
         var name=String(lyricsName===undefined || lyricsName===null? "":lyricsName);
         if(name==="") {
             return false;
+        }
+        /* 本地曲目的歌词只读盘: 文件不在时按没有歌词处理, 不发起任何在线请求 */
+        if(isLocalLyricsName(name)===true) {
+            return (localLyricsPathOf(name)!=="");
         }
         /* 统一还原成 主文件名加档位扩展名, 缓存键才与界面查的一致 */
         name=_lyricsBaseName(name)+_lyricsTierExtOf(name);
@@ -1227,6 +1291,11 @@ Item {
             }
             /* 索引文件不是歌词, 不参与接管 */
             if(name===GlobalFileStorage.lyricsCacheIndexFileName) {
+                continue;
+            }
+            /* 本地曲目的歌词由本地标签解析维护, 只读盘: 不进这份索引, 也不按在线口径体检,
+             * 免得把没有时间戳的占位歌词当成错误页删掉 */
+            if(isLocalLyricsName(name)===true) {
                 continue;
             }
             /* 缓存里的文件必须是可用歌词: 早期版本会把镜像 200 返回的错误页原样落盘, 这里清掉重新取 */
