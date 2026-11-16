@@ -3,6 +3,9 @@ build/
 dist/
 release/
 single-branch/
+# scripts/songfile_taglib.py 的缺省输入与输出目录
+.input/
+.output/
 
 # Agent Runtime
 AGENT*.md
@@ -17,6 +20,10 @@ tmp/
 *.wav
 *.flac
 *.ogg
+
+# Python
+__pycache__/
+*.pyc
 
 # other
 v*-*.md
