@@ -403,7 +403,7 @@ MainAreaFatherPage {
     /* 封面来源: 优先取本地封面, 其次在线封面缓存, 都没有时回退应用图标 */
     function coverOf(one) {
         if(one===undefined || one===null) {
-            return "qrc:/favicon.jpg";
+            return "qrc:/favicon.png";
         }
         var ip=one["absipath"];
         if(typeof ip==="string" && ip!=="") {
@@ -411,10 +411,10 @@ MainAreaFatherPage {
         }
         var key=(one["cover"]===undefined? "":one["cover"]);
         if(typeof key!=="string" || key==="") {
-            return "qrc:/favicon.jpg";
+            return "qrc:/favicon.png";
         }
         var p=Server.coverCache[key];
-        return (typeof p==="string" && p!==""? p:"qrc:/favicon.jpg");
+        return (typeof p==="string" && p!==""? p:"qrc:/favicon.png");
     }
     /* 喜欢状态会被其它页面改写, 显示时轻量同步一次 */
     function syncLiked() {

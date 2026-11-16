@@ -51,7 +51,7 @@ quick_app/
 ├── THIRD-PARTY-NOTICES.md # 第三方组件声明(Qt 与其内置组件, 以及 FFmpeg 的许可归属与源码获取)
 ├── resource.qrc           # qrc 资源清单(许可文本以 licenses/ 为别名嵌入)
 ├── resource.rc            # Windows 资源文件
-├── favicon.jpg            # 应用图标
+├── favicon.png            # 应用图标
 ├── icon.ico               # Windows 图标
 ├── reference.png          # 界面参考图
 ├── .qtcreator/            # Qt Creator 工程用户文件(CMakeLists.txt.user, 被 git 追踪)

@@ -181,7 +181,7 @@ Rectangle {
                 property string coverSource: ((playingEntry!==null && playingEntry["absipath"]
                                               ? String(playingEntry["absipath"])
                                               :(coverName!=="" && Server.coverCache[coverName]!==undefined
-                                                ? String(Server.coverCache[coverName]):"qrc:/favicon.jpg")));
+                                                ? String(Server.coverCache[coverName]):"qrc:/favicon.png")));
                 /* 换歌时按需请求封面: 已缓存或本进程已失败时 requestCover 直接返回 */
                 onCoverNameChanged: {
                     if(coverName!=="") {

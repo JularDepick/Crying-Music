@@ -1,6 +1,6 @@
 <RCC>
     <qresource prefix="/">
-        <file>favicon.jpg</file>
+        <file>favicon.png</file>
 
         <file>assets/iconfont/function/like.svg</file>
         <file>assets/iconfont/function/liked.svg</file>

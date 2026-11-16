@@ -80,7 +80,7 @@ public:
 
     /* 显示托盘图标: 图标固定取应用资源里的 favicon, 提示文本由调用方给出 */
     Q_INVOKABLE void show(const QString &tooltip) {
-        const QIcon one(QStringLiteral(":/favicon.jpg"));
+        const QIcon one(QStringLiteral(":/favicon.png"));
         if (!one.isNull()) {
             m_tray->setIcon(one);
         }

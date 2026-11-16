@@ -51,7 +51,7 @@ quick_app/
 ├── THIRD-PARTY-NOTICES.md # Third party notices (Chinese only): Qt and the components bundled with it, plus FFmpeg
 ├── resource.qrc           # Qt resource manifest (license texts embedded under the licenses/ alias)
 ├── resource.rc            # Windows resource file
-├── favicon.jpg            # Application icon
+├── favicon.png            # Application icon
 ├── icon.ico               # Windows icon
 ├── reference.png          # UI reference image
 ├── .qtcreator/            # Qt Creator project user files (CMakeLists.txt.user, tracked by git)

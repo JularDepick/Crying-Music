@@ -209,7 +209,7 @@ Rectangle {
                                     }
                                     source: (modelData["absipath"]&&modelData["absipath"]!==""? modelData["absipath"]
                                              :(modelData["cover"]&&modelData["cover"]!==""&&Server.coverCache[modelData["cover"]]!==undefined
-                                               ? Server.coverCache[modelData["cover"]]:"qrc:/favicon.jpg"));
+                                               ? Server.coverCache[modelData["cover"]]:"qrc:/favicon.png"));
                                 }
                                 Rectangle {
                                     anchors.fill: parent;

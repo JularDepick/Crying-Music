@@ -1258,7 +1258,7 @@ ApplicationWindow {
                                 id: userAvatar;
                                 visible: (Account.loggedIn===true);
                                 source: (Account.avatarSource(Define.avatarSpecSmall)===""
-                                         ? "qrc:/favicon.jpg":Account.avatarSource(Define.avatarSpecSmall));
+                                         ? "qrc:/favicon.png":Account.avatarSource(Define.avatarSpecSmall));
                                 fillMode: Image.PreserveAspectCrop;
                                 layer.enabled: true;
                                 layer.effect: MultiEffect {

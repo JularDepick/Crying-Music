@@ -646,7 +646,7 @@ Rectangle {
     function coverOfEntry(one) {
         var name=(one===null || one["cover"]===undefined? "":String(one["cover"]));
         if(name==="" || Server.coverCache[name]===undefined) {
-            return "qrc:/favicon.jpg";
+            return "qrc:/favicon.png";
         }
         return String(Server.coverCache[name]);
     }

@@ -265,7 +265,7 @@ MainAreaFatherPage {
                     outlineWidth: 1;
                     outlineColor: Define.subGrey;
                     source: (Account.avatarSource(Define.avatarSpecLarge)===""
-                             ? "qrc:/favicon.jpg":Account.avatarSource(Define.avatarSpecLarge));
+                             ? "qrc:/favicon.png":Account.avatarSource(Define.avatarSpecLarge));
                 }
                 Column {
                     anchors.verticalCenter: parent.verticalCenter;

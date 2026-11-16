@@ -581,9 +581,9 @@ MainAreaFatherPage {
     function coverPathOf(one) {
         var key=(one===undefined || one===null? "":one["cover"]);
         if(typeof key!=="string" || key==="") {
-            return "qrc:/favicon.jpg";
+            return "qrc:/favicon.png";
         }
         var p=Server.coverCache[key];
-        return (typeof p==="string" && p!==""? p:"qrc:/favicon.jpg");
+        return (typeof p==="string" && p!==""? p:"qrc:/favicon.png");
     }
 }
