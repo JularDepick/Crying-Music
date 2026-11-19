@@ -1,11 +1,14 @@
-# 新建 release 时构建 Quick App 便携版, 并把压缩包上传到该 release 的 assets
+# 正式 release 发布时构建 Quick App 便携版, 并把压缩包上传到该 release 的 assets
+# 预发行(发布时勾选 pre-release)不触发: 预发行与正式发行是两条独立的版本线, 预发行线不产出便携包
 # 发布包由 src/quick_app/scripts/copy_release.py 复制而成, 该脚本的构建输出目录名与复制清单
 # 必须与构建流程保持一致, 变更构建目录名或新增依赖时同步维护该脚本
 name: 发布QuickApp便携版
 
 on:
   release:
-    types: ["published"]
+    # 只认 released: 正式发布, 或把预发行提升为正式发布时才触发
+    # 不能用 published: 它同时覆盖正式发布与预发行, 预发行带 -pre.N 后缀会撞上版本号强校验
+    types: ["released"]
   workflow_dispatch:
     inputs:
       tag:
